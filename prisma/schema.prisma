@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Series: tracks progression of lesson series (רב"ש, תע"ס, etc.) ──────────
+
+model Series {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  slug               String   @unique
+  description        String?
+  color              String?
+  sortOrder          Int      @default(0)
+  currentArticleRef  String?
+  currentLessonRef   String?
+  currentPage        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  lessons            Lesson[]
+  progress           SeriesProgress[]
+}
+
+// ─── SeriesProgress: per-day snapshot of where a series stands ────────────────
+
+model SeriesProgress {
+  id         String    @id @default(cuid())
+  seriesId   String
+  series     Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  dayId      String
+  day        LineupDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  articleRef String?
+  lessonRef  String?
+  pageRef    String?
+  notes      String?
+
+  @@unique([seriesId, dayId])
+}
+
+// ─── LineupRuleSet: AI planning constraints and day template ─────────────────
+
+model LineupRuleSet {
+  id                  String   @id @default(cuid())
+  name                String   @unique
+  description         String?
+  isDefault           Boolean  @default(false)
+  broadcastStartTime  String   @default("02:40")
+  targetDurationSec   Int?
+  hardMaxDurationSec  Int?
+  splitLongLessons    Boolean  @default(true)
+  maxLessonDurationSec Int?
+  dayTemplate         String   // JSON: [{type:"fixed"|"lesson"|"article", componentId?, slotType?, label?}]
+  preferredSeriesIds  String?  // JSON: string[]
+  extraInstructions   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// ─── WeekTemplate: per-day slot structure template ───────────────────────────
+
+model WeekTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isDefault   Boolean  @default(false)
+  // JSON: {"0": [{slotType, componentId?, label?, durationSec?}], ...}
+  days        String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ─── LineupComponent: predefined building blocks for day lineup ───────────────
+
+model LineupComponent {
+  id                          String   @id @default(cuid())
+  name                        String   @unique
+  category                    String
+  slotType                    String
+  sortOrder                   Int      @default(0)
+  defaultLabel                String?
+  defaultDurationSec          Int?
+  defaultNarratorScript       String?
+  defaultTransitionType       String?
+  defaultMediaCode            String?
+  defaultLanguage             String?
+  defaultHasSubtitles         Boolean  @default(false)
+  defaultHasWorkshopQuestions Boolean  @default(false)
+  defaultNotes                String?
+  defaultPartNumber           Int?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  slots                       LineupSlot[]
+}
+
+// ─── ArticleSource: cached KabMedia source with page numbers ─────────────────
+
+model ArticleSource {
+  id         String   @id       // KabMedia source ID
+  ref        String   @default("") // human-readable title / full path
+  link       String?            // https://kabbalahmedia.info/sources/{id}
+  wordCount  Int?
+  readingSec Int?
+  bookSeries String?            // "rabash" | "zohar-laam" | "tes" | ...
+  bookVolume Int?               // volume number within the series
+  bookPage   Int?               // page number within the volume
+
+  lessons    Lesson[]
+}
+
+// ─── Lesson: content library entry ───────────────────────────────────────────
+
+model Lesson {
+  id                String    @id @default(cuid())
+  approvalStatus    String    @default("pending")
+  approvalDate      DateTime?
+  broadcastDate     DateTime?
+  recordingDate     DateTime?
+
+  kmUid             String?   @unique
+  kmPageLink        String?
+  sourceRef         String?
+  videoLink         String?
+  transcriptionLink String?
+  videoDurationSec  Int?
+  narratorName      String?
+
+  articleSourceRef  String?
+  articleSourceId   String?
+  articleSourceLink String?
+  articleWordCount  Int?
+  articleReadingMin Int?
+  articleReadingSec Int?
+
+  articleSource     ArticleSource? @relation(fields: [articleSourceId], references: [id])
+
+  totalTimeMin      Int?
+  initialNotes      String?
+  openingStatement  String?
+  closingStatement  String?
+  tags              String?
+
+  seriesId          String?
+  series            Series?   @relation(fields: [seriesId], references: [id])
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  lineupSlots       LineupSlot[]
+}
+
+// ─── Lineup: one week ────────────────────────────────────────────────────────
+
+model Lineup {
+  id        String      @id @default(cuid())
+  weekStart DateTime    @unique
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  days      LineupDay[]
+}
+
+// ─── LineupDay: one day within a week ────────────────────────────────────────
+
+model LineupDay {
+  id                 String           @id @default(cuid())
+  lineupId           String
+  lineup             Lineup           @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  dayOfWeek          Int
+  notes              String?
+  broadcastStartTime String?
+
+  slots              LineupSlot[]
+  seriesProgress     SeriesProgress[]
+
+  @@unique([lineupId, dayOfWeek])
+}
+
+// ─── LineupSlot: one item within a day ───────────────────────────────────────
+
+model LineupSlot {
+  id                  String           @id @default(cuid())
+  dayId               String
+  day                 LineupDay        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  slotType            String
+  sortOrder           Int              @default(0)
+  label               String?
+  durationSec         Int?
+
+  // Lesson link
+  lessonId            String?
+  lesson              Lesson?          @relation(fields: [lessonId], references: [id])
+
+  // Part grouping
+  partNumber          Int?
+
+  // Narrator / script
+  narratorScript      String?
+
+  // Transition type (for מעברון slots)
+  transitionType      String?
+
+  // Media references
+  studyMaterialLink      String?
+  studyMaterialSourceRef String?
+  mediaCode              String?
+  recordedLessonLink     String?
+  lineupLink             String?
+
+  // Recorded lesson timecodes
+  startTimecode       String?
+  endTimecode         String?
+  openingWords        String?
+  closingWords        String?
+
+  // Flags
+  hasSubtitles        Boolean          @default(false)
+  hasWorkshopQuestions Boolean          @default(false)
+  language            String?
+
+  // Group/leader info
+  chevrutaPartners    String?
+  groupLeader         String?
+  contactPerson       String?
+
+  holidayTag          String?
+  notes               String?
+
+  // Component template reference
+  componentId         String?
+  component           LineupComponent? @relation(fields: [componentId], references: [id])
+
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([dayId, sortOrder])
+}
