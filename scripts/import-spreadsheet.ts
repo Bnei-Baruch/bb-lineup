@@ -44,6 +44,7 @@ const prisma = createPrisma();
 const COL_BROADCAST_DATE = 1;
 const COL_STATUS = 2;
 const COL_LESSON_LINK = 6;
+const COL_TRANSCRIPTION_LINK = 7;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -216,9 +217,10 @@ async function main() {
   let created = 0, updated = 0, skipped = 0, errors = 0;
 
   for (const row of dataRows) {
-    const rawLink          = row[COL_LESSON_LINK]?.trim() ?? "";
-    const rawBroadcastDate = row[COL_BROADCAST_DATE]?.trim() ?? "";
-    const rawStatus        = row[COL_STATUS]?.trim() ?? "";
+    const rawLink             = row[COL_LESSON_LINK]?.trim() ?? "";
+    const rawBroadcastDate    = row[COL_BROADCAST_DATE]?.trim() ?? "";
+    const rawStatus           = row[COL_STATUS]?.trim() ?? "";
+    const sheetTranscription  = row[COL_TRANSCRIPTION_LINK]?.trim() || null;
 
     // Skip rows with no valid KabMedia lesson link
     if (!rawLink.includes("kabbalahmedia.info")) {
@@ -234,7 +236,8 @@ async function main() {
     }
 
     const broadcastDate  = parseBroadcastDate(rawBroadcastDate, year);
-    const approvalStatus = mapStatus(rawStatus);
+    const isPast = broadcastDate ? broadcastDate < new Date() : false;
+    const approvalStatus = isPast ? "used" : mapStatus(rawStatus);
 
     try {
       const existing = await prisma.lesson.findUnique({
@@ -246,6 +249,7 @@ async function main() {
         // ── Update existing: only status + broadcastDate ─────────────────────
         const updateData: Record<string, unknown> = { approvalStatus };
         if (broadcastDate) updateData.broadcastDate = broadcastDate;
+        if (sheetTranscription) updateData.transcriptionLink = sheetTranscription;
 
         if (!dryRun) {
           await prisma.lesson.update({ where: { id: existing.id }, data: updateData });
@@ -311,7 +315,7 @@ async function main() {
         }
 
         // Narrator from Hebrew video filename
-        type KmFile = { language: string; type: string; name?: string; mimetype?: string };
+        type KmFile = { language: string; type: string; name?: string; mimetype?: string; duration?: number };
         const files = (unit.files as KmFile[] | undefined) ?? [];
         const heVideo = files.find((f) => f.language === "he" && f.type === "video");
         const narratorName = heVideo?.name?.split("_")[2] ?? null;
@@ -320,16 +324,17 @@ async function main() {
         const hasDocx = files.some(
           (f) => f.name?.endsWith(".docx") || f.mimetype?.includes("wordprocessingml") || f.mimetype?.includes("msword")
         );
-        const transcriptionLink = hasDocx
-          ? `https://kabbalahmedia.info/he/lessons/cu/${kmUid}?activeTab=transcription`
-          : null;
+        const transcriptionLink = sheetTranscription
+          ?? (hasDocx ? `https://kabbalahmedia.info/he/lessons/cu/${kmUid}?activeTab=transcription` : null);
+
+        const videoDurationSec = heVideo?.duration != null ? Math.round(heVideo.duration) : (unit.duration ? Math.round(unit.duration as number) : null);
 
         const data: Record<string, unknown> = {
           kmUid,
           kmPageLink,
           sourceRef:         (unit.name as string) ?? null,
           recordingDate:     unit.film_date ? new Date(unit.film_date as string) : null,
-          videoDurationSec:  unit.duration  ? Math.round(unit.duration as number) : null,
+          videoDurationSec,
           narratorName,
           transcriptionLink,
           articleSourceId:   sourceId,

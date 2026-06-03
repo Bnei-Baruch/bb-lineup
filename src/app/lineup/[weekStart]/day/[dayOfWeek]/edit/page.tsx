@@ -88,10 +88,16 @@ export default async function DayEditPage({
     );
   }
 
+  const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
+    SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
+  `;
+  const broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
+
   const date = dayDate(ws, dow);
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
+    broadcastEndTime,
     slots: dayData.slots.map((s) => ({
       ...s,
       lesson: s.lesson

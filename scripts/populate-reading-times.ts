@@ -17,7 +17,7 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const concurrencyArg = process.argv.find((a) => a.startsWith("--concurrency="));
 const CONCURRENCY = concurrencyArg ? parseInt(concurrencyArg.split("=")[1]) : 5;
 const KM_BASE = "https://kabbalahmedia.info";
-const WPM = 80;
+const WPM = 77;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

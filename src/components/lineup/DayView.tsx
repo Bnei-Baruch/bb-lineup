@@ -32,7 +32,7 @@ function itemLabel(slot: SlotWithLesson): string {
   if (slot.slotType === "article_reading") {
     return SLOT_TYPE_LABELS["article_reading"] || "קריאת מאמר";
   }
-  return slot.label || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
+  return slot.label || slot.component?.name || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
 }
 
 function contentText(slot: SlotWithLesson): string {

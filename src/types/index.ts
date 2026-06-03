@@ -176,6 +176,7 @@ export interface SlotWithLesson {
   holidayTag: string | null;
   notes: string | null;
   componentId: string | null;
+  component: { id: string; name: string; category: string } | null;
 }
 
 export interface DayWithSlots {
@@ -184,6 +185,7 @@ export interface DayWithSlots {
   dayOfWeek: number;
   notes: string | null;
   broadcastStartTime: string | null;
+  broadcastEndTime: string | null;
   slots: SlotWithLesson[];
 }
 

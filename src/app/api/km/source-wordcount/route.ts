@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchContentUnit, findDocxFileId, fetchDocHtml } from "@/lib/km-client";
 import { stripHtml, countWords } from "@/lib/time";
 
-const WPM = 80;
+const WPM = 77;
 
 export async function GET(req: NextRequest) {
   const uid = req.nextUrl.searchParams.get("uid");

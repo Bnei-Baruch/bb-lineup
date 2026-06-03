@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const rules = await prisma.lineupRuleSet.findMany({ orderBy: { name: "asc" } });
+  const rules = await prisma.$queryRaw<Record<string, unknown>[]>`SELECT * FROM "LineupRuleSet" ORDER BY name ASC`;
   return NextResponse.json(rules);
 }
 
@@ -23,5 +23,11 @@ export async function POST(req: NextRequest) {
       extraInstructions: body.extraInstructions ?? null,
     },
   });
-  return NextResponse.json(rule, { status: 201 });
+
+  if (body.broadcastEndTime !== undefined) {
+    await prisma.$executeRaw`UPDATE "LineupRuleSet" SET "broadcastEndTime" = ${body.broadcastEndTime ?? null} WHERE id = ${rule.id}`;
+  }
+
+  const updated = await prisma.$queryRaw<Record<string, unknown>[]>`SELECT * FROM "LineupRuleSet" WHERE id = ${rule.id}`;
+  return NextResponse.json(updated[0], { status: 201 });
 }

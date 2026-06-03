@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { LessonPicker } from "./LessonPicker";
 import { SourceSearch } from "@/components/library/SourceSearch";
-import { SlotWithLesson, SlotType, SLOT_TYPE_LABELS, TRANSITION_LABELS, TransitionType, LessonSummary } from "@/types";
+import { SlotWithLesson, SlotType, SLOT_TYPE_LABELS, TRANSITION_LABELS, TransitionType, LessonSummary, COMPONENT_CATEGORIES } from "@/types";
 import { Loader2 } from "lucide-react";
 import { formatDurationSec, parseDurationToSec } from "@/lib/time";
 
@@ -25,6 +25,11 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [wordCount, setWordCount] = useState("");
+  const [saveAsComponent, setSaveAsComponent] = useState(false);
+  const [componentName, setComponentName] = useState("");
+  const [componentCategory, setComponentCategory] = useState("custom");
+  const [savingComponent, setSavingComponent] = useState(false);
+  const [componentSaved, setComponentSaved] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -99,6 +104,43 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
       onClose();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveAsComponent() {
+    if (!componentName.trim()) return;
+    setSavingComponent(true);
+    setComponentSaved(null);
+    try {
+      const durationSec = (() => { const s = parseDurationToSec(form.durationMin); return s != null ? s : (parseInt(form.durationMin) * 60 || null); })();
+      const res = await fetch("/api/components", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: componentName.trim(),
+          category: componentCategory,
+          slotType: slot.slotType,
+          defaultLabel: form.label || null,
+          defaultDurationSec: durationSec,
+          defaultNarratorScript: form.narratorScript || null,
+          defaultTransitionType: form.transitionType || null,
+          defaultMediaCode: form.mediaCode || null,
+          defaultLanguage: form.language || null,
+          defaultHasSubtitles: form.hasSubtitles,
+          defaultHasWorkshopQuestions: form.hasWorkshopQuestions,
+          defaultNotes: form.notes || null,
+          defaultPartNumber: form.partNumber ? parseInt(form.partNumber) : null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setComponentSaved(data.error ?? "שגיאה");
+      } else {
+        setComponentSaved("✓ נשמר בהצלחה");
+        setComponentName("");
+      }
+    } finally {
+      setSavingComponent(false);
     }
   }
 
@@ -185,7 +227,12 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                   <Input value={form.startTimecode} onChange={(e) => set("startTimecode", e.target.value)} placeholder="00:00:00" dir="ltr" />
                 </Field>
                 <Field label="עד דקה">
-                  <Input value={form.endTimecode} onChange={(e) => set("endTimecode", e.target.value)} placeholder="00:32:49" dir="ltr" />
+                  <Input
+                    value={form.endTimecode}
+                    onChange={(e) => set("endTimecode", e.target.value)}
+                    placeholder={lesson?.videoDurationSec ? formatDurationSec(lesson.videoDurationSec) : "00:00:00"}
+                    dir="ltr"
+                  />
                 </Field>
                 <Field label="דבר המתחיל">
                   <Textarea rows={2} value={form.openingWords} onChange={(e) => set("openingWords", e.target.value)} />
@@ -255,13 +302,13 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                       onChange={(e) => {
                         setWordCount(e.target.value);
                         const wc = parseInt(e.target.value) || 0;
-                        if (wc > 0) set("durationMin", formatDurationSec(Math.round(wc / 80 * 60)));
+                        if (wc > 0) set("durationMin", formatDurationSec(Math.round(wc / 77 * 60)));
                       }}
                       dir="ltr"
                       className="w-28"
                       placeholder="1500"
                     />
-                    <span className="text-xs text-muted-foreground">מילים (80 מילה/דקה)</span>
+                    <span className="text-xs text-muted-foreground">מילים (77 מילה/דקה)</span>
                   </div>
                 </Field>
               </>
@@ -344,6 +391,46 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
             </Field>
           </div>
 
+          {/* Save as component */}
+          {saveAsComponent ? (
+            <div className="border border-border rounded-lg p-3 space-y-2 bg-muted/40">
+              <p className="text-xs font-medium">שמור כרכיב חדש</p>
+              <div className="flex gap-2">
+                <Input
+                  value={componentName}
+                  onChange={(e) => setComponentName(e.target.value)}
+                  placeholder="שם הרכיב"
+                  className="h-8 text-sm flex-1"
+                  autoFocus
+                />
+                <select
+                  value={componentCategory}
+                  onChange={(e) => setComponentCategory(e.target.value)}
+                  className="h-8 rounded border border-input bg-background px-2 text-sm"
+                >
+                  {COMPONENT_CATEGORIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              {componentSaved && (
+                <p className={`text-xs ${componentSaved.startsWith("✓") ? "text-green-600" : "text-destructive"}`}>
+                  {componentSaved}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setSaveAsComponent(false)} className="text-xs">ביטול</Button>
+                <Button size="sm" onClick={handleSaveAsComponent} disabled={savingComponent || !componentName.trim()} className="text-xs">
+                  {savingComponent ? <Loader2 className="h-3 w-3 animate-spin" /> : "שמור רכיב"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground w-full" onClick={() => setSaveAsComponent(true)}>
+              + שמור כרכיב
+            </Button>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>ביטול</Button>
             <Button onClick={handleSave} disabled={saving}>
@@ -366,7 +453,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
             recordedLessonLink: f.recordedLessonLink || l.kmPageLink || "",
             studyMaterialLink: f.studyMaterialLink || l.articleSourceLink || "",
             startTimecode: f.startTimecode || "00:00:00",
-            endTimecode: f.endTimecode || (l.videoDurationSec ? formatDurationSec(l.videoDurationSec) : ""),
+            endTimecode: f.endTimecode || "",
           }));
         }}
       />

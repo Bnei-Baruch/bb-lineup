@@ -38,6 +38,8 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
     }),
   ]);
 
+  const aiTemplates = ruleSets.map((r) => ({ id: r.id, name: r.name }));
+
   let lineup = await prisma.lineup.findUnique({
     where: { weekStart: toWeekStart(parseWeekParam(weekStart)) },
     include: weekInclude,
@@ -53,11 +55,17 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
     });
   }
 
+  const endTimes = await prisma.$queryRaw<{ id: string; broadcastEndTime: string | null }[]>`
+    SELECT id, broadcastEndTime FROM "LineupDay" WHERE "lineupId" = ${lineup.id}
+  `;
+  const endTimeMap = Object.fromEntries(endTimes.map((r) => [r.id, r.broadcastEndTime]));
+
   const data: LineupWithDays = JSON.parse(JSON.stringify({
     ...lineup,
     weekStart: lineup.weekStart.toISOString().slice(0, 10),
     days: lineup.days.map((d) => ({
       ...d,
+      broadcastEndTime: endTimeMap[d.id] ?? null,
       slots: d.slots.map((s) => ({
         ...s,
         lesson: s.lesson
@@ -92,7 +100,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
       </div>
 
       <div className="overflow-x-auto pb-4">
-        <WeekGrid lineup={data} />
+        <WeekGrid lineup={data} templates={aiTemplates} />
       </div>
     </div>
   );

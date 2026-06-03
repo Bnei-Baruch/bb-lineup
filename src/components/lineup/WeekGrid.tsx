@@ -14,11 +14,14 @@ import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { DayColumn } from "./DayColumn";
 import { LineupWithDays, DayWithSlots, SlotWithLesson } from "@/types";
 
+interface Template { id: string; name: string }
+
 interface WeekGridProps {
   lineup: LineupWithDays;
+  templates?: Template[];
 }
 
-export function WeekGrid({ lineup }: WeekGridProps) {
+export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
   const [days, setDays] = useState<DayWithSlots[]>(lineup.days);
 
   const sensors = useSensors(
@@ -59,12 +62,13 @@ export function WeekGrid({ lineup }: WeekGridProps) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="grid grid-cols-7 gap-2" style={{ minWidth: "900px" }}>
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(7, 400px)" }}>
         {days.map((day) => (
           <DayColumn
             key={day.id}
             day={day}
             weekStart={lineup.weekStart}
+            templates={templates}
             onSlotsChange={handleSlotsChange}
           />
         ))}

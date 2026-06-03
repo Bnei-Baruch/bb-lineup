@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get("status") ?? "";
   const tags = searchParams.get("tags") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-  const pageSize = 30;
+  const pageSize = Math.min(200, parseInt(searchParams.get("pageSize") ?? "50"));
 
   const where: Record<string, unknown> = {};
 

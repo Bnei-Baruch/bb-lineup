@@ -5,9 +5,10 @@ import { toWeekStart, parseWeekParam } from "@/lib/dates";
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
-  const { weekStart: weekStartStr, clearExisting = false } = body as {
+  const { weekStart: weekStartStr, clearExisting = false, dayOfWeek: onlyDay } = body as {
     weekStart: string;
     clearExisting?: boolean;
+    dayOfWeek?: number;
   };
 
   const template = await prisma.weekTemplate.findUnique({ where: { id } });
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!slots || slots.length === 0) continue;
 
     const dayOfWeek = parseInt(dayOfWeekStr, 10);
+    if (onlyDay !== undefined && dayOfWeek !== onlyDay) continue;
     const lineupDay = lineup.days.find((d) => d.dayOfWeek === dayOfWeek);
     if (!lineupDay) continue;
 

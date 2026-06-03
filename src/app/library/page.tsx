@@ -42,6 +42,7 @@ export default async function LibraryPage() {
         const current = new Set<string>();
         const past = new Set<string>();
         for (const s of slots) {
+          if (!s.day?.lineup) continue;
           const slotDate = new Date(s.day.lineup.weekStart);
           slotDate.setDate(slotDate.getDate() + s.day.dayOfWeek);
           if (slotDate >= today) current.add(s.lessonId as string);

@@ -38,8 +38,8 @@ export function DaySlotRow({ slot, clockTime, onEdit, onDelete }: DaySlotRowProp
 
   const colorClass = SLOT_TYPE_COLORS[slot.slotType as SlotType] ?? "border-gray-400 bg-gray-50";
   const typeLabel = SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
-  const label = slot.label || typeLabel;
-  const showTypeLabel = slot.slotType === "article_reading" || (!!slot.label && slot.label !== typeLabel);
+  const label = slot.label || slot.component?.name || typeLabel;
+  const showTypeLabel = slot.slotType === "article_reading" || label !== typeLabel;
   const dur = slotDuration(slot);
 
   if (slot.slotType === "part_header") {

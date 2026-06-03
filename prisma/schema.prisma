@@ -49,6 +49,7 @@ model LineupRuleSet {
   description         String?
   isDefault           Boolean  @default(false)
   broadcastStartTime  String   @default("02:40")
+  broadcastEndTime    String?
   targetDurationSec   Int?
   hardMaxDurationSec  Int?
   splitLongLessons    Boolean  @default(true)
@@ -174,6 +175,7 @@ model LineupDay {
   dayOfWeek          Int
   notes              String?
   broadcastStartTime String?
+  broadcastEndTime   String?
 
   slots              LineupSlot[]
   seriesProgress     SeriesProgress[]

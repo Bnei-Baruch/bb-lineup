@@ -6,38 +6,96 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
+import { timecodeToSeconds } from "@/lib/timecodes";
 
 interface TemplateSlot {
   type: "fixed" | "lesson" | "article";
+  // component-based (pull defaults from component at apply time)
   componentId?: string;
   slotType?: string;
+  // custom slot full details
   label?: string;
+  durationSec?: number;
+  startTimecode?: string;
+  endTimecode?: string;
+  partNumber?: number;
+  narratorScript?: string;
+  transitionType?: string;
+  mediaCode?: string;
+  language?: string;
+  hasSubtitles?: boolean;
+  hasWorkshopQuestions?: boolean;
+  notes?: string;
 }
 
 interface RuleSet {
   id: string;
   name: string;
   dayTemplate: string;
+  broadcastStartTime?: string;
+  broadcastEndTime?: string;
+}
+
+function getSlotDurationSec(slot: SlotWithLesson): number | undefined {
+  if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
+    if (slot.startTimecode && slot.endTimecode) {
+      const dur = timecodeToSeconds(slot.endTimecode) - timecodeToSeconds(slot.startTimecode);
+      return dur > 0 ? dur : (slot.lesson.videoDurationSec ?? undefined);
+    }
+    return slot.lesson.videoDurationSec ?? undefined;
+  }
+  return slot.durationSec ?? undefined;
 }
 
 function slotsToTemplate(slots: SlotWithLesson[]): TemplateSlot[] {
-  return slots
-    .filter((s) => s.slotType !== "part_header")
-    .map((s) => {
-      if (s.slotType === "article_reading") return { type: "article" as const };
-      if (LESSON_SLOT_TYPES.includes(s.slotType)) return { type: "lesson" as const, slotType: s.slotType };
-      if (s.componentId) return { type: "fixed" as const, componentId: s.componentId, slotType: s.slotType };
-      return { type: "fixed" as const, slotType: s.slotType, label: s.label ?? undefined };
-    });
+  return slots.map((s) => {
+    const durationSec = getSlotDurationSec(s);
+    const hasTimecodes = LESSON_SLOT_TYPES.includes(s.slotType) && s.startTimecode && s.endTimecode;
+
+    if (s.slotType === "part_header") {
+      return { type: "fixed" as const, slotType: "part_header", partNumber: s.partNumber ?? undefined };
+    }
+    if (s.slotType === "article_reading") {
+      return { type: "article" as const, durationSec };
+    }
+    if (LESSON_SLOT_TYPES.includes(s.slotType)) {
+      return {
+        type: "lesson" as const,
+        slotType: s.slotType,
+        durationSec,
+        ...(hasTimecodes && { startTimecode: s.startTimecode!, endTimecode: s.endTimecode! }),
+      };
+    }
+    // Component-based slot — save only the reference, pull defaults at apply time
+    if (s.componentId) {
+      return { type: "fixed" as const, componentId: s.componentId, slotType: s.slotType };
+    }
+    // Custom slot — save full details
+    return {
+      type: "fixed" as const,
+      slotType: s.slotType,
+      label: s.label ?? undefined,
+      durationSec,
+      narratorScript: s.narratorScript ?? undefined,
+      transitionType: s.transitionType ?? undefined,
+      mediaCode: s.mediaCode ?? undefined,
+      language: s.language ?? undefined,
+      hasSubtitles: s.hasSubtitles ?? undefined,
+      hasWorkshopQuestions: s.hasWorkshopQuestions ?? undefined,
+      notes: s.notes ?? undefined,
+    };
+  });
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
   slots: SlotWithLesson[];
+  startTime?: string;
+  endTime?: string;
 }
 
-export function SaveAsTemplateDialog({ open, onClose, slots }: Props) {
+export function SaveAsTemplateDialog({ open, onClose, slots, startTime, endTime }: Props) {
   const [ruleSets, setRuleSets] = useState<RuleSet[]>([]);
   const [mode, setMode] = useState<"pick" | "new">("pick");
   const [selectedId, setSelectedId] = useState<string>("");
@@ -57,11 +115,17 @@ export function SaveAsTemplateDialog({ open, onClose, slots }: Props) {
   async function handleSave() {
     setSaving(true);
     try {
+      const payload = {
+        dayTemplate: JSON.stringify(template),
+        broadcastStartTime: startTime || "02:40",
+        broadcastEndTime: endTime || null,
+      };
+
       if (mode === "new") {
         await fetch("/api/lineup-rules", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newName, dayTemplate: JSON.stringify(template) }),
+          body: JSON.stringify({ name: newName, ...payload }),
         });
       } else {
         const rs = ruleSets.find((r) => r.id === selectedId);
@@ -69,7 +133,7 @@ export function SaveAsTemplateDialog({ open, onClose, slots }: Props) {
         await fetch(`/api/lineup-rules/${selectedId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...rs, dayTemplate: JSON.stringify(template) }),
+          body: JSON.stringify({ ...rs, ...payload }),
         });
       }
       setSaved(true);
@@ -83,14 +147,23 @@ export function SaveAsTemplateDialog({ open, onClose, slots }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md" dir="rtl">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle>שמור כתבנית AI</DialogTitle>
         </DialogHeader>
 
+        {/* Time info */}
+        {(startTime || endTime) && (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted/40 rounded px-3 py-2">
+            {startTime && <span>התחלה: <span className="font-mono text-foreground">{startTime}</span></span>}
+            {endTime && <span>סיום: <span className="font-mono text-foreground">{endTime}</span></span>}
+          </div>
+        )}
+
         {/* Template preview */}
-        <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+        <div className="rounded-lg border border-border bg-muted/40 p-3">
           <p className="text-xs font-medium text-muted-foreground mb-2">מבנה הלינאפ ({template.length} פריטים)</p>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
           {template.map((t, i) => {
             const color =
               t.type === "fixed" ? "bg-blue-100 text-blue-700" :
@@ -99,13 +172,18 @@ export function SaveAsTemplateDialog({ open, onClose, slots }: Props) {
             const lbl =
               t.type === "fixed" ? (t.label ?? t.slotType ?? "קבוע") :
               t.type === "lesson" ? "שיעור מוקלט" : "קריאת מאמר";
+            const dur = t.durationSec
+              ? ` · ${Math.floor(t.durationSec / 60)}:${String(t.durationSec % 60).padStart(2, "0")}`
+              : "";
             return (
               <div key={i} className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground w-4 tabular-nums">{i + 1}.</span>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${color}`}>{lbl}</span>
+                {dur && <span className="text-[10px] text-muted-foreground tabular-nums">{dur}</span>}
               </div>
             );
           })}
+          </div>
         </div>
 
         {/* Mode toggle */}

@@ -19,7 +19,7 @@ import { DayTimeSummary } from "./DayTimeSummary";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeToSeconds } from "@/lib/timecodes";
-import { Wand2 } from "lucide-react";
+import { Wand2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PaletteComponent {
@@ -57,6 +57,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"components" | "series">("components");
   const [startTime, setStartTime] = useState(initialDay.broadcastStartTime ?? "03:00");
+  const [endTime, setEndTime] = useState(initialDay.broadcastEndTime ?? "");
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
 
   async function handleStartTimeBlur() {
@@ -64,6 +65,14 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ broadcastStartTime: startTime }),
+    });
+  }
+
+  async function handleEndTimeBlur() {
+    await fetch(`/api/days/${initialDay.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ broadcastEndTime: endTime || null }),
     });
   }
 
@@ -124,6 +133,12 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     }
   }
 
+  async function handleClearDay() {
+    if (!confirm("למחוק את כל הפריטים ביום זה?")) return;
+    await fetch(`/api/days/${initialDay.id}/slots`, { method: "DELETE" });
+    setSlots([]);
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("למחוק פריט זה?")) return;
     await fetch(`/api/slots/${id}`, { method: "DELETE" });
@@ -157,8 +172,8 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       {/* Slot list (main area) */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">שעת התחלה:</span>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-muted-foreground">התחלה:</span>
             <input
               type="time"
               value={startTime}
@@ -167,17 +182,38 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
               className="h-7 rounded border border-input bg-background px-2 text-sm tabular-nums"
               dir="ltr"
             />
+            <span className="text-muted-foreground">סיום:</span>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              onBlur={handleEndTimeBlur}
+              className="h-7 rounded border border-input bg-background px-2 text-sm tabular-nums"
+              dir="ltr"
+            />
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-xs"
-            onClick={() => setSaveTemplateOpen(true)}
-            disabled={slots.length === 0}
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-            שמור כתבנית AI
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs text-destructive hover:text-destructive"
+              onClick={handleClearDay}
+              disabled={slots.length === 0}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              נקה יום
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setSaveTemplateOpen(true)}
+              disabled={slots.length === 0}
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              שמור כתבנית AI
+            </Button>
+          </div>
         </div>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -215,7 +251,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         )}
 
         <div className="mt-2 border border-border rounded-lg">
-          <DayTimeSummary slots={slots} />
+          <DayTimeSummary slots={slots} startTime={startTime} endTime={endTime || undefined} />
         </div>
       </div>
 
@@ -260,6 +296,8 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         open={saveTemplateOpen}
         onClose={() => setSaveTemplateOpen(false)}
         slots={slots}
+        startTime={startTime}
+        endTime={endTime || undefined}
       />
     </div>
   );

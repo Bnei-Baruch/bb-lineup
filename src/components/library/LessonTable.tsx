@@ -425,7 +425,7 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                   <div className="flex flex-wrap gap-1">
                     <StatusBadge status={l.approvalStatus} />
                     {currentSet.has(l.id) && <StatusBadge status="scheduled" />}
-                    {(pastSet.has(l.id) || l.approvalStatus === "used") && !currentSet.has(l.id) && (
+                    {pastSet.has(l.id) && l.approvalStatus !== "used" && !currentSet.has(l.id) && (
                       <StatusBadge status="broadcast" />
                     )}
                   </div>
