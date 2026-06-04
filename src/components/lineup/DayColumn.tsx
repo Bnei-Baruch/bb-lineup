@@ -38,7 +38,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
 
   const date = dayDate(parseWeekParam(weekStart), day.dayOfWeek);
 
-  async function handleAdd(slotType: SlotType) {
+  function handleAdd(slotType: SlotType) {
     setEditingSlot({ dayId: day.id, slotType });
   }
 
@@ -237,14 +237,12 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
       </div>
 
       {/* Editor */}
-      {editingSlot && (
-        <SlotEditor
-          slot={editingSlot}
-          open={true}
-          onClose={() => setEditingSlot(null)}
-          onSave={handleSave}
-        />
-      )}
+      <SlotEditor
+        slot={editingSlot ?? { dayId: day.id, slotType: "narrator_announcement" as SlotType }}
+        open={!!editingSlot}
+        onClose={() => setEditingSlot(null)}
+        onSave={handleSave}
+      />
     </div>
   );
 }

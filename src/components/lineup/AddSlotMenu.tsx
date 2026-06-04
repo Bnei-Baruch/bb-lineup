@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SLOT_TYPE_LABELS, SLOT_TYPE_GROUPS, SlotType } from "@/types";
-import { Separator } from "@/components/ui/separator";
 import { Plus } from "lucide-react";
 
 interface Component {
@@ -43,12 +45,6 @@ export function AddSlotMenu({ onAdd, onAddComponent }: AddSlotMenuProps) {
       .catch(() => {});
   }, []);
 
-  // Group components by category
-  const componentGroups = components.reduce<Record<string, Component[]>>((acc, c) => {
-    (acc[c.category] ??= []).push(c);
-    return acc;
-  }, {});
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="inline-flex w-full items-center justify-center gap-1 rounded-lg px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
@@ -56,33 +52,33 @@ export function AddSlotMenu({ onAdd, onAddComponent }: AddSlotMenuProps) {
         הוסף פריט
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+
         {/* Saved components */}
         {components.length > 0 && (
-          <>
-            <p className="px-2 py-1 text-xs font-semibold text-muted-foreground">רכיבים שמורים</p>
-            {Object.entries(componentGroups).map(([, items]) =>
-              items.map((c) => (
-                <DropdownMenuItem key={c.id} onSelect={() => onAddComponent(c)}>
-                  {c.name}
-                </DropdownMenuItem>
-              ))
-            )}
-            <Separator className="my-1" />
-          </>
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">רכיבים שמורים</DropdownMenuLabel>
+            {components.map((c) => (
+              <DropdownMenuItem key={c.id} onClick={() => onAddComponent(c)}>
+                {c.name}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+          </DropdownMenuGroup>
         )}
 
         {/* Slot types */}
         {SLOT_TYPE_GROUPS.map((group, gi) => (
-          <div key={group.label}>
-            {gi > 0 && <Separator className="my-1" />}
-            <p className="px-2 py-1 text-xs font-semibold text-muted-foreground">{group.label}</p>
+          <DropdownMenuGroup key={group.label}>
+            {gi > 0 && <DropdownMenuSeparator />}
+            <DropdownMenuLabel className="text-xs text-muted-foreground">{group.label}</DropdownMenuLabel>
             {group.types.map((type) => (
-              <DropdownMenuItem key={type} onSelect={() => onAdd(type)}>
+              <DropdownMenuItem key={type} onClick={() => onAdd(type)}>
                 {SLOT_TYPE_LABELS[type]}
               </DropdownMenuItem>
             ))}
-          </div>
+          </DropdownMenuGroup>
         ))}
+
       </DropdownMenuContent>
     </DropdownMenu>
   );
