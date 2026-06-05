@@ -47,6 +47,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
       transitionType: s.transitionType ?? "",
       studyMaterialLink: s.studyMaterialLink ?? "",
       studyMaterialSourceRef: s.studyMaterialSourceRef ?? "",
+      studyMaterialSourceId: s.studyMaterialSourceId ?? "",
       lineupLink: s.lineupLink ?? "",
       mediaCode: s.mediaCode ?? "",
       recordedLessonLink: s.recordedLessonLink ?? "",
@@ -81,6 +82,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
         transitionType: form.transitionType || null,
         studyMaterialLink: form.studyMaterialLink || null,
         studyMaterialSourceRef: form.studyMaterialSourceRef || null,
+        studyMaterialSourceId: form.studyMaterialSourceId || null,
         lineupLink: form.lineupLink || null,
         mediaCode: form.mediaCode || null,
         recordedLessonLink: form.recordedLessonLink || null,
@@ -272,7 +274,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                     <div className="space-y-1.5 w-full min-w-0">
                       <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 w-full min-w-0 overflow-hidden">
                         <span className="text-xs truncate flex-1 min-w-0" title={form.studyMaterialSourceRef}>{form.studyMaterialSourceRef}</span>
-                        <button type="button" className="text-muted-foreground hover:text-foreground shrink-0 text-xs" onClick={() => { set("studyMaterialSourceRef", ""); set("studyMaterialLink", ""); setWordCount(""); set("durationMin", ""); }}>✕</button>
+                        <button type="button" className="text-muted-foreground hover:text-foreground shrink-0 text-xs" onClick={() => { set("studyMaterialSourceRef", ""); set("studyMaterialLink", ""); set("studyMaterialSourceId", ""); setWordCount(""); set("durationMin", ""); }}>✕</button>
                       </div>
                       <Input value={form.studyMaterialLink} onChange={(e) => set("studyMaterialLink", e.target.value)} dir="ltr" className="text-xs h-7 w-full" placeholder="https://..." />
                     </div>
@@ -282,6 +284,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                         set("label", s.title.split("|").pop()?.trim() ?? s.title);
                         set("studyMaterialSourceRef", s.title);
                         set("studyMaterialLink", s.url);
+                        set("studyMaterialSourceId", s.id);
                         try {
                           const r = await fetch(`/api/km/source-wordcount?source_id=${encodeURIComponent(s.id)}`);
                           const data = await r.json();
@@ -333,6 +336,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                     onSelect={(s) => {
                       set("studyMaterialSourceRef", s.title);
                       set("studyMaterialLink", s.url);
+                      set("studyMaterialSourceId", s.id);
                     }}
                   />
                   {form.studyMaterialSourceRef && (

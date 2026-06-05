@@ -111,6 +111,7 @@ model ArticleSource {
   bookPage   Int?               // page number within the volume
 
   lessons    Lesson[]
+  slots      LineupSlot[]
 }
 
 // ─── Lesson: content library entry ───────────────────────────────────────────
@@ -210,6 +211,8 @@ model LineupSlot {
   // Media references
   studyMaterialLink      String?
   studyMaterialSourceRef String?
+  studyMaterialSourceId  String?
+  studyMaterialSource    ArticleSource? @relation(fields: [studyMaterialSourceId], references: [id])
   mediaCode              String?
   recordedLessonLink     String?
   lineupLink             String?

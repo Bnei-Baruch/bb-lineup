@@ -144,6 +144,7 @@ export interface LessonSummary {
   kmPageLink: string | null;
   videoLink: string | null;
   articleSourceLink: string | null;
+  articleSource: { bookVolume: number | null; bookPage: number | null } | null;
 }
 
 export interface SlotWithLesson {
@@ -160,6 +161,8 @@ export interface SlotWithLesson {
   transitionType: string | null;
   studyMaterialLink: string | null;
   studyMaterialSourceRef: string | null;
+  studyMaterialSourceId: string | null;
+  studyMaterialSource: { bookVolume: number | null; bookPage: number | null } | null;
   mediaCode: string | null;
   lineupLink: string | null;
   recordedLessonLink: string | null;

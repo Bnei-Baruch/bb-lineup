@@ -45,17 +45,42 @@ export default async function DayViewPage({
     );
   }
 
+  // Enrich slots with studyMaterialSource data (new column, not in generated Prisma client)
+  // Also extract source ID from studyMaterialLink for pre-existing slots that predate this column
+  const rawSlotSources = await prisma.$queryRaw<{ id: string; studyMaterialSourceId: string | null; studyMaterialLink: string | null }[]>`
+    SELECT id, studyMaterialSourceId, studyMaterialLink FROM "LineupSlot" WHERE "dayId" = ${dayData.id}
+  `;
+  const slotSourceIdMap = Object.fromEntries(rawSlotSources.map((r) => {
+    const srcId = r.studyMaterialSourceId
+      ?? r.studyMaterialLink?.match(/\/sources\/([A-Za-z0-9_-]+)/)?.[1]
+      ?? null;
+    return [r.id, srcId];
+  }));
+  const uniqueSourceIds = Array.from(new Set(Object.values(slotSourceIdMap).filter(Boolean))) as string[];
+  const articleSources = uniqueSourceIds.length > 0
+    ? await prisma.articleSource.findMany({
+        where: { id: { in: uniqueSourceIds } },
+        select: { id: true, bookVolume: true, bookPage: true },
+      })
+    : [];
+  const articleSourceMap = Object.fromEntries(articleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage }]));
+
   const date = dayDate(ws, dow);
   const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
-    slots: dayData.slots.map((s) => ({
-      ...s,
-      lesson: s.lesson
-        ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
-        : null,
-    })),
+    slots: dayData.slots.map((s) => {
+      const srcId = slotSourceIdMap[s.id] ?? null;
+      return {
+        ...s,
+        studyMaterialSourceId: srcId,
+        studyMaterialSource: srcId ? (articleSourceMap[srcId] ?? null) : null,
+        lesson: s.lesson
+          ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
+          : null,
+      };
+    }),
   }));
 
   return (

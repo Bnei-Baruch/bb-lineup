@@ -35,13 +35,29 @@ function itemLabel(slot: SlotWithLesson): string {
   return slot.label || slot.component?.name || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
 }
 
-function contentText(slot: SlotWithLesson): string {
-  if (slot.slotType === "article_reading") return slot.label || slot.studyMaterialSourceRef || "";
-  if (slot.narratorScript) return slot.narratorScript;
-  if (slot.lesson?.sourceRef) return slot.lesson.sourceRef;
-  if (slot.mediaCode) return slot.mediaCode;
-  if (slot.groupLeader) return slot.groupLeader;
-  return "";
+function sourceSubline(vol: number | null | undefined, page: number | null | undefined): string {
+  const parts = [vol ? `כרך ${vol}` : null, page ? `עמוד ${page}` : null].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function contentText(slot: SlotWithLesson): { main: string; sub: string } {
+  if (slot.slotType === "article_reading") {
+    const ref = slot.studyMaterialSourceRef || "";
+    const parts = ref.split(" | ");
+    const leaf = parts.length > 1 ? parts[parts.length - 1] : ref;
+    const parent = parts.length > 1 ? parts.slice(0, -1).join(" | ") : "";
+    const src = slot.studyMaterialSource;
+    const extra = sourceSubline(src?.bookVolume, src?.bookPage);
+    return { main: leaf || slot.label || "", sub: [parent, extra].filter(Boolean).join(" · ") };
+  }
+  if (slot.narratorScript) return { main: slot.narratorScript, sub: "" };
+  if (slot.lesson?.sourceRef) {
+    const src = slot.lesson.articleSource;
+    return { main: slot.lesson.sourceRef, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
+  }
+  if (slot.mediaCode) return { main: slot.mediaCode, sub: "" };
+  if (slot.groupLeader) return { main: slot.groupLeader, sub: "" };
+  return { main: "", sub: "" };
 }
 
 const SLOT_ROW_COLORS: Partial<Record<string, string>> = {
@@ -149,7 +165,7 @@ export function DayView({ day, dayLabel }: DayViewProps) {
                   <td className="px-2 py-2 font-medium">{itemLabel(slot)}</td>
                   {/* תוכן */}
                   <td className="px-2 py-2 whitespace-pre-wrap leading-snug">
-                    <span className="block">{contentText(slot)}</span>
+                    {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
                     {slot.lesson?.recordingDate && (
                       <span className="block text-[10px] text-muted-foreground tabular-nums mt-0.5">
                         {slot.lesson.recordingDate.slice(0, 10)}
