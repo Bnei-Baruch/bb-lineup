@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SLOT_TYPE_GROUPS, SlotType } from "@/types";
+import { COMPONENT_CATEGORIES, SlotType } from "@/types";
 import { Bookmark, Plus } from "lucide-react";
 
 interface Component {
@@ -45,15 +45,11 @@ export function AddSlotMenu({ onAdd, onAddComponent }: AddSlotMenuProps) {
       .catch(() => {});
   }, []);
 
-  // Index components by slotType for fast lookup
-  const byType = components.reduce<Record<string, Component[]>>((acc, c) => {
-    (acc[c.slotType] ??= []).push(c);
+  // Group components by their category field (matches the components table grouping)
+  const byCategory = components.reduce<Record<string, Component[]>>((acc, c) => {
+    (acc[c.category] ??= []).push(c);
     return acc;
   }, {});
-
-  // Components whose slotType doesn't appear in any group (show at top)
-  const allGroupTypes = new Set(SLOT_TYPE_GROUPS.flatMap((g) => g.types as string[]));
-  const orphanComponents = components.filter((c) => !allGroupTypes.has(c.slotType));
 
   return (
     <DropdownMenu>
@@ -63,32 +59,14 @@ export function AddSlotMenu({ onAdd, onAddComponent }: AddSlotMenuProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
 
-        {/* Orphan components (type not in any group) */}
-        {orphanComponents.length > 0 && (
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="text-xs text-muted-foreground">אחר</DropdownMenuLabel>
-            {orphanComponents.map((c) => (
-              <DropdownMenuItem key={c.id} onClick={() => onAddComponent(c)}>
-                <Bookmark className="h-3 w-3 shrink-0 text-blue-500" />
-                {c.name}
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-          </DropdownMenuGroup>
-        )}
-
-        {/* Components grouped by slot type group — only groups that have saved components */}
-        {SLOT_TYPE_GROUPS.map((group, gi) => {
-          const groupComponents = group.types.flatMap((t) => byType[t] ?? []);
-          if (groupComponents.length === 0) return null;
-          const prevGroupsWithComponents = SLOT_TYPE_GROUPS.slice(0, gi).some(
-            (g) => g.types.flatMap((t) => byType[t] ?? []).length > 0
-          );
+        {COMPONENT_CATEGORIES.map((cat, ci) => {
+          const group = byCategory[cat.value] ?? [];
+          if (group.length === 0) return null;
           return (
-            <DropdownMenuGroup key={group.label}>
-              {(prevGroupsWithComponents || orphanComponents.length > 0) && <DropdownMenuSeparator />}
-              <DropdownMenuLabel className="text-xs text-muted-foreground">{group.label}</DropdownMenuLabel>
-              {groupComponents.map((c) => (
+            <DropdownMenuGroup key={cat.value}>
+              {ci > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuLabel className="text-xs text-muted-foreground">{cat.label}</DropdownMenuLabel>
+              {group.map((c) => (
                 <DropdownMenuItem key={c.id} onClick={() => onAddComponent(c)}>
                   <Bookmark className="h-3 w-3 shrink-0 text-blue-500" />
                   {c.name}
