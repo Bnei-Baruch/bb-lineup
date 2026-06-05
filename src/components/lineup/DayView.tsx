@@ -52,7 +52,7 @@ function contentText(slot: SlotWithLesson): { main: string; sub: string } {
   }
   if (slot.narratorScript) return { main: slot.narratorScript, sub: "" };
   if (slot.lesson?.sourceRef) {
-    const src = slot.lesson.articleSource;
+    const src = slot.studyMaterialSource;
     return { main: slot.lesson.sourceRef, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
   }
   if (slot.mediaCode) return { main: slot.mediaCode, sub: "" };

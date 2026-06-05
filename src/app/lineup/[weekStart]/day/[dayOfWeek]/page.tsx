@@ -45,16 +45,25 @@ export default async function DayViewPage({
     );
   }
 
-  // Enrich slots with studyMaterialSource data (new column, not in generated Prisma client)
-  // Also extract source ID from studyMaterialLink for pre-existing slots that predate this column
-  const rawSlotSources = await prisma.$queryRaw<{ id: string; studyMaterialSourceId: string | null; studyMaterialLink: string | null }[]>`
-    SELECT id, studyMaterialSourceId, studyMaterialLink FROM "LineupSlot" WHERE "dayId" = ${dayData.id}
+  // Enrich slots with article source volume/page — derive source ID from URL (works for both
+  // studyMaterialLink on article_reading slots and articleSourceLink on lesson slots)
+  const rawSlotLinks = await prisma.$queryRaw<{ id: string; studyMaterialLink: string | null; lessonId: string | null }[]>`
+    SELECT id, studyMaterialLink, lessonId FROM "LineupSlot" WHERE "dayId" = ${dayData.id}
   `;
-  const slotSourceIdMap = Object.fromEntries(rawSlotSources.map((r) => {
-    const srcId = r.studyMaterialSourceId
-      ?? r.studyMaterialLink?.match(/\/sources\/([A-Za-z0-9_-]+)/)?.[1]
-      ?? null;
-    return [r.id, srcId];
+  const lessonIds = rawSlotLinks.map((r) => r.lessonId).filter(Boolean) as string[];
+  const lessonSourceLinks = lessonIds.length > 0
+    ? await prisma.lesson.findMany({
+        where: { id: { in: lessonIds } },
+        select: { id: true, articleSourceLink: true },
+      })
+    : [];
+  const lessonSourceLinkMap = Object.fromEntries(lessonSourceLinks.map((r) => [r.id, r.articleSourceLink]));
+
+  const slotSourceIdMap = Object.fromEntries(rawSlotLinks.map((r) => {
+    const fromStudy = r.studyMaterialLink?.match(/\/sources\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
+    const lessonLink = r.lessonId ? lessonSourceLinkMap[r.lessonId] : null;
+    const fromLesson = lessonLink?.match(/\/sources\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
+    return [r.id, fromStudy ?? fromLesson ?? null];
   }));
   const uniqueSourceIds = Array.from(new Set(Object.values(slotSourceIdMap).filter(Boolean))) as string[];
   const articleSources = uniqueSourceIds.length > 0
@@ -74,7 +83,6 @@ export default async function DayViewPage({
       const srcId = slotSourceIdMap[s.id] ?? null;
       return {
         ...s,
-        studyMaterialSourceId: srcId,
         studyMaterialSource: srcId ? (articleSourceMap[srcId] ?? null) : null,
         lesson: s.lesson
           ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }

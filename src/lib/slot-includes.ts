@@ -16,9 +16,6 @@ export const slotWithLessonInclude = {
       kmPageLink: true,
       videoLink: true,
       articleSourceLink: true,
-      articleSource: {
-        select: { bookVolume: true, bookPage: true },
-      },
     },
   },
   component: {

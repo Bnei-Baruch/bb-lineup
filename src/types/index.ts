@@ -144,7 +144,6 @@ export interface LessonSummary {
   kmPageLink: string | null;
   videoLink: string | null;
   articleSourceLink: string | null;
-  articleSource: { bookVolume: number | null; bookPage: number | null } | null;
 }
 
 export interface SlotWithLesson {
