@@ -5,8 +5,9 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { SlotCard } from "./SlotCard";
 import { AddSlotMenu } from "./AddSlotMenu";
 import { SlotEditor } from "./SlotEditor";
+import { LessonPicker } from "./LessonPicker";
 import { DayTimeSummary } from "./DayTimeSummary";
-import { DayWithSlots, SlotWithLesson, SlotType } from "@/types";
+import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
 import Link from "next/link";
 import { Eye, LayoutTemplate, X, Trash2, Pencil } from "lucide-react";
@@ -31,6 +32,7 @@ interface DayColumnProps {
 
 export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: DayColumnProps) {
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
+  const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
   const [clearExisting, setClearExisting] = useState(false);
@@ -61,6 +63,25 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
         hasWorkshopQuestions: component.defaultHasWorkshopQuestions,
         notes: component.defaultNotes,
         partNumber: component.defaultPartNumber,
+        sortOrder: maxSlot + 1,
+      }),
+    });
+    if (res.ok) {
+      const slot = await res.json();
+      onSlotsChange(day.id, [...day.slots, slot]);
+    }
+  }
+
+  async function handleAddLesson(lesson: LessonSummary) {
+    setLessonPickerOpen(false);
+    const maxSlot = day.slots.length > 0 ? Math.max(...day.slots.map((s) => s.sortOrder ?? 0)) : -1;
+    const res = await fetch("/api/slots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dayId: day.id,
+        slotType: "recorded_lesson",
+        lessonId: lesson.id,
         sortOrder: maxSlot + 1,
       }),
     });
@@ -232,8 +253,15 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
 
       {/* Footer */}
       <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} />
-      <div className="border-t border-border">
+      <div className="border-t border-border flex">
         <AddSlotMenu onAdd={handleAdd} onAddComponent={handleAddComponent} />
+        <button
+          onClick={() => setLessonPickerOpen(true)}
+          className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors border-s border-border"
+          title="הוסף שיעור מהספרייה"
+        >
+          מהספרייה
+        </button>
       </div>
 
       {/* Editor */}
@@ -242,6 +270,11 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
         open={!!editingSlot}
         onClose={() => setEditingSlot(null)}
         onSave={handleSave}
+      />
+      <LessonPicker
+        open={lessonPickerOpen}
+        onClose={() => setLessonPickerOpen(false)}
+        onSelect={handleAddLesson}
       />
     </div>
   );
