@@ -67,6 +67,12 @@ export function SourceSearch({
     setResults([]);
   }
 
+  function splitTitle(r: SourceResult): { leaf: string; parent: string } {
+    const parts = r.title.split(" | ");
+    if (parts.length <= 1) return { leaf: r.title, parent: "" };
+    return { leaf: parts[parts.length - 1], parent: parts.slice(0, -1).join(" | ") };
+  }
+
   return (
     <div ref={wrapperRef} className="relative">
       <div className="relative">
@@ -95,8 +101,10 @@ export function SourceSearch({
                     onClick={() => handleSelect(r)}
                     className="w-full text-start px-4 py-2 text-sm hover:bg-accent transition-colors border-b border-border last:border-b-0"
                   >
-                    <span className="font-medium">{r.title}</span>
-                    <span className="block text-xs text-muted-foreground">{r.id}</span>
+                    {(() => { const { leaf, parent } = splitTitle(r); const volume = r.bookVolume ? `כרך ${r.bookVolume}` : null; const page = r.bookPage ? `עמוד ${r.bookPage}` : null; const sub = [parent, volume, page].filter(Boolean).join(" · "); return (<>
+                      <span className="font-medium">{leaf}</span>
+                      {sub && <span className="block text-xs text-muted-foreground">{sub}</span>}
+                    </>); })()}
                   </button>
                 </li>
               ))}

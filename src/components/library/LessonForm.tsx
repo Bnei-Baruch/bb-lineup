@@ -219,7 +219,7 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
         </legend>
 
         <div className="space-y-2">
-          <Label>קישור כבלה מדיה</Label>
+          <Label>קישור קבלה מדיה</Label>
           <div className="relative">
             <Input
               value={form.kmPageLink}

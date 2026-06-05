@@ -117,7 +117,7 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
 
       {series.length === 0 && (
         <p className="text-xs text-muted-foreground text-center py-4">
-          אין סדרות — ייבא מכבלה מדיה
+          אין סדרות — ייבא מקבלה מדיה
         </p>
       )}
     </div>

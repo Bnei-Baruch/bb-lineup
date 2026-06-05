@@ -267,7 +267,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
             {/* Article reading: source search + word count */}
             {isArticle && (
               <>
-                <Field label="מקור (חיפוש בכבלה מדיה)">
+                <Field label="מקור (חיפוש בקבלה מדיה)">
                   {form.studyMaterialSourceRef ? (
                     <div className="space-y-1.5 w-full min-w-0">
                       <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 w-full min-w-0 overflow-hidden">
@@ -328,7 +328,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                   <Input value={form.groupLeader} onChange={(e) => set("groupLeader", e.target.value)} placeholder="שם המנחה / המנחים" />
                 </Field>
 
-                <Field label="חומר לימוד — חיפוש מקור בכבלה מדיה">
+                <Field label="חומר לימוד — חיפוש מקור בקבלה מדיה">
                   <SourceSearch
                     onSelect={(s) => {
                       set("studyMaterialSourceRef", s.title);

@@ -277,11 +277,11 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>ייבוא סדרה מכבלה מדיה</DialogTitle>
+          <DialogTitle>ייבוא סדרה מקבלה מדיה</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>קישור לקולקציה (כבלה מדיה)</Label>
+            <Label>קישור לקולקציה (קבלה מדיה)</Label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}

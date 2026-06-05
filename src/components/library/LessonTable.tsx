@@ -364,7 +364,7 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     {l.kmPageLink && (
-                      <a href={l.kmPageLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="וידאו בכבלה מדיה">
+                      <a href={l.kmPageLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="וידאו בקבלה מדיה">
                         <Video className="h-4 w-4" />
                       </a>
                     )}

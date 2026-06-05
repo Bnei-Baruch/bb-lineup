@@ -299,13 +299,13 @@ async function main() {
               where: { id: sourceId },
               create: {
                 id: sourceId,
-                ref: articleSourceRef?.split(" | ").at(-1) ?? "",
+                ref: articleSourceRef ?? "",
                 link: articleSourceLink,
                 ...(articleWordCount  != null ? { wordCount:  articleWordCount  } : {}),
                 ...(articleReadingSec != null ? { readingSec: articleReadingSec } : {}),
               },
               update: {
-                ...(articleSourceRef ? { ref: articleSourceRef.split(" | ").at(-1) ?? "" } : {}),
+                ...(articleSourceRef ? { ref: articleSourceRef } : {}),
                 link: articleSourceLink,
                 ...(articleWordCount  != null ? { wordCount:  articleWordCount  } : {}),
                 ...(articleReadingSec != null ? { readingSec: articleReadingSec } : {}),
