@@ -82,7 +82,14 @@ export default async function DayViewPage({
     `;
     contentCutoffIndex = row[0]?.contentCutoffIndex ?? null;
     broadcastEndTime = row[0]?.broadcastEndTime ?? null;
-  } catch { /* column not yet migrated */ }
+  } catch {
+    try {
+      const row = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
+        SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
+      `;
+      broadcastEndTime = row[0]?.broadcastEndTime ?? null;
+    } catch { /* broadcastEndTime also not migrated */ }
+  }
 
   const date = dayDate(ws, dow);
   const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
