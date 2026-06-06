@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import {
   DndContext,
   DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
   PointerSensor,
   KeyboardSensor,
   useSensor,
@@ -12,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { DayColumn } from "./DayColumn";
+import { SlotCard } from "./SlotCard";
 import { LineupWithDays, DayWithSlots, SlotWithLesson } from "@/types";
 
 interface Template { id: string; name: string }
@@ -23,37 +26,95 @@ interface WeekGridProps {
 
 export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
   const [days, setDays] = useState<DayWithSlots[]>(lineup.days);
+  const [activeSlot, setActiveSlot] = useState<SlotWithLesson | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  function handleDragStart(event: DragStartEvent) {
+    const id = event.active.id as string;
+    const slot = days.flatMap(d => d.slots).find(s => s.id === id) ?? null;
+    setActiveSlot(slot);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveSlot(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    // Find which day this slot belongs to
-    const day = days.find((d) => d.slots.some((s) => s.id === active.id));
-    if (!day) return;
+    const activeId = active.id as string;
+    const overId = over.id as string;
 
-    const oldIndex = day.slots.findIndex((s) => s.id === active.id);
-    const newIndex = day.slots.findIndex((s) => s.id === over.id);
-    if (oldIndex === newIndex) return;
+    const activeDay = days.find((d) => d.slots.some((s) => s.id === activeId));
+    if (!activeDay) return;
 
-    const newSlots = arrayMove(day.slots, oldIndex, newIndex);
-    const newDays = days.map((d) => (d.id === day.id ? { ...d, slots: newSlots } : d));
-    setDays(newDays); // optimistic update
+    // `over` could be a slot id or a day drop zone id like "day-<dayId>"
+    const overDayById = overId.startsWith("day-") ? days.find(d => d.id === overId.slice(4)) : null;
+    const overDay = overDayById ?? days.find((d) => d.slots.some((s) => s.id === overId));
+    if (!overDay) return;
 
-    // Persist
-    fetch("/api/slots/reorder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dayId: day.id, orderedIds: newSlots.map((s) => s.id) }),
-    }).catch(() => {
-      // Rollback on error
-      setDays(days);
-    });
+    if (activeDay.id === overDay.id && !overDayById) {
+      // ── Intra-day reorder ──
+      const oldIndex = activeDay.slots.findIndex((s) => s.id === activeId);
+      const newIndex = activeDay.slots.findIndex((s) => s.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+
+      const newSlots = arrayMove(activeDay.slots, oldIndex, newIndex);
+      setDays(prev => prev.map(d => d.id === activeDay.id ? { ...d, slots: newSlots } : d));
+
+      fetch("/api/slots/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayId: activeDay.id, orderedIds: newSlots.map(s => s.id) }),
+      }).catch(() => setDays(days));
+    } else {
+      // ── Cross-day move ──
+      const slot = activeDay.slots.find(s => s.id === activeId)!;
+      const sourceSlots = activeDay.slots.filter(s => s.id !== activeId);
+
+      let targetSlots: SlotWithLesson[];
+      if (overDayById) {
+        // Dropped on the column itself → append at end
+        targetSlots = [...overDay.slots, slot];
+      } else {
+        // Dropped on a slot → insert at that position
+        const overIndex = overDay.slots.findIndex(s => s.id === overId);
+        targetSlots = [
+          ...overDay.slots.slice(0, overIndex),
+          slot,
+          ...overDay.slots.slice(overIndex),
+        ];
+      }
+
+      // Optimistic update
+      setDays(prev => prev.map(d => {
+        if (d.id === activeDay.id) return { ...d, slots: sourceSlots };
+        if (d.id === overDay.id) return { ...d, slots: targetSlots };
+        return d;
+      }));
+
+      // Persist: move slot to new day, then reorder both days
+      fetch(`/api/slots/${activeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayId: overDay.id }),
+      }).then(() =>
+        Promise.all([
+          fetch("/api/slots/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dayId: activeDay.id, orderedIds: sourceSlots.map(s => s.id) }),
+          }),
+          fetch("/api/slots/reorder", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dayId: overDay.id, orderedIds: targetSlots.map(s => s.id) }),
+          }),
+        ])
+      );
+    }
   }
 
   const handleSlotsChange = useCallback((dayId: string, slots: SlotWithLesson[]) => {
@@ -61,7 +122,7 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
   }, []);
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(7, 400px)" }}>
         {days.map((day) => (
           <DayColumn
@@ -73,6 +134,9 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
           />
         ))}
       </div>
+      <DragOverlay>
+        {activeSlot ? <SlotCard slot={activeSlot} onEdit={() => {}} onDelete={() => {}} /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }

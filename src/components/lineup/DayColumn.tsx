@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SlotCard } from "./SlotCard";
 import { AddSlotMenu } from "./AddSlotMenu";
@@ -31,6 +32,7 @@ interface DayColumnProps {
 }
 
 export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: DayColumnProps) {
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
   const [addedLabel, setAddedLabel] = useState<string | null>(null);
@@ -249,7 +251,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
       )}
 
       {/* Slots */}
-      <div className="flex-1 p-2 space-y-2 min-h-[80px]">
+      <div ref={setDropRef} className={`flex-1 p-2 space-y-2 min-h-[80px] transition-colors ${isOver ? "bg-primary/5" : ""}`}>
         <SortableContext items={day.slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {day.slots.map((slot) => (
             <SlotCard

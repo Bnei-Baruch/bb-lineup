@@ -22,6 +22,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json(slot);
 }
 
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const { dayId } = await req.json();
+  if (!dayId) return NextResponse.json({ error: "dayId required" }, { status: 400 });
+  const slot = await prisma.lineupSlot.update({
+    where: { id },
+    data: { dayId },
+    include: slotWithLessonInclude,
+  });
+  return NextResponse.json(slot);
+}
+
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await prisma.lineupSlot.delete({ where: { id } });
