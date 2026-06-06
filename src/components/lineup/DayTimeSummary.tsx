@@ -37,7 +37,7 @@ export function DayTimeSummary({ slots, startTime, endTime }: DayTimeSummaryProp
     }
   }
 
-  if (total === 0) return null;
+  if (slots.length === 0) return null;
 
   let targetSec: number | null = null;
   if (startTime && endTime) {

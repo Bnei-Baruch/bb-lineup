@@ -85,6 +85,7 @@ model LineupComponent {
   defaultLabel                String?
   defaultDurationSec          Int?
   defaultNarratorScript       String?
+  defaultLineupLink           String?
   defaultTransitionType       String?
   defaultMediaCode            String?
   defaultLanguage             String?

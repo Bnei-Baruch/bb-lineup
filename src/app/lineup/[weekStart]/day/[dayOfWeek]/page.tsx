@@ -74,11 +74,23 @@ export default async function DayViewPage({
     : [];
   const articleSourceMap = Object.fromEntries(articleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage }]));
 
+  let contentCutoffIndex: number | null = null;
+  let broadcastEndTime: string | null = null;
+  try {
+    const row = await prisma.$queryRaw<{ contentCutoffIndex: number | null; broadcastEndTime: string | null }[]>`
+      SELECT contentCutoffIndex, broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
+    `;
+    contentCutoffIndex = row[0]?.contentCutoffIndex ?? null;
+    broadcastEndTime = row[0]?.broadcastEndTime ?? null;
+  } catch { /* column not yet migrated */ }
+
   const date = dayDate(ws, dow);
   const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
+    contentCutoffIndex,
+    broadcastEndTime,
     slots: dayData.slots.map((s) => {
       const srcId = slotSourceIdMap[s.id] ?? null;
       return {
@@ -110,7 +122,7 @@ export default async function DayViewPage({
         </Link>
       </div>
 
-      <DayView day={serialized} dayLabel={dayLabel} />
+      <DayView day={serialized} dayLabel={dayLabel} contentCutoffIndex={contentCutoffIndex} />
     </div>
   );
 }

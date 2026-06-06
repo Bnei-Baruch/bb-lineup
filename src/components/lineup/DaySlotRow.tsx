@@ -87,6 +87,19 @@ export function DaySlotRow({ slot, clockTime, onEdit, onDelete }: DaySlotRowProp
             <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap">{slot.narratorScript}</p>
           )}
 
+          {/* Narrator hyperlink */}
+          {slot.lineupLink && (
+            <a
+              href={slot.lineupLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              🔗 פתח קישור
+            </a>
+          )}
+
           {/* Lesson info */}
           {slot.lesson?.sourceRef && (
             <p className="text-xs truncate">{slot.lesson.sourceRef}</p>

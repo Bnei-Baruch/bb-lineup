@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { DayWithSlots, SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
@@ -8,6 +9,7 @@ import { Check } from "lucide-react";
 interface DayViewProps {
   day: DayWithSlots;
   dayLabel: string;
+  contentCutoffIndex?: number | null;
 }
 
 function slotEffectiveDuration(slot: SlotWithLesson): number {
@@ -85,14 +87,28 @@ function Link({ href, label }: { href: string; label: string }) {
   );
 }
 
-export function DayView({ day, dayLabel }: DayViewProps) {
+function timeToSec(hhmm: string): number {
+  const parts = hhmm.split(":").map(Number);
+  return (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
+}
+
+export function DayView({ day, dayLabel, contentCutoffIndex }: DayViewProps) {
   const startTime = day.broadcastStartTime ?? "03:00";
   let runningTime = startTime;
   let totalSeconds = 0;
 
-  const rows = day.slots.map((slot) => {
+  const clampedCutoff = contentCutoffIndex != null
+    ? Math.min(contentCutoffIndex, day.slots.length)
+    : null;
+
+  let cutoffTotalSec = 0;
+  let cutoffClockTime: string | null = null;
+
+  const rows = day.slots.map((slot, i) => {
     const clockTime = runningTime;
     const dur = slotEffectiveDuration(slot);
+    if (clampedCutoff !== null && i < clampedCutoff) cutoffTotalSec += dur;
+    if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTime;
     totalSeconds += dur;
     runningTime = addSecondsToTime(runningTime, dur);
     const recordedTime = slot.startTimecode && slot.endTimecode
@@ -100,6 +116,21 @@ export function DayView({ day, dayLabel }: DayViewProps) {
       : null;
     return { slot, clockTime, endTime: runningTime, recordedTime };
   });
+
+  // If cutoff is at end, cutoffClockTime = final runningTime before reset
+  if (clampedCutoff === rows.length) {
+    cutoffClockTime = runningTime;
+    cutoffTotalSec = totalSeconds;
+  }
+
+  const broadcastWindowSec = day.broadcastEndTime && day.broadcastStartTime
+    ? (() => {
+        let diff = timeToSec(day.broadcastEndTime) - timeToSec(day.broadcastStartTime);
+        if (diff < 0) diff += 24 * 3600;
+        return diff;
+      })()
+    : null;
+  const cutoffDiff = broadcastWindowSec !== null ? cutoffTotalSec - broadcastWindowSec : null;
 
   const COLS = [
     { key: "time",      label: "שעות",        cls: "w-[72px] sticky end-0 z-10 bg-inherit" },
@@ -139,24 +170,57 @@ export function DayView({ day, dayLabel }: DayViewProps) {
           </thead>
           <tbody>
             {rows.map(({ slot, clockTime, endTime, recordedTime }, i) => {
+              const cutoffRow = clampedCutoff === i ? (
+                <tr key="cutoff-line">
+                  <td colSpan={COLS.length} className="px-0 py-0">
+                    <div className="flex items-center gap-2 px-2 py-1.5 bg-orange-50">
+                      <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                      <span className="text-xs font-semibold text-orange-500 whitespace-nowrap shrink-0">סוף תוכן</span>
+                      <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                    </div>
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-orange-50 border-t border-orange-100 text-xs tabular-nums">
+                      <span className="text-orange-600 font-medium">סה״כ עד כאן</span>
+                      <div className="flex items-center gap-4 font-semibold">
+                        {cutoffClockTime && <span className="text-foreground">{cutoffClockTime}</span>}
+                        <span className="text-foreground">{formatDurationSec(cutoffTotalSec)}</span>
+                        {cutoffDiff !== null && cutoffDiff > 0 && (
+                          <span className="text-red-500">+{formatDurationSec(cutoffDiff)} חריגה</span>
+                        )}
+                        {cutoffDiff !== null && cutoffDiff < 0 && (
+                          <span className="text-green-600">{formatDurationSec(-cutoffDiff)} נותר</span>
+                        )}
+                        {cutoffDiff === 0 && (
+                          <span className="text-green-600">בדיוק!</span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : null;
+
               if (slot.slotType === "part_header") {
                 return (
-                  <tr key={slot.id} className="bg-yellow-100 border-t-2 border-yellow-400">
-                    <td colSpan={COLS.length} className="px-3 py-2 font-bold text-sm text-yellow-900 tracking-wide">
-                      חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
-                    </td>
-                  </tr>
+                  <React.Fragment key={slot.id}>
+                    {cutoffRow}
+                    <tr className="bg-yellow-100 border-t-2 border-yellow-400">
+                      <td colSpan={COLS.length} className="px-3 py-2 font-bold text-sm text-yellow-900 tracking-wide">
+                        חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
+                      </td>
+                    </tr>
+                  </React.Fragment>
                 );
               }
 
+              const isBelowCutoff = clampedCutoff !== null && i >= clampedCutoff;
               const rowColor = SLOT_ROW_COLORS[slot.slotType] ?? "border-s-border";
               const altBg = i % 2 !== 0 ? "bg-muted/20" : "";
 
               return (
-                <tr
-                  key={slot.id}
-                  className={`border-t border-border border-s-2 hover:bg-accent/30 transition-colors ${rowColor} ${altBg}`}
-                >
+                <React.Fragment key={slot.id}>
+                  {cutoffRow}
+                  <tr
+                    className={`border-t border-border border-s-2 hover:bg-accent/30 transition-colors ${rowColor} ${altBg} ${isBelowCutoff ? "opacity-40" : ""}`}
+                  >
                   {/* שעות — sticky */}
                   <td className={`px-2 py-2 tabular-nums font-semibold text-foreground sticky end-0 z-10 ${altBg || "bg-background"} border-s border-border/50`}>
                     {clockTime}
@@ -171,6 +235,16 @@ export function DayView({ day, dayLabel }: DayViewProps) {
                         {slot.lesson.recordingDate.slice(0, 10)}
                       </span>
                     )}
+                    {slot.lineupLink && (
+                      <a
+                        href={slot.lineupLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-xs text-blue-600 hover:underline mt-1 truncate max-w-[220px]"
+                      >
+                        🔗 פתח קישור
+                      </a>
+                    )}
                   </td>
                   {/* הערות */}
                   <td className="px-2 py-2 whitespace-pre-wrap leading-snug text-muted-foreground">
@@ -181,9 +255,6 @@ export function DayView({ day, dayLabel }: DayViewProps) {
                     <div className="flex flex-col gap-1">
                       {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
                         <Link href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
-                      )}
-                      {slot.lineupLink && (
-                        <Link href={slot.lineupLink} label="ליינאפ" />
                       )}
                     </div>
                   </td>
@@ -233,9 +304,38 @@ export function DayView({ day, dayLabel }: DayViewProps) {
                   <td className="px-2 py-2 text-muted-foreground">
                     {["song", "acapella"].includes(slot.slotType) ? slot.mediaCode ?? "" : ""}
                   </td>
-                </tr>
+                  </tr>
+                </React.Fragment>
               );
             })}
+            {/* cutoff line at end of list */}
+            {clampedCutoff === rows.length && (
+              <tr key="cutoff-line-end">
+                <td colSpan={COLS.length} className="px-0 py-0">
+                  <div className="flex items-center gap-2 px-2 py-1.5 bg-orange-50">
+                    <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                    <span className="text-xs font-semibold text-orange-500 whitespace-nowrap shrink-0">סוף תוכן</span>
+                    <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-1.5 bg-orange-50 border-t border-orange-100 text-xs tabular-nums">
+                    <span className="text-orange-600 font-medium">סה״כ עד כאן</span>
+                    <div className="flex items-center gap-4 font-semibold">
+                      {cutoffClockTime && <span className="text-foreground">{cutoffClockTime}</span>}
+                      <span className="text-foreground">{formatDurationSec(cutoffTotalSec)}</span>
+                      {cutoffDiff !== null && cutoffDiff > 0 && (
+                        <span className="text-red-500">+{formatDurationSec(cutoffDiff)} חריגה</span>
+                      )}
+                      {cutoffDiff !== null && cutoffDiff < 0 && (
+                        <span className="text-green-600">{formatDurationSec(-cutoffDiff)} נותר</span>
+                      )}
+                      {cutoffDiff === 0 && (
+                        <span className="text-green-600">בדיוק!</span>
+                      )}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )}
           </tbody>
           {/* Total footer */}
           {totalSeconds > 0 && (

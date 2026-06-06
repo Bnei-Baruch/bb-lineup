@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
@@ -71,6 +72,7 @@ function CutoffLine({ onMoveUp, onMoveDown }: { onMoveUp: () => void; onMoveDown
 }
 
 export function DayEditor({ day: initialDay, components, series }: DayEditorProps) {
+  const router = useRouter();
   const [slots, setSlots] = useState<SlotWithLesson[]>(initialDay.slots);
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"components" | "series">("components");
@@ -144,6 +146,19 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     useSensor(KeyboardSensor)
   );
 
+  function insertSlotBeforeCutoff(currentSlots: SlotWithLesson[], newSlot: SlotWithLesson, currentCutoff: number): SlotWithLesson[] {
+    const insertAt = Math.min(currentCutoff, currentSlots.length);
+    return [...currentSlots.slice(0, insertAt), newSlot, ...currentSlots.slice(insertAt)];
+  }
+
+  function reorderSlots(newSlots: SlotWithLesson[]) {
+    fetch("/api/slots/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dayId: initialDay.id, orderedIds: newSlots.map((s) => s.id) }),
+    }).catch(() => {});
+  }
+
   async function handleAddFromLesson(lessonId: string, durationSec: number | null, label?: string) {
     const res = await fetch("/api/slots", {
       method: "POST",
@@ -157,8 +172,12 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     });
     if (res.ok) {
       const slot = await res.json();
-      setSlots((prev) => [...prev, slot]);
+      const newSlots = insertSlotBeforeCutoff(slots, slot, cutoffIndex);
+      setSlots(newSlots);
+      updateCutoff(cutoffIndex + 1);
+      reorderSlots(newSlots);
       flashAdded(label ?? "שיעור");
+      router.refresh();
     }
   }
 
@@ -170,8 +189,12 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     });
     if (res.ok) {
       const slot = await res.json();
-      setSlots((prev) => [...prev, slot]);
+      const newSlots = insertSlotBeforeCutoff(slots, slot, cutoffIndex);
+      setSlots(newSlots);
+      updateCutoff(cutoffIndex + 1);
+      reorderSlots(newSlots);
       flashAdded(name ?? "רכיב");
+      router.refresh();
     }
   }
 
@@ -186,7 +209,11 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         body: JSON.stringify({ dayId: editingSlot.dayId, slotType: editingSlot.slotType, ...data }),
       });
       const slot = await res.json();
-      setSlots((prev) => [...prev, slot]);
+      const newSlots = insertSlotBeforeCutoff(slots, slot, cutoffIndex);
+      setSlots(newSlots);
+      updateCutoff(cutoffIndex + 1);
+      reorderSlots(newSlots);
+      router.refresh();
     } else {
       const res = await fetch(`/api/slots/${editingSlot.id}`, {
         method: "PUT",
@@ -195,6 +222,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       });
       const updated = await res.json();
       setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      router.refresh();
     }
   }
 
@@ -202,6 +230,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     if (!confirm("למחוק את כל הפריטים ביום זה?")) return;
     await fetch(`/api/days/${initialDay.id}/slots`, { method: "DELETE" });
     setSlots([]);
+    router.refresh();
   }
 
   async function handleDelete(id: string) {
@@ -212,6 +241,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       if (idx !== -1 && idx < cutoffIndex) updateCutoff(Math.max(0, cutoffIndex - 1));
       return prev.filter((s) => s.id !== id);
     });
+    router.refresh();
   }
 
   function handleEdit(slot: SlotWithLesson) {

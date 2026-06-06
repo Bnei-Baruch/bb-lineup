@@ -17,7 +17,7 @@ interface Template { id: string; name: string }
 interface Component {
   id: string; name: string; slotType: string; category: string;
   defaultLabel: string | null; defaultDurationSec: number | null;
-  defaultNarratorScript: string | null; defaultTransitionType: string | null;
+  defaultNarratorScript: string | null; defaultLineupLink: string | null; defaultTransitionType: string | null;
   defaultMediaCode: string | null; defaultLanguage: string | null;
   defaultHasSubtitles: boolean; defaultHasWorkshopQuestions: boolean;
   defaultNotes: string | null; defaultPartNumber: number | null;
@@ -64,6 +64,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
         label: component.defaultLabel,
         durationSec: component.defaultDurationSec,
         narratorScript: component.defaultNarratorScript,
+        lineupLink: component.defaultLineupLink,
         transitionType: component.defaultTransitionType,
         mediaCode: component.defaultMediaCode,
         language: component.defaultLanguage,

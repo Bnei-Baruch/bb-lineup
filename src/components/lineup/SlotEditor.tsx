@@ -186,6 +186,13 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
               <Textarea rows={3} value={form.narratorScript} onChange={(e) => set("narratorScript", e.target.value)} />
             </Field>
 
+            {/* Hyperlink for narrator slots */}
+            {hasNarrator && (
+              <Field label="קישור (לינק)">
+                <Input value={form.lineupLink} onChange={(e) => set("lineupLink", e.target.value)} dir="ltr" placeholder="https://..." />
+              </Field>
+            )}
+
             {/* Transition type */}
             {hasTransition && (
               <Field label="סוג מעברון">

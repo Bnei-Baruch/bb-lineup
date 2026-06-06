@@ -35,6 +35,7 @@ export function ComponentForm({ component, open, onClose }: ComponentFormProps) 
     defaultLabel: (component?.defaultLabel as string) ?? "",
     defaultDurationSec: component?.defaultDurationSec ? formatDurationSec(component.defaultDurationSec as number) : "",
     defaultNarratorScript: (component?.defaultNarratorScript as string) ?? "",
+    defaultLineupLink: (component?.defaultLineupLink as string) ?? "",
     defaultTransitionType: (component?.defaultTransitionType as string) ?? "",
     defaultMediaCode: (component?.defaultMediaCode as string) ?? "",
     defaultLanguage: (component?.defaultLanguage as string) ?? "",
@@ -58,6 +59,7 @@ export function ComponentForm({ component, open, onClose }: ComponentFormProps) 
         defaultLabel: form.defaultLabel || null,
         defaultDurationSec: (() => { const s = parseDurationToSec(form.defaultDurationSec); return s != null ? s : (parseInt(form.defaultDurationSec) * 60 || null); })(),
         defaultNarratorScript: form.defaultNarratorScript || null,
+        defaultLineupLink: form.defaultLineupLink || null,
         defaultTransitionType: form.defaultTransitionType || null,
         defaultMediaCode: form.defaultMediaCode || null,
         defaultLanguage: form.defaultLanguage || null,
@@ -150,6 +152,13 @@ export function ComponentForm({ component, open, onClose }: ComponentFormProps) 
             <Label>{isNarrator ? "טקסט קריין ברירת מחדל" : "תוכן ברירת מחדל"}</Label>
             <Textarea rows={3} value={form.defaultNarratorScript} onChange={(e) => set("defaultNarratorScript", e.target.value)} />
           </div>
+
+          {isNarrator && (
+            <div className="space-y-1.5">
+              <Label>קישור ברירת מחדל</Label>
+              <Input value={form.defaultLineupLink} onChange={(e) => set("defaultLineupLink", e.target.value)} dir="ltr" placeholder="https://..." />
+            </div>
+          )}
 
           {isTransition && (
             <div className="space-y-1.5">
