@@ -17,11 +17,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body.contentCutoffIndex !== undefined) {
-    await prisma.$executeRaw`UPDATE "LineupDay" SET "contentCutoffIndex" = ${body.contentCutoffIndex ?? null} WHERE "id" = ${id}`;
+    try {
+      await prisma.$executeRaw`UPDATE "LineupDay" SET "contentCutoffIndex" = ${body.contentCutoffIndex ?? null} WHERE "id" = ${id}`;
+    } catch { /* column not yet migrated on this env */ }
   }
 
-  const day = await prisma.$queryRaw<{ id: string; broadcastStartTime: string | null; broadcastEndTime: string | null; contentCutoffIndex: number | null }[]>`
-    SELECT id, broadcastStartTime, broadcastEndTime, contentCutoffIndex FROM "LineupDay" WHERE id = ${id}
+  const day = await prisma.$queryRaw<{ id: string; broadcastStartTime: string | null; broadcastEndTime: string | null }[]>`
+    SELECT id, broadcastStartTime, broadcastEndTime FROM "LineupDay" WHERE id = ${id}
   `;
   return NextResponse.json(day[0] ?? {});
 }

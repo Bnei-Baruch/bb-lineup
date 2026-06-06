@@ -88,11 +88,20 @@ export default async function DayEditPage({
     );
   }
 
-  const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null; contentCutoffIndex: number | null }[]>`
-    SELECT broadcastEndTime, contentCutoffIndex FROM "LineupDay" WHERE id = ${dayData.id}
-  `;
-  const broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
-  const contentCutoffIndex = endTimeRow[0]?.contentCutoffIndex ?? null;
+  let broadcastEndTime: string | null = null;
+  let contentCutoffIndex: number | null = null;
+  try {
+    const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null; contentCutoffIndex: number | null }[]>`
+      SELECT broadcastEndTime, contentCutoffIndex FROM "LineupDay" WHERE id = ${dayData.id}
+    `;
+    broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
+    contentCutoffIndex = endTimeRow[0]?.contentCutoffIndex ?? null;
+  } catch {
+    const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
+      SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
+    `;
+    broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
+  }
 
   const date = dayDate(ws, dow);
 
