@@ -175,8 +175,9 @@ model LineupDay {
   lineup             Lineup           @relation(fields: [lineupId], references: [id], onDelete: Cascade)
   dayOfWeek          Int
   notes              String?
-  broadcastStartTime String?
-  broadcastEndTime   String?
+  broadcastStartTime    String?
+  broadcastEndTime      String?
+  contentCutoffIndex    Int?
 
   slots              LineupSlot[]
   seriesProgress     SeriesProgress[]

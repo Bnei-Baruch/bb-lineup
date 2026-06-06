@@ -15,7 +15,7 @@ interface PaletteComponent {
 
 interface ComponentPaletteProps {
   components: PaletteComponent[];
-  onAdd: (componentId: string) => void;
+  onAdd: (componentId: string, name: string) => void;
 }
 
 export function ComponentPalette({ components, onAdd }: ComponentPaletteProps) {
@@ -34,52 +34,55 @@ export function ComponentPalette({ components, onAdd }: ComponentPaletteProps) {
     COMPONENT_CATEGORIES.find((c) => c.value === cat)?.label ?? cat;
 
   return (
-    <div className="space-y-3">
-      <h3 className="font-semibold text-sm">קומפוננטות</h3>
-
-      <div className="flex flex-wrap gap-1">
-        <button
-          onClick={() => setSelectedCategory(null)}
-          className={`px-2 py-0.5 rounded text-xs border transition-colors ${
-            selectedCategory === null
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card border-border hover:bg-accent"
-          }`}
-        >
-          הכל
-        </button>
-        {COMPONENT_CATEGORIES.map((cat) => {
-          if (!usedCategories.has(cat.value)) return null;
-          return (
-            <button
-              key={cat.value}
-              onClick={() => setSelectedCategory(cat.value === selectedCategory ? null : cat.value)}
-              className={`px-2 py-0.5 rounded text-xs border transition-colors ${
-                selectedCategory === cat.value
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card border-border hover:bg-accent"
-              }`}
-            >
-              {cat.label}
-            </button>
-          );
-        })}
+    <div className="flex flex-col h-full">
+      {/* Sticky header — title + category filters */}
+      <div className="shrink-0 p-3 pb-2 space-y-2">
+        <h3 className="font-semibold text-base">קומפוננטות</h3>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className={`px-3 py-1 rounded text-sm border transition-colors ${
+              selectedCategory === null
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-card border-border hover:bg-accent"
+            }`}
+          >
+            הכל
+          </button>
+          {COMPONENT_CATEGORIES.map((cat) => {
+            if (!usedCategories.has(cat.value)) return null;
+            return (
+              <button
+                key={cat.value}
+                onClick={() => setSelectedCategory(cat.value === selectedCategory ? null : cat.value)}
+                className={`px-3 py-1 rounded text-sm border transition-colors ${
+                  selectedCategory === cat.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card border-border hover:bg-accent"
+                }`}
+              >
+                {cat.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="space-y-1">
+      {/* Scrollable list */}
+      <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
         {filtered.map((c) => (
           <button
             key={c.id}
-            onClick={() => onAdd(c.id)}
-            className="w-full text-start px-2 py-1.5 rounded-md border border-border bg-card hover:bg-accent text-xs transition-colors flex items-center justify-between gap-2"
+            onClick={() => onAdd(c.id, c.name)}
+            className="w-full text-start px-3 py-2 rounded-md border border-border bg-card hover:bg-accent text-sm transition-colors flex items-center justify-between gap-2"
           >
             <span className="truncate">{c.name}</span>
-            <span className="shrink-0 flex items-center gap-1">
+            <span className="shrink-0 flex items-center gap-2">
               {!selectedCategory && (
-                <span className="text-[10px] text-muted-foreground">{categoryLabel(c.category)}</span>
+                <span className="text-xs text-muted-foreground">{categoryLabel(c.category)}</span>
               )}
               {c.defaultDurationSec != null && (
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-xs">
                   {formatDurationSec(c.defaultDurationSec)}
                 </Badge>
               )}
@@ -87,7 +90,7 @@ export function ComponentPalette({ components, onAdd }: ComponentPaletteProps) {
           </button>
         ))}
         {filtered.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center py-4">אין קומפוננטות בקטגוריה זו</p>
+          <p className="text-sm text-muted-foreground text-center py-4">אין קומפוננטות בקטגוריה זו</p>
         )}
       </div>
     </div>

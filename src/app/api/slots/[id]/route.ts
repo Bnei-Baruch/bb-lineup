@@ -12,6 +12,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   delete body.lesson;
   delete body.component;
   delete body.studyMaterialSource;
+  delete body.studyMaterialSourceId;
 
   const slot = await prisma.lineupSlot.update({
     where: { id },

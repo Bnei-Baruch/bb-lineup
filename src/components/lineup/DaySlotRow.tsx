@@ -21,7 +21,7 @@ function slotDuration(slot: SlotWithLesson): number {
 
 interface DaySlotRowProps {
   slot: SlotWithLesson;
-  clockTime: string;
+  clockTime?: string;
   onEdit: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
 }

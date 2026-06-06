@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SlotCard } from "./SlotCard";
 import { AddSlotMenu } from "./AddSlotMenu";
@@ -33,12 +33,20 @@ interface DayColumnProps {
 export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: DayColumnProps) {
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
+  const [addedLabel, setAddedLabel] = useState<string | null>(null);
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
   const [clearExisting, setClearExisting] = useState(false);
   const [applying, setApplying] = useState(false);
 
   const date = dayDate(parseWeekParam(weekStart), day.dayOfWeek);
+
+  function flashAdded(label: string) {
+    setAddedLabel(label);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAddedLabel(null), 2000);
+  }
 
   function handleAdd(slotType: SlotType) {
     setEditingSlot({ dayId: day.id, slotType });
@@ -69,6 +77,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
     if (res.ok) {
       const slot = await res.json();
       onSlotsChange(day.id, [...day.slots, slot]);
+      flashAdded(component.name);
     }
   }
 
@@ -88,6 +97,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
     if (res.ok) {
       const slot = await res.json();
       onSlotsChange(day.id, [...day.slots, slot]);
+      flashAdded(lesson.sourceRef ?? "שיעור");
     }
   }
 
@@ -276,6 +286,14 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
         onClose={() => setLessonPickerOpen(false)}
         onSelect={handleAddLesson}
       />
+
+      {/* Fixed corner toast — visible regardless of scroll position */}
+      {addedLabel && (
+        <div className="fixed bottom-5 left-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg border border-green-200 bg-green-50 text-green-800 text-sm font-medium pointer-events-none">
+          <span>✓</span>
+          <span>{addedLabel}</span>
+        </div>
+      )}
     </div>
   );
 }

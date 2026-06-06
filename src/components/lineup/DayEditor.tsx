@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -19,7 +19,7 @@ import { DayTimeSummary } from "./DayTimeSummary";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeToSeconds } from "@/lib/timecodes";
-import { Wand2, Trash2 } from "lucide-react";
+import { Wand2, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PaletteComponent {
@@ -52,10 +52,73 @@ interface DayEditorProps {
   series: SeriesRow[];
 }
 
+function CutoffLine({ onMoveUp, onMoveDown }: { onMoveUp: () => void; onMoveDown: () => void }) {
+  return (
+    <div className="flex items-center gap-2 py-1 select-none group">
+      <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+      <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
+      <div className="flex gap-0.5">
+        <button onClick={onMoveUp} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למעלה">
+          <ChevronUp className="h-4 w-4" />
+        </button>
+        <button onClick={onMoveDown} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למטה">
+          <ChevronDown className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+    </div>
+  );
+}
+
 export function DayEditor({ day: initialDay, components, series }: DayEditorProps) {
   const [slots, setSlots] = useState<SlotWithLesson[]>(initialDay.slots);
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"components" | "series">("components");
+  const [sidebarWidth, setSidebarWidth] = useState(600);
+  const [cutoffIndex, setCutoffIndex] = useState<number>(
+    () => initialDay.contentCutoffIndex ?? initialDay.slots.length
+  );
+  const cutoffSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function updateCutoff(newIndex: number) {
+    setCutoffIndex(newIndex);
+    if (cutoffSaveTimer.current) clearTimeout(cutoffSaveTimer.current);
+    cutoffSaveTimer.current = setTimeout(() => {
+      fetch(`/api/days/${initialDay.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentCutoffIndex: newIndex }),
+      });
+    }, 600);
+  }
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = sidebarRef.current?.getBoundingClientRect().width ?? sidebarWidth;
+
+    function onMove(ev: MouseEvent) {
+      // sidebar is on the left in RTL; drag handle is on its right edge
+      // moving mouse right = wider, left = narrower
+      const delta = ev.clientX - startX;
+      setSidebarWidth(Math.max(180, Math.min(600, startWidth + delta)));
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [sidebarWidth]);
+  const [addedLabel, setAddedLabel] = useState<string | null>(null);
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function flashAdded(label: string) {
+    setAddedLabel(label);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAddedLabel(null), 2000);
+  }
   const [startTime, setStartTime] = useState(initialDay.broadcastStartTime ?? "03:00");
   const [endTime, setEndTime] = useState(initialDay.broadcastEndTime ?? "");
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
@@ -81,7 +144,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     useSensor(KeyboardSensor)
   );
 
-  async function handleAddFromLesson(lessonId: string, durationSec: number | null) {
+  async function handleAddFromLesson(lessonId: string, durationSec: number | null, label?: string) {
     const res = await fetch("/api/slots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -95,10 +158,11 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     if (res.ok) {
       const slot = await res.json();
       setSlots((prev) => [...prev, slot]);
+      flashAdded(label ?? "שיעור");
     }
   }
 
-  async function handleAddFromComponent(componentId: string) {
+  async function handleAddFromComponent(componentId: string, name?: string) {
     const res = await fetch("/api/slots/from-component", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -107,6 +171,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     if (res.ok) {
       const slot = await res.json();
       setSlots((prev) => [...prev, slot]);
+      flashAdded(name ?? "רכיב");
     }
   }
 
@@ -142,7 +207,11 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   async function handleDelete(id: string) {
     if (!confirm("למחוק פריט זה?")) return;
     await fetch(`/api/slots/${id}`, { method: "DELETE" });
-    setSlots((prev) => prev.filter((s) => s.id !== id));
+    setSlots((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx !== -1 && idx < cutoffIndex) updateCutoff(Math.max(0, cutoffIndex - 1));
+      return prev.filter((s) => s.id !== id);
+    });
   }
 
   function handleEdit(slot: SlotWithLesson) {
@@ -219,8 +288,14 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
           <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
               {(() => {
+                const clampedCutoff = Math.min(cutoffIndex, slots.length);
                 let running = startTime;
-                return slots.map((slot) => {
+                const items: React.ReactNode[] = [];
+
+                slots.forEach((slot, i) => {
+                  if (i === clampedCutoff) {
+                    items.push(<CutoffLine key="cutoff" onMoveUp={() => updateCutoff(Math.max(0, cutoffIndex - 1))} onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))} />);
+                  }
                   const clockTime = running;
                   const dur = LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson
                     ? (slot.startTimecode && slot.endTimecode
@@ -228,16 +303,18 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
                         : (slot.lesson.videoDurationSec ?? 0))
                     : (slot.durationSec ?? 0);
                   running = addSecondsToTime(running, dur);
-                  return (
-                    <DaySlotRow
-                      key={slot.id}
-                      slot={slot}
-                      clockTime={clockTime}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
+                  items.push(
+                    <div key={slot.id} className={i >= clampedCutoff ? "opacity-40" : undefined}>
+                      <DaySlotRow slot={slot} clockTime={clockTime} onEdit={handleEdit} onDelete={handleDelete} />
+                    </div>
                   );
                 });
+
+                if (clampedCutoff === slots.length) {
+                  items.push(<CutoffLine key="cutoff" onMoveUp={() => updateCutoff(Math.max(0, cutoffIndex - 1))} onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))} />);
+                }
+
+                return items;
               })()}
             </div>
           </SortableContext>
@@ -250,13 +327,23 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
           </div>
         )}
 
-        <div className="mt-2 border border-border rounded-lg">
-          <DayTimeSummary slots={slots} startTime={startTime} endTime={endTime || undefined} />
+        <div className="sticky bottom-0 mt-2 border border-border rounded-lg overflow-hidden bg-background">
+          <DayTimeSummary slots={slots.slice(0, Math.min(cutoffIndex, slots.length))} startTime={startTime} endTime={endTime || undefined} />
         </div>
       </div>
 
       {/* Sidebar */}
-      <div className="w-56 shrink-0 border border-border rounded-lg bg-card max-h-[80vh] flex flex-col">
+      <div
+        ref={sidebarRef}
+        className="shrink-0 border border-border rounded-lg bg-card flex flex-col sticky top-[60px] self-start relative"
+        style={{width: sidebarWidth, maxHeight: "calc(100vh - 72px)"}}
+      >
+        {/* Drag-to-resize handle on the right edge */}
+        <div
+          onMouseDown={handleResizeStart}
+          className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize hover:bg-primary/20 rounded-r-lg transition-colors z-10"
+        />
+
         {/* Tab switcher */}
         <div className="flex border-b border-border shrink-0">
           <button
@@ -272,7 +359,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             סדרות
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 p-3">
+        <div className="flex-1 min-h-0 flex flex-col">
           {sidebarTab === "components" ? (
             <ComponentPalette components={components} onAdd={handleAddFromComponent} />
           ) : (
@@ -299,6 +386,14 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         startTime={startTime}
         endTime={endTime || undefined}
       />
+
+      {/* Fixed corner toast — visible regardless of scroll position */}
+      {addedLabel && (
+        <div className="fixed bottom-5 left-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg border border-green-200 bg-green-50 text-green-800 text-sm font-medium pointer-events-none">
+          <span>✓</span>
+          <span>{addedLabel}</span>
+        </div>
+      )}
     </div>
   );
 }

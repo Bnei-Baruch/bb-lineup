@@ -23,7 +23,7 @@ interface SeriesRow {
 
 interface SeriesLessonPaletteProps {
   series: SeriesRow[];
-  onAdd: (lessonId: string, durationSec: number | null) => void;
+  onAdd: (lessonId: string, durationSec: number | null, label?: string) => void;
 }
 
 export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps) {
@@ -41,13 +41,16 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
   const query = q.trim().toLowerCase();
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col h-full">
+      <div className="shrink-0 p-3 pb-2">
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="חיפוש שיעור..."
         className="w-full text-xs border border-border rounded-md px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-ring"
       />
+      </div>
+    <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1">
 
       {series.map((s) => {
         const filtered = query
@@ -88,7 +91,7 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
                 {filtered.map((l) => (
                   <button
                     key={l.id}
-                    onClick={() => onAdd(l.id, l.videoDurationSec ?? null)}
+                    onClick={() => onAdd(l.id, l.videoDurationSec ?? null, l.sourceRef ?? undefined)}
                     className={cn(
                       "w-full flex items-start gap-1.5 px-2 py-1.5 text-start text-xs hover:bg-accent/40 transition-colors group",
                       l.approvalStatus === "approved" && "opacity-60"
@@ -120,6 +123,7 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
           אין סדרות — ייבא מקבלה מדיה
         </p>
       )}
+    </div>
     </div>
   );
 }

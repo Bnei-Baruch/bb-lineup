@@ -6,9 +6,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { dayId, slotType, ...rest } = body;
 
-  // Remove relation fields that Prisma doesn't accept as data
+  // Remove relation/unknown fields that Prisma doesn't accept as data
   delete rest.lesson;
   delete rest.component;
+  delete rest.studyMaterialSource;
+  delete rest.studyMaterialSourceId;
 
   // Validate foreign keys before creating to give a clear error
   const day = await prisma.lineupDay.findUnique({ where: { id: dayId }, select: { id: true } });

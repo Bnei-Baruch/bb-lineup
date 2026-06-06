@@ -3,8 +3,16 @@ import { timecodeToSeconds } from "@/lib/timecodes";
 import { SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
 
 function timeToSeconds(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 3600 + m * 60;
+  const parts = hhmm.split(":").map(Number);
+  return parts[0] * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
+}
+
+function addSeconds(hhmm: string, sec: number): string {
+  const total = (timeToSeconds(hhmm) + sec) % (24 * 3600);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 interface DayTimeSummaryProps {
@@ -42,9 +50,16 @@ export function DayTimeSummary({ slots, startTime, endTime }: DayTimeSummaryProp
   const isOver = diff !== null && diff > 0;
   const isUnder = diff !== null && diff < 0;
 
+  const endTimestamp = startTime ? addSeconds(startTime, total) : null;
+
   return (
     <div className="px-3 py-2 bg-muted border-t border-border text-sm font-medium text-muted-foreground flex items-center justify-between gap-4">
-      <span>סה״כ</span>
+      <div className="flex items-center gap-2 tabular-nums">
+        <span>סה״כ</span>
+        {endTimestamp && (
+          <span className="text-foreground font-semibold">{endTimestamp}</span>
+        )}
+      </div>
       <div className="flex items-center gap-4 tabular-nums">
         <span className="font-semibold text-foreground">{formatDurationSec(total)}</span>
         {isOver && (
