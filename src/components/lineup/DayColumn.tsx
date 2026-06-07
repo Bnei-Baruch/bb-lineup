@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SlotCard } from "./SlotCard";
@@ -11,7 +11,7 @@ import { DayTimeSummary } from "./DayTimeSummary";
 import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
 import Link from "next/link";
-import { Eye, LayoutTemplate, X, Trash2, Pencil } from "lucide-react";
+import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus } from "lucide-react";
 
 interface Template { id: string; name: string }
 
@@ -29,9 +29,11 @@ interface DayColumnProps {
   weekStart: string;
   templates?: Template[];
   onSlotsChange: (dayId: string, slots: SlotWithLesson[]) => void;
+  onAddSession?: () => void;
+  onDeleteSession?: () => void;
 }
 
-export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: DayColumnProps) {
+export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAddSession, onDeleteSession }: DayColumnProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
@@ -165,7 +167,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
   }
 
   return (
-    <div className="flex flex-col min-h-0 border border-border rounded-lg overflow-hidden bg-card">
+    <div className="flex flex-col bg-card" style={{ maxHeight: "calc(100vh - 140px)" }}>
       {/* Header */}
       <div className="px-3 py-2 bg-muted border-b border-border flex items-center justify-between">
         <div>
@@ -173,6 +175,24 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
           <div className="text-xs text-muted-foreground tabular-nums">{formatDate(date)}</div>
         </div>
         <div className="flex items-center gap-1.5">
+          {onAddSession && (
+            <button
+              onClick={onAddSession}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="הוסף שיעור נוסף"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          )}
+          {onDeleteSession && (
+            <button
+              onClick={onDeleteSession}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              title="מחק שיעור זה"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
           <button
             onClick={() => setTemplateOpen((v) => !v)}
             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -188,14 +208,14 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
             <Trash2 className="h-4 w-4" />
           </button>
           <Link
-            href={`/lineup/${weekStart}/day/${day.dayOfWeek}/edit`}
+            href={`/lineup/${weekStart}/day/${day.dayOfWeek}/${day.sessionIndex ?? 0}/edit`}
             className="text-muted-foreground hover:text-foreground transition-colors"
             title="עריכת יום"
           >
             <Pencil className="h-4 w-4" />
           </Link>
           <Link
-            href={`/lineup/${weekStart}/day/${day.dayOfWeek}`}
+            href={`/lineup/${weekStart}/day/${day.dayOfWeek}/${day.sessionIndex ?? 0}`}
             className="text-muted-foreground hover:text-foreground transition-colors"
             title="תצוגת יום"
           >
@@ -251,16 +271,39 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange }: Day
       )}
 
       {/* Slots */}
-      <div ref={setDropRef} className={`flex-1 p-2 space-y-2 min-h-[80px] transition-colors ${isOver ? "bg-primary/5" : ""}`}>
+      <div ref={setDropRef} className={`flex-1 p-2 space-y-2 min-h-[80px] overflow-y-auto transition-colors ${isOver ? "bg-primary/5" : ""}`}>
         <SortableContext items={day.slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-          {day.slots.map((slot) => (
-            <SlotCard
-              key={slot.id}
-              slot={slot}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          ))}
+          {(() => {
+            const cutoff = day.contentCutoffIndex ?? day.slots.length;
+            const clampedCutoff = Math.min(cutoff, day.slots.length);
+            const items: React.ReactNode[] = [];
+            day.slots.forEach((slot, i) => {
+              if (i === clampedCutoff) {
+                items.push(
+                  <div key="cutoff" className="flex items-center gap-2 py-1 select-none">
+                    <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                    <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
+                    <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                  </div>
+                );
+              }
+              items.push(
+                <div key={slot.id} className={i >= clampedCutoff ? "opacity-40" : undefined}>
+                  <SlotCard slot={slot} onEdit={handleEdit} onDelete={handleDelete} />
+                </div>
+              );
+            });
+            if (clampedCutoff === day.slots.length) {
+              items.push(
+                <div key="cutoff" className="flex items-center gap-2 py-1 select-none">
+                  <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                  <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
+                  <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                </div>
+              );
+            }
+            return items;
+          })()}
         </SortableContext>
       </div>
 

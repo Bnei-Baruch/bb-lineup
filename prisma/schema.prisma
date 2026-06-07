@@ -175,6 +175,8 @@ model LineupDay {
   lineupId           String
   lineup             Lineup           @relation(fields: [lineupId], references: [id], onDelete: Cascade)
   dayOfWeek          Int
+  sessionIndex       Int              @default(0)
+  sessionLabel       String?
   notes              String?
   broadcastStartTime    String?
   broadcastEndTime      String?
@@ -183,7 +185,7 @@ model LineupDay {
   slots              LineupSlot[]
   seriesProgress     SeriesProgress[]
 
-  @@unique([lineupId, dayOfWeek])
+  @@unique([lineupId, dayOfWeek, sessionIndex])
 }
 
 // ─── LineupSlot: one item within a day ───────────────────────────────────────

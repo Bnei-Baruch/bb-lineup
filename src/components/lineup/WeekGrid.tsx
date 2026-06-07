@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -13,7 +13,7 @@ import {
   closestCenter,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
-import { DayColumn } from "./DayColumn";
+import { DayColumnGroup } from "./DayColumnGroup";
 import { SlotCard } from "./SlotCard";
 import { LineupWithDays, DayWithSlots, SlotWithLesson } from "@/types";
 
@@ -27,6 +27,36 @@ interface WeekGridProps {
 export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
   const [days, setDays] = useState<DayWithSlots[]>(lineup.days);
   const [activeSlot, setActiveSlot] = useState<SlotWithLesson | null>(null);
+
+  const dayGroups = useMemo(() => {
+    const map = new Map<number, DayWithSlots[]>();
+    for (let i = 0; i < 7; i++) map.set(i, []);
+    for (const d of days) map.get(d.dayOfWeek)?.push(d);
+    Array.from(map.values()).forEach((sessions) =>
+      sessions.sort((a: DayWithSlots, b: DayWithSlots) => a.sessionIndex - b.sessionIndex)
+    );
+    return map;
+  }, [days]);
+
+  async function handleAddSession(dayOfWeek: number, lineupId: string) {
+    const res = await fetch("/api/days", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lineupId, dayOfWeek }),
+    });
+    if (res.ok) {
+      const newDay: DayWithSlots = await res.json();
+      setDays((prev) => [...prev, newDay]);
+    }
+  }
+
+  async function handleDeleteSession(dayId: string) {
+    if (!confirm("למחוק שיעור זה וכל פריטיו?")) return;
+    const res = await fetch(`/api/days/${dayId}`, { method: "DELETE" });
+    if (res.ok) {
+      setDays((prev) => prev.filter((d) => d.id !== dayId));
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -124,13 +154,15 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(7, 400px)" }}>
-        {days.map((day) => (
-          <DayColumn
-            key={day.id}
-            day={day}
+        {Array.from({ length: 7 }, (_, dow) => (
+          <DayColumnGroup
+            key={dow}
+            sessions={dayGroups.get(dow) ?? []}
             weekStart={lineup.weekStart}
             templates={templates}
             onSlotsChange={handleSlotsChange}
+            onAddSession={handleAddSession}
+            onDeleteSession={handleDeleteSession}
           />
         ))}
       </div>

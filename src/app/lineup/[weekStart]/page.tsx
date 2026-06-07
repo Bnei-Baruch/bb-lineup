@@ -55,17 +55,31 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
     });
   }
 
-  const endTimes = await prisma.$queryRaw<{ id: string; broadcastEndTime: string | null }[]>`
-    SELECT id, broadcastEndTime FROM "LineupDay" WHERE "lineupId" = ${lineup.id}
-  `;
-  const endTimeMap = Object.fromEntries(endTimes.map((r) => [r.id, r.broadcastEndTime]));
+  type DayExtra = { id: string; broadcastEndTime: string | null; sessionIndex: number; sessionLabel: string | null; contentCutoffIndex: number | null };
+  let extras: DayExtra[] = [];
+  try {
+    extras = await prisma.$queryRaw<DayExtra[]>`
+      SELECT id, broadcastEndTime, sessionIndex, sessionLabel, contentCutoffIndex FROM "LineupDay" WHERE "lineupId" = ${lineup.id}
+    `;
+  } catch {
+    try {
+      const fallback = await prisma.$queryRaw<{ id: string; broadcastEndTime: string | null }[]>`
+        SELECT id, broadcastEndTime FROM "LineupDay" WHERE "lineupId" = ${lineup.id}
+      `;
+      extras = fallback.map((r) => ({ ...r, sessionIndex: 0, sessionLabel: null, contentCutoffIndex: null }));
+    } catch { /* ignore */ }
+  }
+  const extrasMap = Object.fromEntries(extras.map((r) => [r.id, r]));
 
   const data: LineupWithDays = JSON.parse(JSON.stringify({
     ...lineup,
     weekStart: lineup.weekStart.toISOString().slice(0, 10),
     days: lineup.days.map((d) => ({
       ...d,
-      broadcastEndTime: endTimeMap[d.id] ?? null,
+      broadcastEndTime: extrasMap[d.id]?.broadcastEndTime ?? null,
+      sessionIndex: extrasMap[d.id]?.sessionIndex ?? 0,
+      sessionLabel: extrasMap[d.id]?.sessionLabel ?? null,
+      contentCutoffIndex: extrasMap[d.id]?.contentCutoffIndex ?? null,
       slots: d.slots.map((s) => ({
         ...s,
         lesson: s.lesson

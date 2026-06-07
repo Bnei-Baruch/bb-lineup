@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayEditor } from "@/components/lineup/DayEditor";
+import { SessionLabelInput } from "@/components/lineup/SessionLabelInput";
 import { DayWithSlots } from "@/types";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
@@ -12,24 +13,40 @@ export const dynamic = "force-dynamic";
 export default async function DayEditPage({
   params,
 }: {
-  params: Promise<{ weekStart: string; dayOfWeek: string }>;
+  params: Promise<{ weekStart: string; dayOfWeek: string; sessionIndex: string }>;
 }) {
-  const { weekStart, dayOfWeek: dowStr } = await params;
+  const { weekStart, dayOfWeek: dowStr, sessionIndex: sessionIdxStr } = await params;
   const dow = parseInt(dowStr);
+  const sessionIdx = parseInt(sessionIdxStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
 
-  const [lineup, components, series, unseriedLessons] = await Promise.all([
-    prisma.lineup.findUnique({
-      where: { weekStart: ws },
+  // Find the specific session's LineupDay by (weekStart + dayOfWeek + sessionIndex)
+  const dayRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT ld.id FROM "LineupDay" ld
+    JOIN "Lineup" l ON ld.lineupId = l.id
+    WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow} AND ld.sessionIndex = ${sessionIdx}
+    LIMIT 1
+  `;
+  const dayId = dayRows[0]?.id;
+
+  if (!dayId) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        <p>לא נמצא שיעור זה</p>
+        <Link href={`/lineup/${weekStart}`} className="text-sm text-blue-600 hover:underline mt-2 block">
+          חזרה לשבוע
+        </Link>
+      </div>
+    );
+  }
+
+  const [dayData, components, series, unseriedLessons] = await Promise.all([
+    prisma.lineupDay.findUnique({
+      where: { id: dayId },
       include: {
-        days: {
-          where: { dayOfWeek: dow },
-          include: {
-            slots: {
-              orderBy: { sortOrder: "asc" },
-              include: slotWithLessonInclude,
-            },
-          },
+        slots: {
+          orderBy: { sortOrder: "asc" },
+          include: slotWithLessonInclude,
         },
       },
     }),
@@ -76,7 +93,6 @@ export default async function DayEditPage({
     }),
   ]);
 
-  const dayData = lineup?.days[0];
   if (!dayData) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -90,25 +106,33 @@ export default async function DayEditPage({
 
   let broadcastEndTime: string | null = null;
   let contentCutoffIndex: number | null = null;
+  let sessionLabel: string | null = null;
   try {
-    const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null; contentCutoffIndex: number | null }[]>`
-      SELECT broadcastEndTime, contentCutoffIndex FROM "LineupDay" WHERE id = ${dayData.id}
+    const row = await prisma.$queryRaw<{
+      broadcastEndTime: string | null;
+      contentCutoffIndex: number | null;
+      sessionLabel: string | null;
+    }[]>`
+      SELECT broadcastEndTime, contentCutoffIndex, sessionLabel FROM "LineupDay" WHERE id = ${dayId}
     `;
-    broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
-    contentCutoffIndex = endTimeRow[0]?.contentCutoffIndex ?? null;
+    broadcastEndTime = row[0]?.broadcastEndTime ?? null;
+    contentCutoffIndex = row[0]?.contentCutoffIndex ?? null;
+    sessionLabel = row[0]?.sessionLabel ?? null;
   } catch {
-    const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
-      SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
-    `;
-    broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
+    try {
+      const row = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
+        SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayId}
+      `;
+      broadcastEndTime = row[0]?.broadcastEndTime ?? null;
+    } catch { /* ignore */ }
   }
 
   const date = dayDate(ws, dow);
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
-    sessionIndex: 0,
-    sessionLabel: null,
+    sessionIndex: sessionIdx,
+    sessionLabel,
     broadcastEndTime,
     contentCutoffIndex,
     slots: dayData.slots.map((s) => ({
@@ -130,9 +154,11 @@ export default async function DayEditPage({
           <span className="text-foreground font-medium">
             עריכה — {DAY_NAMES[dow]} {formatDate(date)}
           </span>
+          <span className="text-muted-foreground">/</span>
+          <SessionLabelInput dayId={dayId} sessionIndex={sessionIdx} initialLabel={sessionLabel} />
         </div>
         <Link
-          href={`/lineup/${weekStart}/day/${dow}`}
+          href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}`}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           <Eye className="me-2 h-4 w-4" />

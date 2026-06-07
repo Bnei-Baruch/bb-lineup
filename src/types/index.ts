@@ -185,6 +185,8 @@ export interface DayWithSlots {
   id: string;
   lineupId: string;
   dayOfWeek: number;
+  sessionIndex: number;
+  sessionLabel: string | null;
   notes: string | null;
   broadcastStartTime: string | null;
   broadcastEndTime: string | null;

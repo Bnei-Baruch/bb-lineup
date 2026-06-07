@@ -12,28 +12,43 @@ export const dynamic = "force-dynamic";
 export default async function DayViewPage({
   params,
 }: {
-  params: Promise<{ weekStart: string; dayOfWeek: string }>;
+  params: Promise<{ weekStart: string; dayOfWeek: string; sessionIndex: string }>;
 }) {
-  const { weekStart, dayOfWeek: dowStr } = await params;
+  const { weekStart, dayOfWeek: dowStr, sessionIndex: sessionIdxStr } = await params;
   const dow = parseInt(dowStr);
+  const sessionIdx = parseInt(sessionIdxStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
 
-  const lineup = await prisma.lineup.findUnique({
-    where: { weekStart: ws },
+  // Find the specific session's LineupDay
+  const dayRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT ld.id FROM "LineupDay" ld
+    JOIN "Lineup" l ON ld.lineupId = l.id
+    WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow} AND ld.sessionIndex = ${sessionIdx}
+    LIMIT 1
+  `;
+  const dayId = dayRows[0]?.id;
+
+  if (!dayId) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        <p>לא נמצא שיעור זה</p>
+        <Link href={`/lineup/${weekStart}`} className="text-sm text-blue-600 hover:underline mt-2 block">
+          חזרה לשבוע
+        </Link>
+      </div>
+    );
+  }
+
+  const dayData = await prisma.lineupDay.findUnique({
+    where: { id: dayId },
     include: {
-      days: {
-        where: { dayOfWeek: dow },
-        include: {
-          slots: {
-            orderBy: { sortOrder: "asc" },
-            include: slotWithLessonInclude,
-          },
-        },
+      slots: {
+        orderBy: { sortOrder: "asc" },
+        include: slotWithLessonInclude,
       },
     },
   });
 
-  const dayData = lineup?.days[0];
   if (!dayData) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -45,10 +60,9 @@ export default async function DayViewPage({
     );
   }
 
-  // Enrich slots with article source volume/page — derive source ID from URL (works for both
-  // studyMaterialLink on article_reading slots and articleSourceLink on lesson slots)
+  // Enrich slots with article source volume/page
   const rawSlotLinks = await prisma.$queryRaw<{ id: string; studyMaterialLink: string | null; lessonId: string | null }[]>`
-    SELECT id, studyMaterialLink, lessonId FROM "LineupSlot" WHERE "dayId" = ${dayData.id}
+    SELECT id, studyMaterialLink, lessonId FROM "LineupSlot" WHERE "dayId" = ${dayId}
   `;
   const lessonIds = rawSlotLinks.map((r) => r.lessonId).filter(Boolean) as string[];
   const lessonSourceLinks = lessonIds.length > 0
@@ -76,28 +90,37 @@ export default async function DayViewPage({
 
   let contentCutoffIndex: number | null = null;
   let broadcastEndTime: string | null = null;
+  let sessionLabel: string | null = null;
   try {
-    const row = await prisma.$queryRaw<{ contentCutoffIndex: number | null; broadcastEndTime: string | null }[]>`
-      SELECT contentCutoffIndex, broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
+    const row = await prisma.$queryRaw<{
+      contentCutoffIndex: number | null;
+      broadcastEndTime: string | null;
+      sessionLabel: string | null;
+    }[]>`
+      SELECT contentCutoffIndex, broadcastEndTime, sessionLabel FROM "LineupDay" WHERE id = ${dayId}
     `;
     contentCutoffIndex = row[0]?.contentCutoffIndex ?? null;
     broadcastEndTime = row[0]?.broadcastEndTime ?? null;
+    sessionLabel = row[0]?.sessionLabel ?? null;
   } catch {
     try {
       const row = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
-        SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayData.id}
+        SELECT broadcastEndTime FROM "LineupDay" WHERE id = ${dayId}
       `;
       broadcastEndTime = row[0]?.broadcastEndTime ?? null;
-    } catch { /* broadcastEndTime also not migrated */ }
+    } catch { /* ignore */ }
   }
 
   const date = dayDate(ws, dow);
-  const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
+  const sessionSuffix = sessionIdx > 0
+    ? ` / ${sessionLabel ?? `שיעור ${sessionIdx + 1}`}`
+    : "";
+  const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}${sessionSuffix}`;
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
-    sessionIndex: 0,
-    sessionLabel: null,
+    sessionIndex: sessionIdx,
+    sessionLabel,
     contentCutoffIndex,
     broadcastEndTime,
     slots: dayData.slots.map((s) => {
@@ -120,10 +143,12 @@ export default async function DayViewPage({
             שבוע {formatDate(ws)}
           </Link>
           <ChevronRight className="h-4 w-4 rotate-180" />
-          <span className="text-foreground font-medium">{DAY_NAMES[dow]}</span>
+          <span className="text-foreground font-medium">
+            {DAY_NAMES[dow]}{sessionSuffix}
+          </span>
         </div>
         <Link
-          href={`/lineup/${weekStart}/day/${dow}/edit`}
+          href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}/edit`}
           className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           <Pencil className="me-2 h-4 w-4" />

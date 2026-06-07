@@ -267,10 +267,10 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   }
 
   return (
-    <div className="flex gap-4 min-h-[60vh]">
+    <div className="flex gap-4" style={{ height: "calc(100vh - 134px)" }}>
       {/* Slot list (main area) */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="flex-1 min-w-0 flex flex-col min-h-0">
+        <div className="shrink-0 flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-3 text-sm">
             <span className="text-muted-foreground">התחלה:</span>
             <input
@@ -314,6 +314,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             </Button>
           </div>
         </div>
+        <div className="flex-1 min-h-0 overflow-y-auto">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
@@ -356,8 +357,9 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             <p className="text-xs mt-1">הוסף קומפוננטות מהפאנל או פריט חדש</p>
           </div>
         )}
+        </div>{/* end scrollable slot list */}
 
-        <div className="sticky bottom-0 mt-2 border border-border rounded-lg overflow-hidden bg-background">
+        <div className="shrink-0 mt-2 border border-border rounded-lg overflow-hidden bg-background">
           <DayTimeSummary slots={slots.slice(0, Math.min(cutoffIndex, slots.length))} startTime={startTime} endTime={endTime || undefined} />
         </div>
       </div>
@@ -365,8 +367,8 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       {/* Sidebar */}
       <div
         ref={sidebarRef}
-        className="shrink-0 border border-border rounded-lg bg-card flex flex-col sticky top-[60px] self-start relative"
-        style={{width: sidebarWidth, maxHeight: "calc(100vh - 72px)"}}
+        className="shrink-0 border border-border rounded-lg bg-card flex flex-col relative h-full"
+        style={{width: sidebarWidth}}
       >
         {/* Drag-to-resize handle on the right edge */}
         <div
