@@ -13,6 +13,7 @@ interface DayColumnGroupProps {
   onSlotsChange: (dayId: string, slots: SlotWithLesson[]) => void;
   onAddSession: (dayOfWeek: number, lineupId: string) => void;
   onDeleteSession: (dayId: string) => void;
+  onCollapse?: () => void;
 }
 
 export function DayColumnGroup({
@@ -22,6 +23,7 @@ export function DayColumnGroup({
   onSlotsChange,
   onAddSession,
   onDeleteSession,
+  onCollapse,
 }: DayColumnGroupProps) {
   const [activeTab, setActiveTab] = useState(0);
   const prevLength = useRef(sessions.length);
@@ -81,6 +83,7 @@ export function DayColumnGroup({
             ? () => onDeleteSession(activeSession.id)
             : undefined
         }
+        onCollapse={onCollapse}
       />
     </div>
   );

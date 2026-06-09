@@ -16,6 +16,7 @@ import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { DayColumnGroup } from "./DayColumnGroup";
 import { SlotCard } from "./SlotCard";
 import { LineupWithDays, DayWithSlots, SlotWithLesson } from "@/types";
+import { DAY_NAMES, dayDate, parseWeekParam, formatDate } from "@/lib/dates";
 
 interface Template { id: string; name: string }
 
@@ -27,6 +28,8 @@ interface WeekGridProps {
 export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
   const [days, setDays] = useState<DayWithSlots[]>(lineup.days);
   const [activeSlot, setActiveSlot] = useState<SlotWithLesson | null>(null);
+  // Ordered array: oldest-expanded first. Max 4 at once; opening a 5th evicts the first.
+  const [expandedDays, setExpandedDays] = useState<number[]>([0]);
 
   const dayGroups = useMemo(() => {
     const map = new Map<number, DayWithSlots[]>();
@@ -37,6 +40,16 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
     );
     return map;
   }, [days]);
+
+  const MAX_EXPANDED = 4;
+
+  function toggleExpand(dow: number) {
+    setExpandedDays((prev) => {
+      if (prev.includes(dow)) return prev.filter((d) => d !== dow);
+      const next = [...prev, dow];
+      return next.length > MAX_EXPANDED ? next.slice(next.length - MAX_EXPANDED) : next;
+    });
+  }
 
   async function handleAddSession(dayOfWeek: number, lineupId: string) {
     const res = await fetch("/api/days", {
@@ -80,13 +93,11 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
     const activeDay = days.find((d) => d.slots.some((s) => s.id === activeId));
     if (!activeDay) return;
 
-    // `over` could be a slot id or a day drop zone id like "day-<dayId>"
     const overDayById = overId.startsWith("day-") ? days.find(d => d.id === overId.slice(4)) : null;
     const overDay = overDayById ?? days.find((d) => d.slots.some((s) => s.id === overId));
     if (!overDay) return;
 
     if (activeDay.id === overDay.id && !overDayById) {
-      // ── Intra-day reorder ──
       const oldIndex = activeDay.slots.findIndex((s) => s.id === activeId);
       const newIndex = activeDay.slots.findIndex((s) => s.id === overId);
       if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
@@ -100,16 +111,13 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
         body: JSON.stringify({ dayId: activeDay.id, orderedIds: newSlots.map(s => s.id) }),
       }).catch(() => setDays(days));
     } else {
-      // ── Cross-day move ──
       const slot = activeDay.slots.find(s => s.id === activeId)!;
       const sourceSlots = activeDay.slots.filter(s => s.id !== activeId);
 
       let targetSlots: SlotWithLesson[];
       if (overDayById) {
-        // Dropped on the column itself → append at end
         targetSlots = [...overDay.slots, slot];
       } else {
-        // Dropped on a slot → insert at that position
         const overIndex = overDay.slots.findIndex(s => s.id === overId);
         targetSlots = [
           ...overDay.slots.slice(0, overIndex),
@@ -118,14 +126,12 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
         ];
       }
 
-      // Optimistic update
       setDays(prev => prev.map(d => {
         if (d.id === activeDay.id) return { ...d, slots: sourceSlots };
         if (d.id === overDay.id) return { ...d, slots: targetSlots };
         return d;
       }));
 
-      // Persist: move slot to new day, then reorder both days
       fetch(`/api/slots/${activeId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -151,20 +157,69 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, slots } : d)));
   }, []);
 
+  const weekStart = parseWeekParam(lineup.weekStart);
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(7, 400px)" }}>
-        {Array.from({ length: 7 }, (_, dow) => (
-          <DayColumnGroup
-            key={dow}
-            sessions={dayGroups.get(dow) ?? []}
-            weekStart={lineup.weekStart}
-            templates={templates}
-            onSlotsChange={handleSlotsChange}
-            onAddSession={handleAddSession}
-            onDeleteSession={handleDeleteSession}
-          />
-        ))}
+      <div className="flex gap-2 items-stretch" style={{ minHeight: "calc(100vh - 160px)" }}>
+        {Array.from({ length: 7 }, (_, dow) => {
+          const sessions = dayGroups.get(dow) ?? [];
+          const isExpanded = expandedDays.includes(dow);
+          const date = dayDate(weekStart, dow);
+          const slotCount = sessions.reduce((sum, s) => sum + s.slots.length, 0);
+          const primarySession = sessions[0];
+
+          if (!isExpanded) {
+            return (
+              <button
+                key={dow}
+                onClick={() => toggleExpand(dow)}
+                title={`${DAY_NAMES[dow]} — לחץ להרחבה`}
+                className="w-10 shrink-0 flex flex-col items-center py-3 gap-3 border border-border rounded-lg bg-card hover:bg-muted transition-colors"
+              >
+                <span
+                  className="text-xs font-semibold text-foreground"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  {DAY_NAMES[dow]}
+                </span>
+                <span
+                  className="text-xs text-muted-foreground tabular-nums"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  {formatDate(date).slice(0, 5)}
+                </span>
+                {primarySession?.broadcastStartTime && (
+                  <span
+                    className="text-xs text-foreground/60 tabular-nums"
+                    style={{ writingMode: "vertical-rl" }}
+                  >
+                    {primarySession.broadcastStartTime.slice(0, 5)}
+                  </span>
+                )}
+                {slotCount > 0 && (
+                  <span className="mt-auto text-xs bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center font-medium shrink-0">
+                    {slotCount}
+                  </span>
+                )}
+              </button>
+            );
+          }
+
+          return (
+            <div key={dow} className="flex-1 min-w-0">
+              <DayColumnGroup
+                sessions={sessions}
+                weekStart={lineup.weekStart}
+                templates={templates}
+                onSlotsChange={handleSlotsChange}
+                onAddSession={handleAddSession}
+                onDeleteSession={handleDeleteSession}
+                onCollapse={() => toggleExpand(dow)}
+              />
+            </div>
+          );
+        })}
       </div>
       <DragOverlay>
         {activeSlot ? <SlotCard slot={activeSlot} onEdit={() => {}} onDelete={() => {}} /> : null}

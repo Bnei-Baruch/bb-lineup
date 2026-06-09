@@ -11,7 +11,7 @@ import { DayTimeSummary } from "./DayTimeSummary";
 import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
 import Link from "next/link";
-import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus } from "lucide-react";
+import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus, ChevronsRight } from "lucide-react";
 
 interface Template { id: string; name: string }
 
@@ -31,9 +31,10 @@ interface DayColumnProps {
   onSlotsChange: (dayId: string, slots: SlotWithLesson[]) => void;
   onAddSession?: () => void;
   onDeleteSession?: () => void;
+  onCollapse?: () => void;
 }
 
-export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAddSession, onDeleteSession }: DayColumnProps) {
+export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAddSession, onDeleteSession, onCollapse }: DayColumnProps) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
@@ -173,8 +174,23 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
         <div>
           <div className="font-semibold text-sm">{DAY_NAMES[day.dayOfWeek]}</div>
           <div className="text-xs text-muted-foreground tabular-nums">{formatDate(date)}</div>
+          {(day.broadcastStartTime || day.broadcastEndTime) && (
+            <div className="text-xs tabular-nums text-foreground/70">
+              {day.broadcastStartTime?.slice(0, 5)}
+              {day.broadcastEndTime && <>–{day.broadcastEndTime.slice(0, 5)}</>}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="כווץ"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          )}
           {onAddSession && (
             <button
               onClick={onAddSession}
@@ -308,7 +324,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
       </div>
 
       {/* Footer */}
-      <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} />
+      <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} cutoffIndex={day.contentCutoffIndex} />
       <div className="border-t border-border flex">
         <AddSlotMenu onAdd={handleAdd} onAddComponent={handleAddComponent} />
         <button

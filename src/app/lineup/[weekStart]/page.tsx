@@ -113,7 +113,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
         </div>
       </div>
 
-      <div className="overflow-x-auto pb-4">
+      <div className="pb-4">
         <WeekGrid lineup={data} templates={aiTemplates} />
       </div>
     </div>
