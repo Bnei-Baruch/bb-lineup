@@ -180,6 +180,7 @@ model LineupDay {
   notes              String?
   broadcastStartTime    String?
   broadcastEndTime      String?
+  contentStartIndex     Int?
   contentCutoffIndex    Int?
 
   slots              LineupSlot[]

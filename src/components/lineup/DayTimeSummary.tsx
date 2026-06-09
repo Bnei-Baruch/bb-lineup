@@ -19,11 +19,13 @@ interface DayTimeSummaryProps {
   slots: SlotWithLesson[];
   startTime?: string;
   endTime?: string;
+  startIndex?: number | null;
   cutoffIndex?: number | null;
 }
 
-export function DayTimeSummary({ slots, startTime, endTime, cutoffIndex }: DayTimeSummaryProps) {
-  const countedSlots = cutoffIndex != null ? slots.slice(0, cutoffIndex) : slots;
+export function DayTimeSummary({ slots, startTime, endTime, startIndex, cutoffIndex }: DayTimeSummaryProps) {
+  const from = startIndex ?? 0;
+  const countedSlots = cutoffIndex != null ? slots.slice(from, cutoffIndex) : slots.slice(from);
   let total = 0;
   for (const slot of countedSlots) {
     if (slot.slotType === "part_header") continue;

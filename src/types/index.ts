@@ -190,6 +190,7 @@ export interface DayWithSlots {
   notes: string | null;
   broadcastStartTime: string | null;
   broadcastEndTime: string | null;
+  contentStartIndex: number | null;
   contentCutoffIndex: number | null;
   slots: SlotWithLesson[];
 }

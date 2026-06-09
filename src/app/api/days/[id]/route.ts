@@ -28,6 +28,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await prisma.$executeRaw`UPDATE "LineupDay" SET "broadcastEndTime" = ${body.broadcastEndTime ?? null} WHERE "id" = ${id}`;
   }
 
+  if (body.contentStartIndex !== undefined) {
+    try {
+      await prisma.$executeRaw`UPDATE "LineupDay" SET "contentStartIndex" = ${body.contentStartIndex ?? null} WHERE "id" = ${id}`;
+    } catch { /* column not yet migrated on this env */ }
+  }
+
   if (body.contentCutoffIndex !== undefined) {
     try {
       await prisma.$executeRaw`UPDATE "LineupDay" SET "contentCutoffIndex" = ${body.contentCutoffIndex ?? null} WHERE "id" = ${id}`;

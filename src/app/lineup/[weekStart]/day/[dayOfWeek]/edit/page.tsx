@@ -89,12 +89,14 @@ export default async function DayEditPage({
   }
 
   let broadcastEndTime: string | null = null;
+  let contentStartIndex: number | null = null;
   let contentCutoffIndex: number | null = null;
   try {
-    const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null; contentCutoffIndex: number | null }[]>`
-      SELECT broadcastEndTime, contentCutoffIndex FROM "LineupDay" WHERE id = ${dayData.id}
+    const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null; contentStartIndex: number | null; contentCutoffIndex: number | null }[]>`
+      SELECT broadcastEndTime, contentStartIndex, contentCutoffIndex FROM "LineupDay" WHERE id = ${dayData.id}
     `;
     broadcastEndTime = endTimeRow[0]?.broadcastEndTime ?? null;
+    contentStartIndex = endTimeRow[0]?.contentStartIndex ?? null;
     contentCutoffIndex = endTimeRow[0]?.contentCutoffIndex ?? null;
   } catch {
     const endTimeRow = await prisma.$queryRaw<{ broadcastEndTime: string | null }[]>`
@@ -110,6 +112,7 @@ export default async function DayEditPage({
     sessionIndex: 0,
     sessionLabel: null,
     broadcastEndTime,
+    contentStartIndex,
     contentCutoffIndex,
     slots: dayData.slots.map((s) => ({
       ...s,

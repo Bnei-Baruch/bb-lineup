@@ -1,4 +1,5 @@
 export const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+export const EN_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 /** Normalize a date to the Sunday of its week at UTC midnight */
 export function toWeekStart(date: Date): Date {

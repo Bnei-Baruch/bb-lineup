@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
+import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
 import { DayWithSlots } from "@/types";
@@ -88,17 +88,20 @@ export default async function DayViewPage({
     : [];
   const articleSourceMap = Object.fromEntries(articleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage }]));
 
+  let contentStartIndex: number | null = null;
   let contentCutoffIndex: number | null = null;
   let broadcastEndTime: string | null = null;
   let sessionLabel: string | null = null;
   try {
     const row = await prisma.$queryRaw<{
+      contentStartIndex: number | null;
       contentCutoffIndex: number | null;
       broadcastEndTime: string | null;
       sessionLabel: string | null;
     }[]>`
-      SELECT contentCutoffIndex, broadcastEndTime, sessionLabel FROM "LineupDay" WHERE id = ${dayId}
+      SELECT contentStartIndex, contentCutoffIndex, broadcastEndTime, sessionLabel FROM "LineupDay" WHERE id = ${dayId}
     `;
+    contentStartIndex = row[0]?.contentStartIndex ?? null;
     contentCutoffIndex = row[0]?.contentCutoffIndex ?? null;
     broadcastEndTime = row[0]?.broadcastEndTime ?? null;
     sessionLabel = row[0]?.sessionLabel ?? null;
@@ -115,12 +118,17 @@ export default async function DayViewPage({
   const sessionSuffix = sessionIdx > 0
     ? ` / ${sessionLabel ?? `שיעור ${sessionIdx + 1}`}`
     : "";
+  const enSessionSuffix = sessionIdx > 0
+    ? ` / ${sessionLabel ?? `Lesson ${sessionIdx + 1}`}`
+    : "";
   const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}${sessionSuffix}`;
+  const enDayLabel = `Morning Lesson Lineup — ${EN_DAY_NAMES[dow]}, ${formatDate(date)}${enSessionSuffix}`;
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
     sessionIndex: sessionIdx,
     sessionLabel,
+    contentStartIndex,
     contentCutoffIndex,
     broadcastEndTime,
     slots: dayData.slots.map((s) => {
@@ -140,11 +148,11 @@ export default async function DayViewPage({
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Link href={`/lineup/${weekStart}`} className="hover:text-foreground transition-colors">
-            שבוע {formatDate(ws)}
+            <span>שבוע</span> <span className="text-xs text-muted-foreground/70">Week</span> {formatDate(ws)}
           </Link>
           <ChevronRight className="h-4 w-4 rotate-180" />
           <span className="text-foreground font-medium">
-            {DAY_NAMES[dow]}{sessionSuffix}
+            {DAY_NAMES[dow]} <span className="text-muted-foreground font-normal text-xs">{EN_DAY_NAMES[dow]}</span>{sessionSuffix}
           </span>
         </div>
         <Link
@@ -156,7 +164,7 @@ export default async function DayViewPage({
         </Link>
       </div>
 
-      <DayView day={serialized} dayLabel={dayLabel} contentCutoffIndex={contentCutoffIndex} />
+      <DayView day={serialized} dayLabel={dayLabel} enDayLabel={enDayLabel} contentStartIndex={contentStartIndex} contentCutoffIndex={contentCutoffIndex} />
     </div>
   );
 }

@@ -290,10 +290,32 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
       <div ref={setDropRef} className={`flex-1 p-2 space-y-2 min-h-[80px] overflow-y-auto transition-colors ${isOver ? "bg-primary/5" : ""}`}>
         <SortableContext items={day.slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {(() => {
+            const startIdx = day.contentStartIndex ?? 0;
             const cutoff = day.contentCutoffIndex ?? day.slots.length;
+            const clampedStart = Math.min(startIdx, day.slots.length);
             const clampedCutoff = Math.min(cutoff, day.slots.length);
             const items: React.ReactNode[] = [];
+
+            if (clampedStart === 0) {
+              items.push(
+                <div key="start-cutoff" className="flex items-center gap-2 py-1 select-none">
+                  <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+                  <span className="text-xs font-semibold text-blue-500 whitespace-nowrap">תחילת תוכן</span>
+                  <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+                </div>
+              );
+            }
+
             day.slots.forEach((slot, i) => {
+              if (i === clampedStart && clampedStart > 0) {
+                items.push(
+                  <div key="start-cutoff" className="flex items-center gap-2 py-1 select-none">
+                    <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+                    <span className="text-xs font-semibold text-blue-500 whitespace-nowrap">תחילת תוכן</span>
+                    <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+                  </div>
+                );
+              }
               if (i === clampedCutoff) {
                 items.push(
                   <div key="cutoff" className="flex items-center gap-2 py-1 select-none">
@@ -303,12 +325,15 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
                   </div>
                 );
               }
+              const isPreContent = i < clampedStart;
+              const isPostContent = i >= clampedCutoff;
               items.push(
-                <div key={slot.id} className={i >= clampedCutoff ? "opacity-40" : undefined}>
+                <div key={slot.id} className={isPreContent || isPostContent ? "opacity-40" : undefined}>
                   <SlotCard slot={slot} onEdit={handleEdit} onDelete={handleDelete} />
                 </div>
               );
             });
+
             if (clampedCutoff === day.slots.length) {
               items.push(
                 <div key="cutoff" className="flex items-center gap-2 py-1 select-none">
@@ -318,13 +343,14 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
                 </div>
               );
             }
+
             return items;
           })()}
         </SortableContext>
       </div>
 
       {/* Footer */}
-      <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} cutoffIndex={day.contentCutoffIndex} />
+      <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} startIndex={day.contentStartIndex} cutoffIndex={day.contentCutoffIndex} />
       <div className="border-t border-border flex">
         <AddSlotMenu onAdd={handleAdd} onAddComponent={handleAddComponent} />
         <button

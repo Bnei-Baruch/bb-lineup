@@ -53,20 +53,23 @@ interface DayEditorProps {
   series: SeriesRow[];
 }
 
-function CutoffLine({ onMoveUp, onMoveDown }: { onMoveUp: () => void; onMoveDown: () => void }) {
+function CutoffLine({ onMoveUp, onMoveDown, color, label }: { onMoveUp: () => void; onMoveDown: () => void; color: "orange" | "blue"; label: string }) {
+  const colors = color === "orange"
+    ? { border: "border-orange-400", text: "text-orange-500", btn: "text-orange-400 hover:text-orange-600 hover:bg-orange-50" }
+    : { border: "border-blue-400", text: "text-blue-500", btn: "text-blue-400 hover:text-blue-600 hover:bg-blue-50" };
   return (
     <div className="flex items-center gap-2 py-1 select-none group">
-      <div className="flex-1 border-t-2 border-dashed border-orange-400" />
-      <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
+      <div className={`flex-1 border-t-2 border-dashed ${colors.border}`} />
+      <span className={`text-xs font-semibold whitespace-nowrap ${colors.text}`}>{label}</span>
       <div className="flex gap-0.5">
-        <button onClick={onMoveUp} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למעלה">
+        <button onClick={onMoveUp} className={`p-0.5 rounded transition-colors ${colors.btn}`} title="הזז למעלה">
           <ChevronUp className="h-4 w-4" />
         </button>
-        <button onClick={onMoveDown} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למטה">
+        <button onClick={onMoveDown} className={`p-0.5 rounded transition-colors ${colors.btn}`} title="הזז למטה">
           <ChevronDown className="h-4 w-4" />
         </button>
       </div>
-      <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+      <div className={`flex-1 border-t-2 border-dashed ${colors.border}`} />
     </div>
   );
 }
@@ -77,6 +80,23 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"components" | "series">("components");
   const [sidebarWidth, setSidebarWidth] = useState(600);
+  const [startIndex, setStartIndex] = useState<number>(
+    () => initialDay.contentStartIndex ?? 0
+  );
+  const startSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function updateStartIndex(newIndex: number) {
+    setStartIndex(newIndex);
+    if (startSaveTimer.current) clearTimeout(startSaveTimer.current);
+    startSaveTimer.current = setTimeout(() => {
+      fetch(`/api/days/${initialDay.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentStartIndex: newIndex }),
+      });
+    }, 600);
+  }
+
   const [cutoffIndex, setCutoffIndex] = useState<number>(
     () => initialDay.contentCutoffIndex ?? initialDay.slots.length
   );
@@ -238,6 +258,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     await fetch(`/api/slots/${id}`, { method: "DELETE" });
     setSlots((prev) => {
       const idx = prev.findIndex((s) => s.id === id);
+      if (idx !== -1 && idx < startIndex) updateStartIndex(Math.max(0, startIndex - 1));
       if (idx !== -1 && idx < cutoffIndex) updateCutoff(Math.max(0, cutoffIndex - 1));
       return prev.filter((s) => s.id !== id);
     });
@@ -319,13 +340,39 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
           <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
               {(() => {
+                const clampedStart = Math.min(startIndex, slots.length);
                 const clampedCutoff = Math.min(cutoffIndex, slots.length);
                 let running = startTime;
                 const items: React.ReactNode[] = [];
 
+                if (clampedStart === 0) {
+                  items.push(
+                    <CutoffLine key="start"
+                      color="blue" label="תחילת תוכן"
+                      onMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
+                      onMoveDown={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))}
+                    />
+                  );
+                }
+
                 slots.forEach((slot, i) => {
+                  if (i === clampedStart && clampedStart > 0) {
+                    items.push(
+                      <CutoffLine key="start"
+                        color="blue" label="תחילת תוכן"
+                        onMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
+                        onMoveDown={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))}
+                      />
+                    );
+                  }
                   if (i === clampedCutoff) {
-                    items.push(<CutoffLine key="cutoff" onMoveUp={() => updateCutoff(Math.max(0, cutoffIndex - 1))} onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))} />);
+                    items.push(
+                      <CutoffLine key="cutoff"
+                        color="orange" label="סוף תוכן"
+                        onMoveUp={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))}
+                        onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))}
+                      />
+                    );
                   }
                   const clockTime = running;
                   const dur = LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson
@@ -334,15 +381,22 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
                         : (slot.lesson.videoDurationSec ?? 0))
                     : (slot.durationSec ?? 0);
                   running = addSecondsToTime(running, dur);
+                  const isOutside = i < clampedStart || i >= clampedCutoff;
                   items.push(
-                    <div key={slot.id} className={i >= clampedCutoff ? "opacity-40" : undefined}>
+                    <div key={slot.id} className={isOutside ? "opacity-40" : undefined}>
                       <DaySlotRow slot={slot} clockTime={clockTime} onEdit={handleEdit} onDelete={handleDelete} />
                     </div>
                   );
                 });
 
                 if (clampedCutoff === slots.length) {
-                  items.push(<CutoffLine key="cutoff" onMoveUp={() => updateCutoff(Math.max(0, cutoffIndex - 1))} onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))} />);
+                  items.push(
+                    <CutoffLine key="cutoff"
+                      color="orange" label="סוף תוכן"
+                      onMoveUp={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))}
+                      onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))}
+                    />
+                  );
                 }
 
                 return items;
@@ -360,7 +414,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         </div>{/* end scrollable slot list */}
 
         <div className="shrink-0 mt-2 border border-border rounded-lg overflow-hidden bg-background">
-          <DayTimeSummary slots={slots.slice(0, Math.min(cutoffIndex, slots.length))} startTime={startTime} endTime={endTime || undefined} />
+          <DayTimeSummary slots={slots.slice(startIndex, Math.min(cutoffIndex, slots.length))} startTime={startTime} endTime={endTime || undefined} />
         </div>
       </div>
 
