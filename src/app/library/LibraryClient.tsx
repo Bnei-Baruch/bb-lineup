@@ -105,6 +105,18 @@ export function LibraryClient({ lessons: initial, series, currentSlotIds, pastSl
     if (res.ok) setLessons((prev) => prev.filter((l) => l.id !== id));
   }
 
+  async function handleDuplicate(id: string) {
+    const res = await fetch(`/api/lessons/${id}/duplicate`, { method: "POST" });
+    if (!res.ok) return;
+    const { created, updatedOriginal } = await res.json();
+    setLessons((prev) => {
+      let next = updatedOriginal
+        ? prev.map((l) => (l.id === updatedOriginal.id ? updatedOriginal : l))
+        : [...prev];
+      return [created, ...next];
+    });
+  }
+
   async function handleBulkStatusChange(ids: string[], status: string) {
     const res = await fetch("/api/lessons/bulk-status", {
       method: "POST",
@@ -198,6 +210,7 @@ export function LibraryClient({ lessons: initial, series, currentSlotIds, pastSl
           currentSlotIds={currentSlotIds}
           pastSlotIds={pastSlotIds}
           onDelete={handleDelete}
+          onDuplicate={handleDuplicate}
           onBulkDelete={handleBulkDelete}
           onBulkStatusChange={handleBulkStatusChange}
           onBulkAssignSeries={handleBulkAssignSeries}

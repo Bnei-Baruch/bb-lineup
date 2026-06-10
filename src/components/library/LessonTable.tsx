@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { formatDate } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
-import { Pencil, Trash2, Filter, X, Video, BookOpen, FileText } from "lucide-react";
+import { Pencil, Trash2, Copy, Filter, X, Video, BookOpen, FileText } from "lucide-react";
 
 interface LessonRow {
   id: string;
@@ -33,12 +33,13 @@ interface LessonTableProps {
   currentSlotIds: string[];
   pastSlotIds: string[];
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
   onBulkDelete: (ids: string[]) => void;
   onBulkStatusChange: (ids: string[], status: string) => void;
   onBulkAssignSeries: (ids: string[], seriesId: string | null) => void;
 }
 
-export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, onDelete, onBulkDelete, onBulkStatusChange, onBulkAssignSeries }: LessonTableProps) {
+export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, onDelete, onDuplicate, onBulkDelete, onBulkStatusChange, onBulkAssignSeries }: LessonTableProps) {
   const currentSet = useMemo(() => new Set(currentSlotIds), [currentSlotIds]);
   const pastSet = useMemo(() => new Set(pastSlotIds), [pastSlotIds]);
 
@@ -435,6 +436,14 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                     <Link href={`/library/${l.id}`} className={buttonVariants({ variant: "ghost", size: "icon" })}>
                       <Pencil className="h-4 w-4" />
                     </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onDuplicate(l.id)}
+                      title="שכפל שיעור"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
