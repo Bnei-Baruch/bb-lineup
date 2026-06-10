@@ -295,10 +295,8 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                         try {
                           const r = await fetch(`/api/km/source-wordcount?source_id=${encodeURIComponent(s.id)}`);
                           const data = await r.json();
-                          if (data.wordCount) {
-                            setWordCount(String(data.wordCount));
-                            set("durationMin", formatDurationSec(data.durationSec));
-                          }
+                          if (data.wordCount) setWordCount(String(data.wordCount));
+                          if (data.durationSec) set("durationMin", formatDurationSec(data.durationSec));
                         } catch { /* silent */ }
                       }}
                     />

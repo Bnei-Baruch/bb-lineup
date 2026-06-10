@@ -15,8 +15,42 @@ import {
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { DayColumnGroup } from "./DayColumnGroup";
 import { SlotCard } from "./SlotCard";
-import { LineupWithDays, DayWithSlots, SlotWithLesson } from "@/types";
+import { LineupWithDays, DayWithSlots, SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, dayDate, parseWeekParam, formatDate } from "@/lib/dates";
+import { timecodeToSeconds } from "@/lib/timecodes";
+
+function timeToSec(hhmm: string): number {
+  const p = hhmm.split(":").map(Number);
+  return p[0] * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0);
+}
+
+function sessionPlaylistSec(session: DayWithSlots): number {
+  const from = session.contentStartIndex ?? 0;
+  const counted = session.contentCutoffIndex != null
+    ? session.slots.slice(from, session.contentCutoffIndex)
+    : session.slots.slice(from);
+  let total = 0;
+  for (const slot of counted) {
+    if (slot.slotType === "part_header") continue;
+    if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
+      if (slot.startTimecode && slot.endTimecode) {
+        const dur = timecodeToSeconds(slot.endTimecode) - timecodeToSeconds(slot.startTimecode);
+        total += dur > 0 ? dur : (slot.lesson.videoDurationSec ?? 0);
+      } else {
+        total += slot.lesson.videoDurationSec ?? 0;
+      }
+    } else {
+      total += slot.durationSec ?? 0;
+    }
+  }
+  return total;
+}
+
+function fmtHHMM(sec: number): string {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h}:${String(m).padStart(2, "0")}`;
+}
 
 interface Template { id: string; name: string }
 
@@ -166,8 +200,17 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
           const sessions = dayGroups.get(dow) ?? [];
           const isExpanded = expandedDays.includes(dow);
           const date = dayDate(weekStart, dow);
-          const slotCount = sessions.reduce((sum, s) => sum + s.slots.length, 0);
           const primarySession = sessions[0];
+          const totalPlaylistSec = sessions.reduce((sum, s) => sum + sessionPlaylistSec(s), 0);
+          const totalBroadcastSec = sessions.reduce((sum, s) => {
+            if (!s.broadcastStartTime || !s.broadcastEndTime) return sum;
+            let diff = timeToSec(s.broadcastEndTime) - timeToSec(s.broadcastStartTime);
+            if (diff < 0) diff += 24 * 3600;
+            return sum + diff;
+          }, 0);
+          const hasBroadcastWindow = totalBroadcastSec > 0;
+          const isOver = hasBroadcastWindow && totalPlaylistSec > totalBroadcastSec;
+          const isUnder = hasBroadcastWindow && totalPlaylistSec < totalBroadcastSec;
 
           if (!isExpanded) {
             return (
@@ -197,9 +240,14 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
                     {primarySession.broadcastStartTime.slice(0, 5)}
                   </span>
                 )}
-                {slotCount > 0 && (
-                  <span className="mt-auto text-xs bg-primary/10 text-primary rounded-full w-6 h-6 flex items-center justify-center font-medium shrink-0">
-                    {slotCount}
+                {totalPlaylistSec > 0 && (
+                  <span
+                    className={`mt-auto text-xs tabular-nums font-semibold ${
+                      isOver ? "text-red-500" : isUnder ? "text-green-600" : "text-foreground/60"
+                    }`}
+                    style={{ writingMode: "vertical-rl" }}
+                  >
+                    {fmtHHMM(totalPlaylistSec)}
                   </span>
                 )}
               </button>

@@ -19,14 +19,25 @@ export default async function DayViewPage({
   const sessionIdx = parseInt(sessionIdxStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
 
-  // Find the specific session's LineupDay
-  const dayRows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT ld.id FROM "LineupDay" ld
-    JOIN "Lineup" l ON ld.lineupId = l.id
-    WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow} AND ld.sessionIndex = ${sessionIdx}
-    LIMIT 1
-  `;
-  const dayId = dayRows[0]?.id;
+  // Find the specific session's LineupDay (sessionIndex column may not exist on older DBs)
+  let dayId: string | undefined;
+  try {
+    const dayRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT ld.id FROM "LineupDay" ld
+      JOIN "Lineup" l ON ld.lineupId = l.id
+      WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow} AND ld.sessionIndex = ${sessionIdx}
+      LIMIT 1
+    `;
+    dayId = dayRows[0]?.id;
+  } catch {
+    const dayRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT ld.id FROM "LineupDay" ld
+      JOIN "Lineup" l ON ld.lineupId = l.id
+      WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow}
+      LIMIT 1
+    `;
+    dayId = dayRows[0]?.id;
+  }
 
   if (!dayId) {
     return (

@@ -20,14 +20,25 @@ export default async function DayEditPage({
   const sessionIdx = parseInt(sessionIdxStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
 
-  // Find the specific session's LineupDay by (weekStart + dayOfWeek + sessionIndex)
-  const dayRows = await prisma.$queryRaw<{ id: string }[]>`
-    SELECT ld.id FROM "LineupDay" ld
-    JOIN "Lineup" l ON ld.lineupId = l.id
-    WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow} AND ld.sessionIndex = ${sessionIdx}
-    LIMIT 1
-  `;
-  const dayId = dayRows[0]?.id;
+  // Find the specific session's LineupDay (sessionIndex column may not exist on older DBs)
+  let dayId: string | undefined;
+  try {
+    const dayRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT ld.id FROM "LineupDay" ld
+      JOIN "Lineup" l ON ld.lineupId = l.id
+      WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow} AND ld.sessionIndex = ${sessionIdx}
+      LIMIT 1
+    `;
+    dayId = dayRows[0]?.id;
+  } catch {
+    const dayRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT ld.id FROM "LineupDay" ld
+      JOIN "Lineup" l ON ld.lineupId = l.id
+      WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow}
+      LIMIT 1
+    `;
+    dayId = dayRows[0]?.id;
+  }
 
   if (!dayId) {
     return (
@@ -104,6 +115,20 @@ export default async function DayEditPage({
     );
   }
 
+  // Enrich article_reading slots with ArticleSource (bookVolume/bookPage) via URL
+  const articleSlotLinks = dayData.slots
+    .filter((s) => s.slotType === "article_reading" && s.studyMaterialLink)
+    .map((s) => ({ id: s.id, srcId: s.studyMaterialLink!.match(/\/sources\/([A-Za-z0-9_-]+)/)?.[1] ?? null }));
+  const uniqueEditSrcIds = Array.from(new Set(articleSlotLinks.map((a) => a.srcId).filter(Boolean))) as string[];
+  const editArticleSources = uniqueEditSrcIds.length > 0
+    ? await prisma.articleSource.findMany({
+        where: { id: { in: uniqueEditSrcIds } },
+        select: { id: true, bookVolume: true, bookPage: true, link: true },
+      })
+    : [];
+  const editArtSrcMap = Object.fromEntries(editArticleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage, link: s.link }]));
+  const editSlotSrcMap = Object.fromEntries(articleSlotLinks.map((a) => [a.id, a.srcId]));
+
   let broadcastEndTime: string | null = null;
   let contentStartIndex: number | null = null;
   let contentCutoffIndex: number | null = null;
@@ -139,12 +164,16 @@ export default async function DayEditPage({
     broadcastEndTime,
     contentStartIndex,
     contentCutoffIndex,
-    slots: dayData.slots.map((s) => ({
-      ...s,
-      lesson: s.lesson
-        ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
-        : null,
-    })),
+    slots: dayData.slots.map((s) => {
+      const srcId = editSlotSrcMap[s.id] ?? null;
+      return {
+        ...s,
+        studyMaterialSource: srcId ? (editArtSrcMap[srcId] ?? null) : s.studyMaterialSource,
+        lesson: s.lesson
+          ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
+          : null,
+      };
+    }),
   }));
 
   return (

@@ -11,7 +11,7 @@ import { DayTimeSummary } from "./DayTimeSummary";
 import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
 import Link from "next/link";
-import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus, ChevronsRight } from "lucide-react";
+import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus, ChevronsRight, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Template { id: string; name: string }
 
@@ -44,6 +44,35 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
   const [clearExisting, setClearExisting] = useState(false);
   const [applying, setApplying] = useState(false);
+
+  // Content boundary lines
+  const [startIndex, setStartIndex] = useState<number>(day.contentStartIndex ?? 0);
+  const startSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function updateStartIndex(newIndex: number) {
+    setStartIndex(newIndex);
+    if (startSaveTimer.current) clearTimeout(startSaveTimer.current);
+    startSaveTimer.current = setTimeout(() => {
+      fetch(`/api/days/${day.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentStartIndex: newIndex }),
+      });
+    }, 600);
+  }
+
+  const [cutoffIndex, setCutoffIndex] = useState<number>(day.contentCutoffIndex ?? day.slots.length);
+  const cutoffSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function updateCutoff(newIndex: number) {
+    setCutoffIndex(newIndex);
+    if (cutoffSaveTimer.current) clearTimeout(cutoffSaveTimer.current);
+    cutoffSaveTimer.current = setTimeout(() => {
+      fetch(`/api/days/${day.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contentCutoffIndex: newIndex }),
+      });
+    }, 600);
+  }
 
   const date = dayDate(parseWeekParam(weekStart), day.dayOfWeek);
 
@@ -290,41 +319,39 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
       <div ref={setDropRef} className={`flex-1 p-2 space-y-2 min-h-[80px] overflow-y-auto transition-colors ${isOver ? "bg-primary/5" : ""}`}>
         <SortableContext items={day.slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
           {(() => {
-            const startIdx = day.contentStartIndex ?? 0;
-            const cutoff = day.contentCutoffIndex ?? day.slots.length;
-            const clampedStart = Math.min(startIdx, day.slots.length);
-            const clampedCutoff = Math.min(cutoff, day.slots.length);
+            const clampedStart = Math.min(startIndex, day.slots.length);
+            const clampedCutoff = Math.min(cutoffIndex, day.slots.length);
             const items: React.ReactNode[] = [];
 
-            if (clampedStart === 0) {
-              items.push(
-                <div key="start-cutoff" className="flex items-center gap-2 py-1 select-none">
-                  <div className="flex-1 border-t-2 border-dashed border-blue-400" />
-                  <span className="text-xs font-semibold text-blue-500 whitespace-nowrap">תחילת תוכן</span>
-                  <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+            const startLine = (
+              <div key="start-line" className="flex items-center gap-2 py-1 select-none">
+                <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+                <span className="text-xs font-semibold text-blue-500 whitespace-nowrap">תחילת תוכן</span>
+                <div className="flex gap-0.5">
+                  <button onClick={() => updateStartIndex(Math.max(0, startIndex - 1))} className="p-0.5 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="הזז למעלה"><ChevronUp className="h-4 w-4" /></button>
+                  <button onClick={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))} className="p-0.5 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="הזז למטה"><ChevronDown className="h-4 w-4" /></button>
                 </div>
-              );
-            }
+                <div className="flex-1 border-t-2 border-dashed border-blue-400" />
+              </div>
+            );
+
+            const cutoffLine = (
+              <div key="cutoff-line" className="flex items-center gap-2 py-1 select-none">
+                <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+                <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
+                <div className="flex gap-0.5">
+                  <button onClick={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למעלה"><ChevronUp className="h-4 w-4" /></button>
+                  <button onClick={() => updateCutoff(Math.min(day.slots.length, cutoffIndex + 1))} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למטה"><ChevronDown className="h-4 w-4" /></button>
+                </div>
+                <div className="flex-1 border-t-2 border-dashed border-orange-400" />
+              </div>
+            );
+
+            if (clampedStart === 0) items.push(startLine);
 
             day.slots.forEach((slot, i) => {
-              if (i === clampedStart && clampedStart > 0) {
-                items.push(
-                  <div key="start-cutoff" className="flex items-center gap-2 py-1 select-none">
-                    <div className="flex-1 border-t-2 border-dashed border-blue-400" />
-                    <span className="text-xs font-semibold text-blue-500 whitespace-nowrap">תחילת תוכן</span>
-                    <div className="flex-1 border-t-2 border-dashed border-blue-400" />
-                  </div>
-                );
-              }
-              if (i === clampedCutoff) {
-                items.push(
-                  <div key="cutoff" className="flex items-center gap-2 py-1 select-none">
-                    <div className="flex-1 border-t-2 border-dashed border-orange-400" />
-                    <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
-                    <div className="flex-1 border-t-2 border-dashed border-orange-400" />
-                  </div>
-                );
-              }
+              if (i === clampedStart && clampedStart > 0) items.push(startLine);
+              if (i === clampedCutoff) items.push(cutoffLine);
               const isPreContent = i < clampedStart;
               const isPostContent = i >= clampedCutoff;
               items.push(
@@ -334,15 +361,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               );
             });
 
-            if (clampedCutoff === day.slots.length) {
-              items.push(
-                <div key="cutoff" className="flex items-center gap-2 py-1 select-none">
-                  <div className="flex-1 border-t-2 border-dashed border-orange-400" />
-                  <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
-                  <div className="flex-1 border-t-2 border-dashed border-orange-400" />
-                </div>
-              );
-            }
+            if (clampedCutoff === day.slots.length) items.push(cutoffLine);
 
             return items;
           })()}
@@ -350,7 +369,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
       </div>
 
       {/* Footer */}
-      <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} startIndex={day.contentStartIndex} cutoffIndex={day.contentCutoffIndex} />
+      <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} startIndex={startIndex} cutoffIndex={cutoffIndex} />
       <div className="border-t border-border flex">
         <AddSlotMenu onAdd={handleAdd} onAddComponent={handleAddComponent} />
         <button

@@ -71,6 +71,22 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
   }
   const extrasMap = Object.fromEntries(extras.map((r) => [r.id, r]));
 
+  // Enrich article_reading slots with ArticleSource data via URL
+  const weekArticleSlotLinks = lineup.days.flatMap((d) =>
+    d.slots
+      .filter((s) => s.slotType === "article_reading" && s.studyMaterialLink)
+      .map((s) => ({ id: s.id, srcId: s.studyMaterialLink!.match(/\/sources\/([A-Za-z0-9_-]+)/)?.[1] ?? null }))
+  );
+  const weekUniqueSrcIds = Array.from(new Set(weekArticleSlotLinks.map((a) => a.srcId).filter(Boolean))) as string[];
+  const weekArticleSources = weekUniqueSrcIds.length > 0
+    ? await prisma.articleSource.findMany({
+        where: { id: { in: weekUniqueSrcIds } },
+        select: { id: true, bookVolume: true, bookPage: true, link: true },
+      })
+    : [];
+  const weekArtSrcMap = Object.fromEntries(weekArticleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage, link: s.link }]));
+  const weekSlotSrcMap = Object.fromEntries(weekArticleSlotLinks.map((a) => [a.id, a.srcId]));
+
   const data: LineupWithDays = JSON.parse(JSON.stringify({
     ...lineup,
     weekStart: lineup.weekStart.toISOString().slice(0, 10),
@@ -81,12 +97,16 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
       sessionLabel: extrasMap[d.id]?.sessionLabel ?? null,
       contentStartIndex: extrasMap[d.id]?.contentStartIndex ?? null,
       contentCutoffIndex: extrasMap[d.id]?.contentCutoffIndex ?? null,
-      slots: d.slots.map((s) => ({
-        ...s,
-        lesson: s.lesson
-          ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
-          : null,
-      })),
+      slots: d.slots.map((s) => {
+        const srcId = weekSlotSrcMap[s.id] ?? null;
+        return {
+          ...s,
+          studyMaterialSource: srcId ? (weekArtSrcMap[srcId] ?? null) : s.studyMaterialSource,
+          lesson: s.lesson
+            ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
+            : null,
+        };
+      }),
     })),
   }));
 

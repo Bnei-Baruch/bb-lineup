@@ -25,4 +25,11 @@ export const slotWithLessonInclude = {
       category: true,
     },
   },
+  studyMaterialSource: {
+    select: {
+      bookVolume: true,
+      bookPage: true,
+      link: true,
+    },
+  },
 } as const;

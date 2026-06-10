@@ -50,7 +50,7 @@ export function LessonPicker({ open, onClose, onSelect }: LessonPickerProps) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col gap-3">
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col gap-3">
         <DialogHeader>
           <DialogTitle>בחירת שיעור</DialogTitle>
         </DialogHeader>

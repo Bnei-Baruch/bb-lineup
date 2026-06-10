@@ -116,8 +116,31 @@ export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
                 </div>
               </>
             )}
-            {slot.slotType === "article_reading" && slot.studyMaterialSourceRef && (
-              <p>{slot.studyMaterialSourceRef.split("|").slice(0, -1).join("|").trim()}</p>
+            {slot.slotType === "article_reading" && (
+              <>
+                {slot.studyMaterialSourceRef && (
+                  <p>{slot.studyMaterialSourceRef.split(" | ").slice(0, -1).join(" | ").trim()}</p>
+                )}
+                {(slot.studyMaterialSource?.bookVolume != null || slot.studyMaterialSource?.bookPage != null) && (
+                  <p className="tabular-nums font-medium text-foreground/80">
+                    {[
+                      slot.studyMaterialSource.bookVolume != null ? `כרך ${slot.studyMaterialSource.bookVolume}` : null,
+                      slot.studyMaterialSource.bookPage != null ? `עמוד ${slot.studyMaterialSource.bookPage}` : null,
+                    ].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+                {(slot.studyMaterialLink || slot.studyMaterialSource?.link) && (
+                  <a
+                    href={slot.studyMaterialLink ?? slot.studyMaterialSource?.link ?? ""}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    🔗 פתח מאמר
+                  </a>
+                )}
+              </>
             )}
             {slot.narratorScript && <p>{slot.narratorScript}</p>}
             {slot.mediaCode && <p className="text-pink-600">{slot.mediaCode}</p>}
