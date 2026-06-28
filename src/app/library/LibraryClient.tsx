@@ -21,6 +21,8 @@ interface LessonRow {
   narratorName: string | null;
   videoDurationSec: number | null;
   articleReadingSec: number | null;
+  startTimecode: string | null;
+  endTimecode: string | null;
   tags: string | null;
   kmPageLink: string | null;
   articleSourceLink: string | null;

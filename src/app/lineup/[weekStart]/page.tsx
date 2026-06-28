@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { Prisma } from "@prisma/client";
 import { WeekGrid } from "@/components/lineup/WeekGrid";
 import { WeekPicker } from "@/components/lineup/WeekPicker";
 import { WeekAIButton } from "@/components/ai/WeekAIButton";
@@ -87,6 +88,18 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
   const weekArtSrcMap = Object.fromEntries(weekArticleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage, link: s.link }]));
   const weekSlotSrcMap = Object.fromEntries(weekArticleSlotLinks.map((a) => [a.id, a.srcId]));
 
+  // Supplement lesson timecodes (raw SQL — Prisma client may not include these columns yet)
+  const allLessonIds = Array.from(new Set(lineup.days.flatMap((d) => d.slots.map((s) => s.lessonId).filter(Boolean) as string[])));
+  let lessonTimecodeMap = new Map<string, { startTimecode: string | null; endTimecode: string | null }>();
+  if (allLessonIds.length > 0) {
+    try {
+      const tcRows = await prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
+        SELECT id, startTimecode, endTimecode FROM "Lesson" WHERE id IN (${Prisma.join(allLessonIds)})
+      `;
+      lessonTimecodeMap = new Map(tcRows.map((r) => [r.id, r]));
+    } catch { /* ignore — columns not yet present */ }
+  }
+
   const data: LineupWithDays = JSON.parse(JSON.stringify({
     ...lineup,
     weekStart: lineup.weekStart.toISOString().slice(0, 10),
@@ -103,7 +116,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
           ...s,
           studyMaterialSource: srcId ? (weekArtSrcMap[srcId] ?? null) : s.studyMaterialSource,
           lesson: s.lesson
-            ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
+            ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null, ...lessonTimecodeMap.get(s.lesson.id) }
             : null,
         };
       }),

@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { parseDurationToSec, formatDurationSec } from "@/lib/time";
 
 interface TemplateSlot {
@@ -66,6 +66,25 @@ function addIds(slots: Omit<TemplateSlot, "id">[]): TemplateSlot[] {
 
 function stripIds(slots: TemplateSlot[]): Omit<TemplateSlot, "id">[] {
   return slots.map(({ id: _id, ...rest }) => rest);
+}
+
+function parseDayTemplate(raw: string): { slots: TemplateSlot[]; contentStartIndex: number; contentCutoffIndex: number | null } {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return { slots: addIds(parsed), contentStartIndex: 0, contentCutoffIndex: null };
+    }
+    if (parsed && typeof parsed === "object") {
+      return {
+        slots: addIds(parsed.slots ?? []),
+        contentStartIndex: parsed.contentStartIndex ?? 0,
+        contentCutoffIndex: parsed.contentCutoffIndex ?? null,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return { slots: [], contentStartIndex: 0, contentCutoffIndex: null };
 }
 
 interface SortableRowProps {
@@ -117,6 +136,26 @@ function SortableRow({ slot, components, onUpdate, onRemove }: SortableRowProps)
   );
 }
 
+function ContentLine({ label, color, onUp, onDown, canUp, canDown }: {
+  label: string; color: "blue" | "orange";
+  onUp: () => void; onDown: () => void; canUp: boolean; canDown: boolean;
+}) {
+  const cls = color === "blue"
+    ? "border-blue-400 text-blue-700 bg-blue-50"
+    : "border-orange-400 text-orange-700 bg-orange-50";
+  return (
+    <div className={`flex items-center gap-1 border-y py-0.5 px-2 text-[11px] font-semibold ${cls}`}>
+      <button type="button" onClick={onUp} disabled={!canUp} className="disabled:opacity-30 hover:opacity-70">
+        <ChevronUp className="h-3.5 w-3.5" />
+      </button>
+      <button type="button" onClick={onDown} disabled={!canDown} className="disabled:opacity-30 hover:opacity-70">
+        <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose }: Props) {
   const [name, setName] = useState(ruleSet?.name ?? "");
   const [description, setDescription] = useState(ruleSet?.description ?? "");
@@ -127,12 +166,17 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
   const [maxLesson, setMaxLesson] = useState(ruleSet?.maxLessonDurationSec ? formatDurationSec(ruleSet.maxLessonDurationSec) : "");
   const [splitLong, setSplitLong] = useState(ruleSet?.splitLongLessons ?? true);
   const [extraInstructions, setExtraInstructions] = useState(ruleSet?.extraInstructions ?? "");
-  const [template, setTemplate] = useState<TemplateSlot[]>(() =>
-    ruleSet?.dayTemplate ? addIds(JSON.parse(ruleSet.dayTemplate)) : []
-  );
   const [selectedSeriesIds, setSelectedSeriesIds] = useState<string[]>(
     ruleSet?.preferredSeriesIds ? JSON.parse(ruleSet.preferredSeriesIds) : []
   );
+
+  const [{ initSlots, initStart, initCutoff }] = useState(() => {
+    const p = ruleSet?.dayTemplate ? parseDayTemplate(ruleSet.dayTemplate) : { slots: [], contentStartIndex: 0, contentCutoffIndex: null };
+    return { initSlots: p.slots, initStart: p.contentStartIndex, initCutoff: p.contentCutoffIndex };
+  });
+  const [template, setTemplate] = useState<TemplateSlot[]>(initSlots);
+  const [contentStartIndex, setContentStartIndex] = useState(initStart);
+  const [contentCutoffIndex, setContentCutoffIndex] = useState<number | null>(initCutoff);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -144,7 +188,21 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
   }
 
   function removeTemplateSlot(id: string) {
-    setTemplate((t) => t.filter((s) => s.id !== id));
+    setTemplate((t) => {
+      const idx = t.findIndex((s) => s.id === id);
+      const newSlots = t.filter((s) => s.id !== id);
+      const newLen = newSlots.length;
+      if (idx !== -1) {
+        if (idx < contentStartIndex) setContentStartIndex((v) => Math.max(0, v - 1));
+        else setContentStartIndex((v) => Math.min(v, newLen));
+        const cutoff = contentCutoffIndex;
+        if (cutoff !== null) {
+          if (idx < cutoff) setContentCutoffIndex(Math.max(contentStartIndex, cutoff - 1));
+          else setContentCutoffIndex(Math.min(cutoff, newLen));
+        }
+      }
+      return newSlots;
+    });
   }
 
   function updateTemplateSlot(id: string, patch: Partial<TemplateSlot>) {
@@ -168,6 +226,11 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
   }
 
   function handleSave() {
+    const dayTemplateObj = {
+      slots: stripIds(template),
+      contentStartIndex,
+      contentCutoffIndex,
+    };
     onSave({
       name,
       description: description || null,
@@ -177,10 +240,54 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
       hardMaxDurationSec: parseDurationToSec(hardMax),
       maxLessonDurationSec: parseDurationToSec(maxLesson),
       splitLongLessons: splitLong,
-      dayTemplate: JSON.stringify(stripIds(template)),
+      dayTemplate: JSON.stringify(dayTemplateObj),
       preferredSeriesIds: selectedSeriesIds.length > 0 ? JSON.stringify(selectedSeriesIds) : null,
       extraInstructions: extraInstructions || null,
     } as Partial<RuleSet>);
+  }
+
+  const cutoffIdx = contentCutoffIndex ?? template.length;
+
+  function renderSlotList() {
+    const elements: React.ReactNode[] = [];
+    for (let i = 0; i <= template.length; i++) {
+      if (i === contentStartIndex) {
+        elements.push(
+          <ContentLine key="start-line" label="תחילת תוכן" color="blue"
+            canUp={contentStartIndex > 0}
+            canDown={contentStartIndex < cutoffIdx}
+            onUp={() => setContentStartIndex((v) => Math.max(0, v - 1))}
+            onDown={() => setContentStartIndex((v) => Math.min(cutoffIdx, v + 1))}
+          />
+        );
+      }
+      if (i === cutoffIdx && cutoffIdx !== contentStartIndex) {
+        elements.push(
+          <ContentLine key="cutoff-line" label="סוף תוכן" color="orange"
+            canUp={cutoffIdx > contentStartIndex}
+            canDown={cutoffIdx < template.length}
+            onUp={() => setContentCutoffIndex(Math.max(contentStartIndex, cutoffIdx - 1))}
+            onDown={() => {
+              const next = cutoffIdx + 1;
+              setContentCutoffIndex(next >= template.length ? null : next);
+            }}
+          />
+        );
+      }
+      if (i < template.length) {
+        const slot = template[i];
+        elements.push(
+          <SortableRow
+            key={slot.id}
+            slot={slot}
+            components={components}
+            onUpdate={(patch) => updateTemplateSlot(slot.id, patch)}
+            onRemove={() => removeTemplateSlot(slot.id)}
+          />
+        );
+      }
+    }
+    return elements;
   }
 
   return (
@@ -254,15 +361,7 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={template.map((s) => s.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-1.5">
-                  {template.map((slot) => (
-                    <SortableRow
-                      key={slot.id}
-                      slot={slot}
-                      components={components}
-                      onUpdate={(patch) => updateTemplateSlot(slot.id, patch)}
-                      onRemove={() => removeTemplateSlot(slot.id)}
-                    />
-                  ))}
+                  {renderSlotList()}
                 </div>
               </SortableContext>
             </DndContext>

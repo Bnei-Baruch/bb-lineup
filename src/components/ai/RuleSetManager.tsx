@@ -81,7 +81,7 @@ export function RuleSetManager({ initialRuleSets, series, components }: Props) {
 
       <div className="space-y-3">
         {ruleSets.map((r) => {
-          const template = (() => { try { const p = JSON.parse(r.dayTemplate || "[]"); return Array.isArray(p) ? p : []; } catch { return []; } })() as { type: string; label?: string; componentId?: string }[];
+          const template = (() => { try { const p = JSON.parse(r.dayTemplate || "[]"); return Array.isArray(p) ? p : (p?.slots ?? []); } catch { return []; } })() as { type: string; label?: string; componentId?: string }[];
           const seriesIds = r.preferredSeriesIds ? JSON.parse(r.preferredSeriesIds) as string[] : [];
           return (
             <div key={r.id} className="border border-border rounded-lg p-4 space-y-3">
@@ -164,6 +164,7 @@ export function RuleSetManager({ initialRuleSets, series, components }: Props) {
 
       {(creating || editing) && (
         <RuleSetForm
+          key={editing?.id ?? "new"}
           open
           ruleSet={editing}
           series={series}

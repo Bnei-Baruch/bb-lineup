@@ -16,9 +16,12 @@ interface DayViewProps {
 
 function slotEffectiveDuration(slot: SlotWithLesson): number {
   if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-    if (slot.startTimecode && slot.endTimecode) {
+    const hasSlotTC = slot.startTimecode && slot.endTimecode;
+    const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
+    const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
+    if (inTC && outTC) {
       const toSec = (tc: string) => { const p = tc.split(":").map(Number); return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0); };
-      const dur = toSec(slot.endTimecode) - toSec(slot.startTimecode);
+      const dur = toSec(outTC) - toSec(inTC);
       if (dur > 0) return dur;
     }
     return slot.lesson.videoDurationSec ?? 0;
@@ -292,10 +295,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           </span>
                         )}
                         {slot.lineupLink && (
-                          <a href={slot.lineupLink} target="_blank" rel="noopener noreferrer"
-                            className="block text-xs text-blue-600 hover:underline mt-1 truncate max-w-[220px]">
-                            🔗 פתח קישור
-                          </a>
+                          <TableLink href={slot.lineupLink} label="ליינאפ" />
                         )}
                       </td>
                       {/* הערות */}
@@ -308,6 +308,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
                             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
                           )}
+                          {slot.likutimLink && (
+                            <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />
+                          )}
                         </div>
                       </td>
                       {/* שיעור מוקלט */}
@@ -319,7 +322,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {/* החל מדקה */}
                       <td className="px-2 py-2 tabular-nums text-muted-foreground">
                         {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType)
-                          ? (slot.startTimecode || "00:00:00")
+                          ? (() => { const hasSlotTC = slot.startTimecode && slot.endTimecode; return hasSlotTC ? slot.startTimecode : (slot.lesson?.startTimecode || "00:00:00"); })()
                           : (slot.startTimecode ?? "")}
                       </td>
                       {/* דבר המתחיל */}
@@ -329,7 +332,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {/* עד דקה */}
                       <td className="px-2 py-2 tabular-nums text-muted-foreground">
                         {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType)
-                          ? (slot.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : ""))
+                          ? (() => { const hasSlotTC = slot.startTimecode && slot.endTimecode; return hasSlotTC ? slot.endTimecode : (slot.lesson?.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : "")); })()
                           : (slot.endTimecode ?? "")}
                       </td>
                       {/* דברי סיום */}

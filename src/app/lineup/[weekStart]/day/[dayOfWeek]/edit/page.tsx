@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { Prisma } from "@prisma/client";
 import { DayEditor } from "@/components/lineup/DayEditor";
 import { DayWithSlots } from "@/types";
 import Link from "next/link";
@@ -107,6 +108,18 @@ export default async function DayEditPage({
 
   const date = dayDate(ws, dow);
 
+  // Supplement lesson timecodes (raw SQL — Prisma client may not include these columns yet)
+  const dayLessonIds = Array.from(new Set(dayData.slots.map((s) => s.lessonId).filter(Boolean) as string[]));
+  let dayLessonTcMap = new Map<string, { startTimecode: string | null; endTimecode: string | null }>();
+  if (dayLessonIds.length > 0) {
+    try {
+      const tcRows = await prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
+        SELECT id, startTimecode, endTimecode FROM "Lesson" WHERE id IN (${Prisma.join(dayLessonIds)})
+      `;
+      dayLessonTcMap = new Map(tcRows.map((r) => [r.id, r]));
+    } catch { /* ignore */ }
+  }
+
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
     sessionIndex: 0,
@@ -117,7 +130,7 @@ export default async function DayEditPage({
     slots: dayData.slots.map((s) => ({
       ...s,
       lesson: s.lesson
-        ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
+        ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null, ...dayLessonTcMap.get(s.lesson.id) }
         : null,
     })),
   }));

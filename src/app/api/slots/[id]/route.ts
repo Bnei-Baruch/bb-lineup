@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,7 +19,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     data: body,
     include: slotWithLessonInclude,
   });
-  return NextResponse.json(slot);
+  const [enriched] = await withLessonTimecodes(prisma, [slot]);
+  return NextResponse.json(enriched);
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -31,7 +32,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data: { dayId },
     include: slotWithLessonInclude,
   });
-  return NextResponse.json(slot);
+  const [enriched] = await withLessonTimecodes(prisma, [slot]);
+  return NextResponse.json(enriched);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

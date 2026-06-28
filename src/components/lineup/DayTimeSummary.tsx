@@ -30,8 +30,11 @@ export function DayTimeSummary({ slots, startTime, endTime, startIndex, cutoffIn
   for (const slot of countedSlots) {
     if (slot.slotType === "part_header") continue;
     if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-      if (slot.startTimecode && slot.endTimecode) {
-        const dur = timecodeToSeconds(slot.endTimecode) - timecodeToSeconds(slot.startTimecode);
+      const hasSlotTC = slot.startTimecode && slot.endTimecode;
+      const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
+      const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
+      if (inTC && outTC) {
+        const dur = timecodeToSeconds(outTC) - timecodeToSeconds(inTC);
         total += dur > 0 ? dur : (slot.lesson.videoDurationSec ?? 0);
       } else {
         total += slot.lesson.videoDurationSec ?? 0;

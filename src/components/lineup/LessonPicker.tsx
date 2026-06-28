@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/library/StatusBadge";
 import { formatDate } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
+import { timecodeToSeconds } from "@/lib/timecodes";
 import { LessonSummary } from "@/types";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
@@ -88,9 +89,19 @@ export function LessonPicker({ open, onClose, onSelect }: LessonPickerProps) {
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <StatusBadge status={l.approvalStatus} />
-                  {l.videoDurationSec && (
-                    <span className="text-xs text-muted-foreground tabular-nums">{formatDurationSec(l.videoDurationSec)}</span>
-                  )}
+                  {l.videoDurationSec && (() => {
+                    const cutSec = l.startTimecode && l.endTimecode
+                      ? timecodeToSeconds(l.endTimecode) - timecodeToSeconds(l.startTimecode)
+                      : null;
+                    return (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {cutSec != null && cutSec > 0
+                          ? <>{formatDurationSec(cutSec)} <span className="opacity-60">({formatDurationSec(l.videoDurationSec)})</span></>
+                          : formatDurationSec(l.videoDurationSec)
+                        }
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </button>

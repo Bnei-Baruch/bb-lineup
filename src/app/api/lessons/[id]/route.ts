@@ -38,6 +38,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   delete body.articleBookVolume;
   delete body.articleBookPage;
 
+  // Extract timecode fields — written via raw SQL to avoid Prisma client cache issues
+  const startTimecode: string | null = body.startTimecode || null;
+  const endTimecode: string | null = body.endTimecode || null;
+  delete body.startTimecode;
+  delete body.endTimecode;
+
   // Re-calculate article reading if source link changed
   if (body.articleSourceLink) {
     const existing = await prisma.lesson.findUnique({ where: { id }, select: { articleSourceLink: true } });
@@ -55,7 +61,18 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
-  const lesson = await prisma.lesson.update({ where: { id }, data: body });
+  let lesson;
+  try {
+    lesson = await prisma.lesson.update({ where: { id }, data: body });
+  } catch (err) {
+    console.error("lesson update error:", err);
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+
+  // Write timecode fields via raw SQL (Prisma client may not yet include these columns)
+  await prisma.$executeRaw`
+    UPDATE "Lesson" SET "startTimecode" = ${startTimecode}, "endTimecode" = ${endTimecode} WHERE id = ${id}
+  `;
 
   // Upsert book page into ArticleSource if we have a source ID
   const sourceId = lesson.articleSourceId;
@@ -78,7 +95,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
   }
 
-  return NextResponse.json(lesson);
+  return NextResponse.json({ ...lesson, startTimecode, endTimecode });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

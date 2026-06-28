@@ -8,11 +8,20 @@ export const dynamic = "force-dynamic";
 
 export default async function EditLessonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [lesson, seriesList] = await Promise.all([
+  const [lesson, seriesList, timecodeRows] = await Promise.all([
     prisma.lesson.findUnique({ where: { id }, include: { articleSource: true } }),
     prisma.series.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
+    prisma.$queryRaw<{ startTimecode: string | null; endTimecode: string | null }[]>`
+      SELECT startTimecode, endTimecode FROM "Lesson" WHERE id = ${id}
+    `,
   ]);
   if (!lesson) notFound();
+
+  const lessonWithTimecodes = {
+    ...JSON.parse(JSON.stringify(lesson)),
+    startTimecode: timecodeRows[0]?.startTimecode ?? null,
+    endTimecode: timecodeRows[0]?.endTimecode ?? null,
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -22,7 +31,7 @@ export default async function EditLessonPage({ params }: { params: Promise<{ id:
         <span className="text-foreground">עריכת שיעור</span>
       </div>
       <h1 className="text-2xl font-bold">עריכת שיעור</h1>
-      <LessonForm lesson={JSON.parse(JSON.stringify(lesson))} seriesList={seriesList} />
+      <LessonForm lesson={lessonWithTimecodes} seriesList={seriesList} />
     </div>
   );
 }

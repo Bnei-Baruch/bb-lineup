@@ -144,6 +144,8 @@ export interface LessonSummary {
   kmPageLink: string | null;
   videoLink: string | null;
   articleSourceLink: string | null;
+  startTimecode: string | null;
+  endTimecode: string | null;
 }
 
 export interface SlotWithLesson {
@@ -164,6 +166,8 @@ export interface SlotWithLesson {
   studyMaterialSource: { bookVolume: number | null; bookPage: number | null; link: string | null } | null;
   mediaCode: string | null;
   lineupLink: string | null;
+  likutimLink: string | null;
+  likutimName: string | null;
   recordedLessonLink: string | null;
   startTimecode: string | null;
   endTimecode: string | null;

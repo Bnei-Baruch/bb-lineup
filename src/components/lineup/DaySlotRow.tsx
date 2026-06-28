@@ -10,8 +10,11 @@ import { GripVertical, Pencil, Trash2 } from "lucide-react";
 
 function slotDuration(slot: SlotWithLesson): number {
   if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-    if (slot.startTimecode && slot.endTimecode) {
-      const dur = timecodeToSeconds(slot.endTimecode) - timecodeToSeconds(slot.startTimecode);
+    const hasSlotTC = slot.startTimecode && slot.endTimecode;
+    const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
+    const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
+    if (inTC && outTC) {
+      const dur = timecodeToSeconds(outTC) - timecodeToSeconds(inTC);
       if (dur > 0) return dur;
     }
     return slot.lesson.videoDurationSec ?? 0;
@@ -87,17 +90,40 @@ export function DaySlotRow({ slot, clockTime, onEdit, onDelete }: DaySlotRowProp
             <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap">{slot.narratorScript}</p>
           )}
 
-          {/* Narrator hyperlink */}
-          {slot.lineupLink && (
-            <a
-              href={slot.lineupLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-xs text-blue-600 hover:underline"
-            >
-              🔗 פתח קישור
-            </a>
+          {/* Opening / closing words */}
+          {(slot.openingWords || slot.closingWords) && (
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              {slot.openingWords && <p><span className="text-foreground/60">פתיחה:</span> {slot.openingWords}</p>}
+              {slot.closingWords && <p><span className="text-foreground/60">סיום:</span> {slot.closingWords}</p>}
+            </div>
+          )}
+
+          {/* Links row */}
+          {(slot.lineupLink || slot.likutimLink) && (
+            <div className="flex gap-2 flex-wrap">
+              {slot.lineupLink && (
+                <a
+                  href={slot.lineupLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  ליינאפ
+                </a>
+              )}
+              {slot.likutimLink && (
+                <a
+                  href={slot.likutimLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-blue-600 hover:underline"
+                >
+                  {slot.likutimName ?? "ליקוטים"}
+                </a>
+              )}
+            </div>
           )}
 
           {/* Lesson info */}
@@ -108,8 +134,12 @@ export function DaySlotRow({ slot, clockTime, onEdit, onDelete }: DaySlotRowProp
           {/* Timecodes */}
           {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && (
             <div className="flex gap-3 text-xs text-muted-foreground tabular-nums">
-              <span>מ: {slot.startTimecode || "00:00:00"}</span>
-              <span>עד: {slot.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : "—")}</span>
+              {(() => {
+                const hasSlotTC = slot.startTimecode && slot.endTimecode;
+                const inTC = hasSlotTC ? slot.startTimecode : (slot.lesson?.startTimecode || "00:00:00");
+                const outTC = hasSlotTC ? slot.endTimecode : (slot.lesson?.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : "—"));
+                return (<><span>מ: {inTC}</span><span>עד: {outTC}</span></>);
+              })()}
             </div>
           )}
 

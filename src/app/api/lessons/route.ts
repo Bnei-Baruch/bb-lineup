@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /** Extract source ID from a kabbalahmedia sources URL */
@@ -69,7 +70,21 @@ export async function GET(req: NextRequest) {
     prisma.lesson.count({ where }),
   ]);
 
-  return NextResponse.json({ lessons, total, page, pageSize });
+  // Supplement with timecode fields (raw SQL — Prisma client may not yet include these columns)
+  const ids = lessons.map((l) => l.id);
+  const timecodeRows = ids.length > 0
+    ? await prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
+        SELECT id, startTimecode, endTimecode FROM "Lesson" WHERE id IN (${Prisma.join(ids)})
+      `.catch(() => [] as { id: string; startTimecode: string | null; endTimecode: string | null }[])
+    : [];
+  const timecodeMap = new Map(timecodeRows.map((r) => [r.id, r]));
+  const lessonsOut = lessons.map((l) => ({
+    ...l,
+    startTimecode: timecodeMap.get(l.id)?.startTimecode ?? null,
+    endTimecode: timecodeMap.get(l.id)?.endTimecode ?? null,
+  }));
+
+  return NextResponse.json({ lessons: lessonsOut, total, page, pageSize });
 }
 
 export async function POST(req: NextRequest) {

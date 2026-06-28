@@ -38,8 +38,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
-  // Parse template days JSON
-  let templateDays: Record<string, { slotType: string; componentId?: string; label?: string; durationSec?: number }[]>;
+  type TemplateSlot = { slotType: string; componentId?: string; label?: string; durationSec?: number };
+  type DayEntry = TemplateSlot[] | { slots: TemplateSlot[]; contentStartIndex?: number; contentCutoffIndex?: number | null };
+
+  // Parse template days JSON — supports both old (array) and new (object with slots + indices) format
+  let templateDays: Record<string, DayEntry>;
   try {
     templateDays = JSON.parse(template.days);
   } catch {
@@ -49,7 +52,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let totalCreated = 0;
   let daysAffected = 0;
 
-  for (const [dayOfWeekStr, slots] of Object.entries(templateDays)) {
+  for (const [dayOfWeekStr, dayEntry] of Object.entries(templateDays)) {
+    const slots: TemplateSlot[] = Array.isArray(dayEntry) ? dayEntry : (dayEntry.slots ?? []);
+    const contentStartIndex: number = Array.isArray(dayEntry) ? 0 : (dayEntry.contentStartIndex ?? 0);
+    const contentCutoffIndex: number | null = Array.isArray(dayEntry) ? null : (dayEntry.contentCutoffIndex ?? null);
+
     if (!slots || slots.length === 0) continue;
 
     const dayOfWeek = parseInt(dayOfWeekStr, 10);
@@ -83,6 +90,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       sortOrder++;
       totalCreated++;
     }
+
+    // Write contentStartIndex / contentCutoffIndex to the day
+    await prisma.$executeRaw`
+      UPDATE "LineupDay"
+      SET "contentStartIndex" = ${contentStartIndex},
+          "contentCutoffIndex" = ${contentCutoffIndex}
+      WHERE id = ${lineupDay.id}
+    `;
 
     daysAffected++;
   }

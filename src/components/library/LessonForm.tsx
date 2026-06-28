@@ -54,6 +54,8 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
     bookSeries: (articleSource?.bookSeries as string) ?? "",
     bookVolume: articleSource?.bookVolume != null ? String(articleSource.bookVolume) : "",
     bookPage: articleSource?.bookPage != null ? String(articleSource.bookPage) : "",
+    startTimecode: (lesson?.startTimecode as string) ?? "",
+    endTimecode: (lesson?.endTimecode as string) ?? "",
     initialNotes: (lesson?.initialNotes as string) ?? "",
     openingStatement: (lesson?.openingStatement as string) ?? "",
     closingStatement: (lesson?.closingStatement as string) ?? "",
@@ -147,6 +149,8 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
       videoDurationSec: form.videoDuration ? parseDurationToSec(form.videoDuration) : null,
       videoLink: form.videoLink || null,
       narratorName: form.narratorName || null,
+      startTimecode: form.startTimecode || null,
+      endTimecode: form.endTimecode || null,
       transcriptionLink: form.transcriptionLink || null,
       articleSourceRef: form.articleSourceRef || null,
       articleSourceId: form.articleSourceId || null,
@@ -255,6 +259,14 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
           <div className="space-y-2">
             <Label>מספר / קריין</Label>
             <Input value={form.narratorName} onChange={(e) => set("narratorName", e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>IN (HH:MM:SS)</Label>
+            <Input value={form.startTimecode} onChange={(e) => set("startTimecode", e.target.value)} placeholder="00:00:00" dir="ltr" />
+          </div>
+          <div className="space-y-2">
+            <Label>OUT (HH:MM:SS)</Label>
+            <Input value={form.endTimecode} onChange={(e) => set("endTimecode", e.target.value)} placeholder="00:00:00" dir="ltr" />
           </div>
         </div>
 

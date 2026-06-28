@@ -30,6 +30,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
   const [componentCategory, setComponentCategory] = useState("custom");
   const [savingComponent, setSavingComponent] = useState(false);
   const [componentSaved, setComponentSaved] = useState<string | null>(null);
+  const [fetchingLikutim, setFetchingLikutim] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -60,6 +61,8 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
       language: s.language ?? "",
       chevrutaPartners: s.chevrutaPartners ? JSON.parse(s.chevrutaPartners).join(", ") : "",
       groupLeader: s.groupLeader ?? "",
+      likutimLink: s.likutimLink ?? "",
+      likutimName: s.likutimName ?? "",
       contactPerson: s.contactPerson ?? "",
       holidayTag: s.holidayTag ?? "",
       partNumber: String(s.partNumber ?? ""),
@@ -69,6 +72,21 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
 
   function set(field: string, value: string | boolean) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function fetchLikutimName() {
+    const m = form.likutimLink.match(/\/([A-Za-z0-9]+)(?:[?#].*)?$/);
+    if (!m) return;
+    setFetchingLikutim(true);
+    try {
+      const res = await fetch(`/api/km/content-unit-name?uid=${m[1]}`);
+      if (res.ok) {
+        const { name } = await res.json();
+        set("likutimName", name);
+      }
+    } finally {
+      setFetchingLikutim(false);
+    }
   }
 
   async function handleSave() {
@@ -98,6 +116,8 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
           ? JSON.stringify(form.chevrutaPartners.split(",").map((s: string) => s.trim()).filter(Boolean))
           : null,
         groupLeader: form.groupLeader || null,
+        likutimLink: form.likutimLink || null,
+        likutimName: form.likutimName || null,
         contactPerson: form.contactPerson || null,
         holidayTag: form.holidayTag || null,
         partNumber: form.partNumber ? parseInt(form.partNumber) : null,
@@ -357,6 +377,30 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
                     </div>
                   )}
                   <Input value={form.studyMaterialLink} onChange={(e) => set("studyMaterialLink", e.target.value)} dir="ltr" className="text-xs h-7 mt-1" placeholder="https://..." />
+                </Field>
+
+                <Field label="ליקוטים">
+                  <div className="flex gap-2">
+                    <Input
+                      value={form.likutimLink}
+                      onChange={(e) => set("likutimLink", e.target.value)}
+                      dir="ltr"
+                      placeholder="https://kabbalahmedia.info/he/likutim/..."
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchLikutimName}
+                      disabled={fetchingLikutim || !form.likutimLink}
+                    >
+                      {fetchingLikutim ? <Loader2 className="h-3 w-3 animate-spin" /> : "טען שם"}
+                    </Button>
+                  </div>
+                  {form.likutimName && (
+                    <p className="text-xs text-muted-foreground mt-1">{form.likutimName}</p>
+                  )}
                 </Field>
 
                 <Field label="לינק ללינאפ">

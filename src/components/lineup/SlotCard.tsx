@@ -11,9 +11,12 @@ import { formatDate } from "@/lib/dates";
 
 function slotDuration(slot: SlotWithLesson): number {
   if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-    if (slot.startTimecode && slot.endTimecode) {
-      const dur = timecodeToSeconds(slot.endTimecode) - timecodeToSeconds(slot.startTimecode);
-      return dur > 0 ? dur : (slot.lesson.videoDurationSec ?? 0);
+    const hasSlotTC = slot.startTimecode && slot.endTimecode;
+    const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
+    const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
+    if (inTC && outTC) {
+      const dur = timecodeToSeconds(outTC) - timecodeToSeconds(inTC);
+      if (dur > 0) return dur;
     }
     return slot.lesson.videoDurationSec ?? 0;
   }
@@ -93,6 +96,9 @@ export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
           {dur > 0 && (
             <span className="text-sm tabular-nums font-semibold text-foreground">
               {formatDurationSec(dur)}
+              {slot.lesson?.videoDurationSec && dur !== slot.lesson.videoDurationSec && (
+                <span className="text-xs font-normal text-muted-foreground ms-1">({formatDurationSec(slot.lesson.videoDurationSec)})</span>
+              )}
             </span>
           )}
         </div>
@@ -142,9 +148,16 @@ export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
                 )}
               </>
             )}
+            {slot.openingWords && <p><span className="text-foreground/60">פתיחה:</span> {slot.openingWords}</p>}
+            {slot.closingWords && <p><span className="text-foreground/60">סיום:</span> {slot.closingWords}</p>}
             {slot.narratorScript && <p>{slot.narratorScript}</p>}
             {slot.mediaCode && <p className="text-pink-600">{slot.mediaCode}</p>}
             {slot.groupLeader && <p className="text-green-700">{slot.groupLeader}</p>}
+            {slot.likutimName && (
+              slot.likutimLink
+                ? <a href={slot.likutimLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{slot.likutimName}</a>
+                : <p>{slot.likutimName}</p>
+            )}
             {slot.chevrutaPartners && <p>{JSON.parse(slot.chevrutaPartners).join(", ")}</p>}
             {slot.notes && <p>{slot.notes}</p>}
           </div>

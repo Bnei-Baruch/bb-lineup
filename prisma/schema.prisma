@@ -131,6 +131,8 @@ model Lesson {
   transcriptionLink String?
   videoDurationSec  Int?
   narratorName      String?
+  startTimecode     String?
+  endTimecode       String?
 
   articleSourceRef  String?
   articleSourceId   String?
@@ -221,6 +223,8 @@ model LineupSlot {
   mediaCode              String?
   recordedLessonLink     String?
   lineupLink             String?
+  likutimLink            String?
+  likutimName            String?
 
   // Recorded lesson timecodes
   startTimecode       String?

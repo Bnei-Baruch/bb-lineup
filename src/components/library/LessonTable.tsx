@@ -9,6 +9,7 @@ import { buttonVariants } from "@/lib/button-variants";
 import { formatDate } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
 import { Pencil, Trash2, Copy, Filter, X, Video, BookOpen, FileText } from "lucide-react";
+import { timecodeToSeconds } from "@/lib/timecodes";
 
 interface LessonRow {
   id: string;
@@ -19,6 +20,8 @@ interface LessonRow {
   narratorName: string | null;
   videoDurationSec: number | null;
   articleReadingSec: number | null;
+  startTimecode: string | null;
+  endTimecode: string | null;
   tags: string | null;
   kmPageLink: string | null;
   articleSourceLink: string | null;
@@ -413,9 +416,21 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                 <td className="px-4 py-3 tabular-nums">{l.broadcastDate ? formatDate(l.broadcastDate) : "—"}</td>
                 <td className="px-4 py-3 tabular-nums">
                   <div className="flex flex-col gap-0.5">
-                    {l.videoDurationSec ? (
-                      <span className="flex items-center gap-1 text-xs"><Video className="h-3 w-3 text-muted-foreground" />{formatDurationSec(l.videoDurationSec)}</span>
-                    ) : null}
+                    {l.videoDurationSec ? (() => {
+                      const hasCut = l.startTimecode && l.endTimecode;
+                      const cutSec = hasCut
+                        ? timecodeToSeconds(l.endTimecode!) - timecodeToSeconds(l.startTimecode!)
+                        : null;
+                      return (
+                        <span className="flex items-center gap-1 text-xs">
+                          <Video className="h-3 w-3 text-muted-foreground" />
+                          {cutSec != null && cutSec > 0
+                            ? <>{formatDurationSec(cutSec)} <span className="text-muted-foreground">({formatDurationSec(l.videoDurationSec)})</span></>
+                            : formatDurationSec(l.videoDurationSec)
+                          }
+                        </span>
+                      );
+                    })() : null}
                     {l.articleReadingSec ? (
                       <span className="flex items-center gap-1 text-xs"><BookOpen className="h-3 w-3 text-muted-foreground" />{formatDurationSec(l.articleReadingSec)}</span>
                     ) : null}
@@ -460,7 +475,50 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
         </table>
       </div>
 
-      <p className="text-xs text-muted-foreground">{filtered.length} שיעורים</p>
+      {/* Totals */}
+      {(() => {
+        let videoSec = 0;
+        let articleSec = 0;
+        for (const l of filtered) {
+          if (l.videoDurationSec) {
+            const hasCut = l.startTimecode && l.endTimecode;
+            const cut = hasCut
+              ? timecodeToSeconds(l.endTimecode!) - timecodeToSeconds(l.startTimecode!)
+              : null;
+            videoSec += (cut && cut > 0) ? cut : l.videoDurationSec;
+          }
+          if (l.articleReadingSec) articleSec += l.articleReadingSec;
+        }
+        const roundMin = (sec: number) => Math.round(sec / 60);
+        const fmtMin = (sec: number) => {
+          const m = roundMin(sec);
+          const h = Math.floor(m / 60);
+          const rem = m % 60;
+          return h > 0 ? `${h}:${String(rem).padStart(2, "0")} שעות` : `${rem} דקות`;
+        };
+        const totalSec = videoSec + articleSec;
+        if (totalSec === 0) return <p className="text-xs text-muted-foreground">{filtered.length} שיעורים</p>;
+        return (
+          <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <span>{filtered.length} שיעורים</span>
+            {videoSec > 0 && (
+              <span className="flex items-center gap-1">
+                <Video className="h-3 w-3" />
+                <span className="font-medium text-foreground">{fmtMin(videoSec)}</span>
+              </span>
+            )}
+            {articleSec > 0 && (
+              <span className="flex items-center gap-1">
+                <BookOpen className="h-3 w-3" />
+                <span className="font-medium text-foreground">{fmtMin(articleSec)}</span>
+              </span>
+            )}
+            {videoSec > 0 && articleSec > 0 && (
+              <span className="font-semibold text-foreground">סה״כ {fmtMin(totalSec)}</span>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

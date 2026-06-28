@@ -4,7 +4,7 @@ import { LibraryClient } from "./LibraryClient";
 export const dynamic = "force-dynamic";
 
 export default async function LibraryPage() {
-  const [lessons, series, { currentSlotIds, pastSlotIds }] = await Promise.all([
+  const [lessons, series, { currentSlotIds, pastSlotIds }, timecodeRows] = await Promise.all([
     prisma.lesson.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -50,11 +50,17 @@ export default async function LibraryPage() {
         }
         return { currentSlotIds: Array.from(current), pastSlotIds: Array.from(past) };
       }),
+    prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
+      SELECT id, startTimecode, endTimecode FROM "Lesson"
+    `,
   ]);
+
+  const timecodeMap = new Map(timecodeRows.map((r) => [r.id, { startTimecode: r.startTimecode, endTimecode: r.endTimecode }]));
+  const lessonsWithTimecodes = lessons.map((l) => ({ ...l, ...timecodeMap.get(l.id) }));
 
   return (
     <LibraryClient
-      lessons={lessons as Parameters<typeof LibraryClient>[0]["lessons"]}
+      lessons={lessonsWithTimecodes as Parameters<typeof LibraryClient>[0]["lessons"]}
       series={JSON.parse(JSON.stringify(series))}
       currentSlotIds={currentSlotIds}
       pastSlotIds={pastSlotIds}

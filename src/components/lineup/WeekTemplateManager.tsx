@@ -148,6 +148,7 @@ export function WeekTemplateManager({ initialTemplates, components }: Props) {
 
       {(creating || editing) && (
         <WeekTemplateForm
+          key={editing?.id ?? "new"}
           open
           template={editing}
           components={components}

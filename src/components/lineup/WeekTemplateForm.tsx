@@ -21,17 +21,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { parseDurationToSec, formatDurationSec } from "@/lib/time";
 
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 interface WeekTemplateSlot {
-  id: string; // stable key for dnd
+  id: string;
   slotType: string;
   componentId?: string;
   label?: string;
   durationSec?: number;
+}
+
+interface DayState {
+  slots: WeekTemplateSlot[];
+  contentStartIndex: number;
+  contentCutoffIndex: number | null;
 }
 
 interface WeekTemplate {
@@ -59,6 +65,21 @@ function addIds(slots: Omit<WeekTemplateSlot, "id">[]): WeekTemplateSlot[] {
 
 function stripIds(slots: WeekTemplateSlot[]): Omit<WeekTemplateSlot, "id">[] {
   return slots.map(({ id: _id, ...rest }) => rest);
+}
+
+function parseDayState(raw: unknown): DayState {
+  if (Array.isArray(raw)) {
+    return { slots: addIds(raw as Omit<WeekTemplateSlot, "id">[]), contentStartIndex: 0, contentCutoffIndex: null };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as { slots?: unknown[]; contentStartIndex?: number; contentCutoffIndex?: number | null };
+    return {
+      slots: addIds((r.slots ?? []) as Omit<WeekTemplateSlot, "id">[]),
+      contentStartIndex: r.contentStartIndex ?? 0,
+      contentCutoffIndex: r.contentCutoffIndex ?? null,
+    };
+  }
+  return { slots: [], contentStartIndex: 0, contentCutoffIndex: null };
 }
 
 interface SortableRowProps {
@@ -122,16 +143,36 @@ function SortableRow({ slot, index: _index, components, onUpdate, onRemove }: So
   );
 }
 
+function ContentLine({ label, color, onUp, onDown, canUp, canDown }: {
+  label: string; color: "blue" | "orange";
+  onUp: () => void; onDown: () => void; canUp: boolean; canDown: boolean;
+}) {
+  const cls = color === "blue"
+    ? "border-blue-400 text-blue-700 bg-blue-50"
+    : "border-orange-400 text-orange-700 bg-orange-50";
+  return (
+    <div className={`flex items-center gap-1 border-y py-0.5 px-2 text-[11px] font-semibold ${cls}`}>
+      <button type="button" onClick={onUp} disabled={!canUp} className="disabled:opacity-30 hover:opacity-70">
+        <ChevronUp className="h-3.5 w-3.5" />
+      </button>
+      <button type="button" onClick={onDown} disabled={!canDown} className="disabled:opacity-30 hover:opacity-70">
+        <ChevronDown className="h-3.5 w-3.5" />
+      </button>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export function WeekTemplateForm({ open, template, components, onSave, onClose }: Props) {
   const [name, setName] = useState(template?.name ?? "");
   const [description, setDescription] = useState(template?.description ?? "");
   const [isDefault, setIsDefault] = useState(template?.isDefault ?? false);
   const [activeDay, setActiveDay] = useState(0);
-  const [daysState, setDaysState] = useState<Record<string, WeekTemplateSlot[]>>(() => {
+  const [daysState, setDaysState] = useState<Record<string, DayState>>(() => {
     if (template?.days) {
       try {
-        const parsed: Record<string, Omit<WeekTemplateSlot, "id">[]> = JSON.parse(template.days);
-        return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, addIds(v)]));
+        const parsed: Record<string, unknown> = JSON.parse(template.days);
+        return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, parseDayState(v)]));
       } catch {
         return {};
       }
@@ -144,47 +185,108 @@ export function WeekTemplateForm({ open, template, components, onSave, onClose }
     useSensor(KeyboardSensor)
   );
 
-  function getSlotsForDay(day: number): WeekTemplateSlot[] {
-    return daysState[String(day)] ?? [];
+  function getDayState(day: number): DayState {
+    return daysState[String(day)] ?? { slots: [], contentStartIndex: 0, contentCutoffIndex: null };
   }
 
-  function setSlotsForDay(day: number, slots: WeekTemplateSlot[]) {
-    setDaysState((prev) => ({ ...prev, [String(day)]: slots }));
+  function setDayState(day: number, patch: Partial<DayState>) {
+    setDaysState((prev) => {
+      const cur = prev[String(day)] ?? { slots: [], contentStartIndex: 0, contentCutoffIndex: null };
+      return { ...prev, [String(day)]: { ...cur, ...patch } };
+    });
   }
 
   function addSlot(day: number, slotType: string, componentId?: string) {
     const comp = componentId ? components.find((c) => c.id === componentId) : null;
-    setSlotsForDay(day, [
-      ...getSlotsForDay(day),
-      { id: makeId(), slotType, componentId: componentId ?? undefined, durationSec: comp?.defaultDurationSec ?? undefined },
-    ]);
+    const state = getDayState(day);
+    setDayState(day, {
+      slots: [...state.slots, { id: makeId(), slotType, componentId: componentId ?? undefined, durationSec: comp?.defaultDurationSec ?? undefined }],
+    });
   }
 
   function removeSlot(day: number, index: number) {
-    setSlotsForDay(day, getSlotsForDay(day).filter((_, i) => i !== index));
+    const state = getDayState(day);
+    const newSlots = state.slots.filter((_, i) => i !== index);
+    const newLen = newSlots.length;
+    setDayState(day, {
+      slots: newSlots,
+      contentStartIndex: Math.min(state.contentStartIndex, newLen),
+      contentCutoffIndex: state.contentCutoffIndex !== null ? Math.min(state.contentCutoffIndex, newLen) : null,
+    });
   }
 
   function updateSlot(day: number, index: number, patch: Partial<WeekTemplateSlot>) {
-    setSlotsForDay(day, getSlotsForDay(day).map((s, i) => (i === index ? { ...s, ...patch } : s)));
+    const state = getDayState(day);
+    setDayState(day, { slots: state.slots.map((s, i) => (i === index ? { ...s, ...patch } : s)) });
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const slots = getSlotsForDay(activeDay);
-    const oldIdx = slots.findIndex((s) => s.id === active.id);
-    const newIdx = slots.findIndex((s) => s.id === over.id);
-    if (oldIdx !== -1 && newIdx !== -1) setSlotsForDay(activeDay, arrayMove(slots, oldIdx, newIdx));
+    const state = getDayState(activeDay);
+    const oldIdx = state.slots.findIndex((s) => s.id === active.id);
+    const newIdx = state.slots.findIndex((s) => s.id === over.id);
+    if (oldIdx !== -1 && newIdx !== -1) setDayState(activeDay, { slots: arrayMove(state.slots, oldIdx, newIdx) });
   }
 
   function handleSave() {
     const stripped = Object.fromEntries(
-      Object.entries(daysState).map(([k, v]) => [k, stripIds(v)])
+      Object.entries(daysState).map(([k, v]) => [k, {
+        slots: stripIds(v.slots),
+        contentStartIndex: v.contentStartIndex,
+        contentCutoffIndex: v.contentCutoffIndex,
+      }])
     );
     onSave({ name, description: description || null, isDefault, days: JSON.stringify(stripped) } as Partial<WeekTemplate>);
   }
 
-  const currentSlots = getSlotsForDay(activeDay);
+  const activeDayState = getDayState(activeDay);
+  const currentSlots = activeDayState.slots;
+  const startIdx = activeDayState.contentStartIndex;
+  const cutoffIdx = activeDayState.contentCutoffIndex ?? currentSlots.length;
+
+  function renderSlotList() {
+    const elements: React.ReactNode[] = [];
+    for (let i = 0; i <= currentSlots.length; i++) {
+      if (i === startIdx) {
+        elements.push(
+          <ContentLine key="start-line" label="תחילת תוכן" color="blue"
+            canUp={startIdx > 0}
+            canDown={startIdx < cutoffIdx}
+            onUp={() => setDayState(activeDay, { contentStartIndex: Math.max(0, startIdx - 1) })}
+            onDown={() => setDayState(activeDay, { contentStartIndex: Math.min(cutoffIdx, startIdx + 1) })}
+          />
+        );
+      }
+      if (i === cutoffIdx && cutoffIdx !== startIdx) {
+        elements.push(
+          <ContentLine key="cutoff-line" label="סוף תוכן" color="orange"
+            canUp={cutoffIdx > startIdx}
+            canDown={cutoffIdx < currentSlots.length}
+            onUp={() => setDayState(activeDay, { contentCutoffIndex: Math.max(startIdx, cutoffIdx - 1) })}
+            onDown={() => {
+              const next = cutoffIdx + 1;
+              setDayState(activeDay, { contentCutoffIndex: next >= currentSlots.length ? null : next });
+            }}
+          />
+        );
+      }
+      if (i < currentSlots.length) {
+        const slot = currentSlots[i];
+        elements.push(
+          <SortableRow
+            key={slot.id}
+            slot={slot}
+            index={i}
+            components={components}
+            onUpdate={(patch) => updateSlot(activeDay, i, patch)}
+            onRemove={() => removeSlot(activeDay, i)}
+          />
+        );
+      }
+    }
+    return elements;
+  }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -214,7 +316,7 @@ export function WeekTemplateForm({ open, template, components, onSave, onClose }
 
             <div className="flex flex-wrap gap-1">
               {DAY_NAMES.map((dayName, i) => {
-                const count = getSlotsForDay(i).length;
+                const count = getDayState(i).slots.length;
                 return (
                   <button
                     key={i}
@@ -241,16 +343,7 @@ export function WeekTemplateForm({ open, template, components, onSave, onClose }
               )}
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={currentSlots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-                  {currentSlots.map((slot, i) => (
-                    <SortableRow
-                      key={slot.id}
-                      slot={slot}
-                      index={i}
-                      components={components}
-                      onUpdate={(patch) => updateSlot(activeDay, i, patch)}
-                      onRemove={() => removeSlot(activeDay, i)}
-                    />
-                  ))}
+                  {renderSlotList()}
                 </SortableContext>
               </DndContext>
             </div>
