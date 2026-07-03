@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SlotCard } from "./SlotCard";
@@ -10,8 +10,23 @@ import { LessonPicker } from "./LessonPicker";
 import { DayTimeSummary } from "./DayTimeSummary";
 import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
-import { addSecondsToTime } from "@/lib/timecodes";
-import { timecodeToSeconds } from "@/lib/timecodes";
+import { addSecondsToTime, timecodeToSeconds } from "@/lib/timecodes";
+
+function getIsraelTimeSec(): number {
+  const parts = new Intl.DateTimeFormat("he", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const h = parseInt(parts.find(p => p.type === "hour")?.value ?? "0");
+  const m = parseInt(parts.find(p => p.type === "minute")?.value ?? "0");
+  const s = parseInt(parts.find(p => p.type === "second")?.value ?? "0");
+  return h * 3600 + m * 60 + s;
+}
+
+function timeStrToSec(t: string): number {
+  const p = t.split(":").map(Number);
+  return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0);
+}
 import Link from "next/link";
 import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus, ChevronsRight, ChevronUp, ChevronDown } from "lucide-react";
 
@@ -46,6 +61,12 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
   const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
   const [clearExisting, setClearExisting] = useState(false);
   const [applying, setApplying] = useState(false);
+
+  const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(getIsraelTimeSec()), 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Content boundary lines
   const [startIndex, setStartIndex] = useState<number>(day.contentStartIndex ?? 0);
@@ -325,11 +346,15 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
             const clampedCutoff = Math.min(cutoffIndex, day.slots.length);
             const items: React.ReactNode[] = [];
 
-            // Compute running clock times for each slot
+            // Compute running clock times and active state for each slot
             const startTime = day.broadcastStartTime ?? "03:00";
             let running = startTime;
-            const clockTimes = day.slots.map((slot) => {
+            let runningSec = timeStrToSec(startTime);
+            const clockTimes: string[] = [];
+            const activeSlots: boolean[] = [];
+            day.slots.forEach((slot) => {
               const t = running;
+              const slotStartSec = runningSec;
               let dur = 0;
               if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
                 const hasSlotTC = slot.startTimecode && slot.endTimecode;
@@ -344,7 +369,9 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
                 dur = slot.durationSec ?? 0;
               }
               running = addSecondsToTime(running, dur);
-              return t;
+              runningSec += dur;
+              clockTimes.push(t);
+              activeSlots.push(dur > 0 && nowSec >= slotStartSec && nowSec < runningSec);
             });
 
             const startLine = (
@@ -378,7 +405,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               if (i === clampedCutoff) items.push(cutoffLine);
               items.push(
                 <div key={slot.id}>
-                  <SlotCard slot={slot} clockTime={clockTimes[i]} onEdit={handleEdit} onDelete={handleDelete} />
+                  <SlotCard slot={slot} clockTime={clockTimes[i]} isActive={activeSlots[i]} onEdit={handleEdit} onDelete={handleDelete} />
                 </div>
               );
             });

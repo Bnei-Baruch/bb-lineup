@@ -26,11 +26,12 @@ function slotDuration(slot: SlotWithLesson): number {
 interface SlotCardProps {
   slot: SlotWithLesson;
   clockTime?: string;
+  isActive?: boolean;
   onEdit: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
 }
 
-export function SlotCard({ slot, clockTime, onEdit, onDelete }: SlotCardProps) {
+export function SlotCard({ slot, clockTime, isActive, onEdit, onDelete }: SlotCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: slot.id });
 
@@ -73,7 +74,7 @@ export function SlotCard({ slot, clockTime, onEdit, onDelete }: SlotCardProps) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-md border-s-4 border border-border ${colorClass} p-2 select-none`}
+      className={`rounded-md border-s-4 border p-2 select-none transition-shadow ${colorClass} ${isActive ? "ring-2 ring-green-500 ring-offset-1 border-green-400 shadow-md" : "border-border"}`}
     >
       <div className="flex items-start gap-2">
         {/* Grip */}
@@ -90,9 +91,12 @@ export function SlotCard({ slot, clockTime, onEdit, onDelete }: SlotCardProps) {
           {showTypeLabel && (
             <p className="text-[10px] text-muted-foreground leading-tight">{typeLabel}</p>
           )}
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center gap-1.5">
+            {isActive && (
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+            )}
             {clockTime && (
-              <span className="text-xs tabular-nums text-muted-foreground shrink-0">{clockTime}</span>
+              <span className={`text-xs tabular-nums shrink-0 ${isActive ? "text-green-600 font-semibold" : "text-muted-foreground"}`}>{clockTime}</span>
             )}
             <p className="text-sm font-semibold leading-snug">{label}</p>
           </div>

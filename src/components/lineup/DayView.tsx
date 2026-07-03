@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { DayWithSlots, SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
@@ -12,6 +12,17 @@ interface DayViewProps {
   day: DayWithSlots;
   dayLabel: string;
   contentCutoffIndex?: number | null;
+}
+
+function getIsraelTimeSec(): number {
+  const parts = new Intl.DateTimeFormat("he", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(new Date());
+  const h = parseInt(parts.find(p => p.type === "hour")?.value ?? "0");
+  const m = parseInt(parts.find(p => p.type === "minute")?.value ?? "0");
+  const s = parseInt(parts.find(p => p.type === "second")?.value ?? "0");
+  return h * 3600 + m * 60 + s;
 }
 
 function slotEffectiveDuration(slot: SlotWithLesson): number {
@@ -97,13 +108,13 @@ function timeToSec(hhmm: string): number {
 }
 
 const COLS = [
-  { key: "time",     label: "שעות",       en: "Time",       cls: "sticky end-0 z-10", minWidth: 72,  sep: false },
+  { key: "time",     label: "שעות",       en: "Time",       cls: "sticky end-0 z-10", minWidth: 96,  sep: false },
   { key: "item",     label: "אייטם",       en: "Item",       cls: "",                  minWidth: 112, sep: true  },
   { key: "content",  label: "תוכן",        en: "Content",    cls: "",                  minWidth: 180, sep: false },
   { key: "notes",    label: "הערות",       en: "Notes",      cls: "",                  minWidth: 120, sep: true  },
   { key: "material", label: "חומר לימוד",  en: "Study Mat.", cls: "",                  minWidth: 96,  sep: true  },
   { key: "recorded", label: "שיעור מוקלט", en: "Recorded",   cls: "",                  minWidth: 80,  sep: true  },
-  { key: "startTc",  label: "החל מדקה",    en: "From TC",    cls: "",                  minWidth: 76,  sep: true  },
+  { key: "startTc",  label: "החל מדקה",    en: "From TC",    cls: "",                  minWidth: 76,  sep: false },
   { key: "opening",  label: "דבר המתחיל",  en: "Opening",    cls: "",                  minWidth: 140, sep: false },
   { key: "endTc",    label: "עד דקה",      en: "To TC",      cls: "",                  minWidth: 76,  sep: false },
   { key: "closing",  label: "דברי סיום",   en: "Closing",    cls: "",                  minWidth: 140, sep: false },
@@ -128,6 +139,12 @@ const Colgroup = () => (
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
+
+  const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
+  useEffect(() => {
+    const id = setInterval(() => setNowSec(getIsraelTimeSec()), 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   function onBodyScroll() {
     if (headerScrollRef.current && bodyScrollRef.current) {
@@ -160,18 +177,22 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   // Separate counter so part_header rows don't disturb the even/odd alternating pattern.
   let _altIdx = 0;
 
+  let runningSec = timeToSec(startTime);
   const rows = day.slots.map((slot, i) => {
     const clockTime = runningTime;
+    const slotStartSec = runningSec;
     const dur = slotEffectiveDuration(slot);
     if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += slotPlanDur(slot);
     if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTime;
     totalSeconds += dur;
     runningTime = addSecondsToTime(runningTime, dur);
+    runningSec += dur;
     const recordedTime = slot.startTimecode && slot.endTimecode
       ? timecodeDuration(slot.startTimecode, slot.endTimecode)
       : null;
     const altIdx = slot.slotType === "part_header" ? -1 : _altIdx++;
-    return { slot, clockTime, endTime: runningTime, recordedTime, altIdx };
+    const isActive = dur > 0 && nowSec >= slotStartSec && nowSec < runningSec;
+    return { slot, clockTime, endTime: runningTime, recordedTime, altIdx, isActive };
   });
 
   if (clampedCutoff === rows.length) cutoffClockTime = runningTime;
@@ -225,7 +246,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                 {COLS.map((c) => (
                   <th
                     key={c.key}
-                    className={`px-2 py-2 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}
+                    className={`px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}
                   >
                     <div className="font-semibold text-foreground leading-tight">{c.label}</div>
                     <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
@@ -252,7 +273,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   </td>
                 </tr>
               )}
-              {rows.map(({ slot, clockTime, endTime, recordedTime, altIdx }, i) => {
+              {rows.map(({ slot, clockTime, endTime, recordedTime, altIdx, isActive }, i) => {
                 const startRow = clampedStart > 0 && clampedStart === i ? (
                   <tr key="start-line">
                     <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
@@ -275,7 +296,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {startRow}
                       {cutoffRow}
                       <tr className="bg-yellow-100 border-t-2 border-yellow-400">
-                        <td colSpan={COLS.length} className="px-3 py-2 font-bold text-sm text-yellow-900 tracking-wide">
+                        <td colSpan={COLS.length} className="px-3 py-3 font-bold text-sm text-yellow-900 tracking-wide">
                           חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
                         </td>
                       </tr>
@@ -292,15 +313,16 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   <React.Fragment key={slot.id}>
                     {startRow}
                     {cutoffRow}
-                    <tr className={`border-t border-border border-s-2 hover:brightness-90 transition-colors ${rowColor} ${altBg}`}>
+                    <tr className={`border-t border-s-2 hover:brightness-90 transition-colors ${isActive ? `bg-green-50 border-s-green-500` : `${rowColor} ${altBg} border-border`}`}>
                       {/* שעות — sticky to inline-end */}
-                      <td className={`px-2 py-2 tabular-nums font-semibold text-foreground sticky end-0 z-10 ${altBg} border-s border-border`}>
+                      <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border ${isActive ? "text-green-600 bg-green-50" : `${altBg} text-foreground`}`}>
+                        {isActive && <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse me-1.5 align-middle" />}
                         {clockTime}
                       </td>
                       {/* אייטם */}
-                      <td className="px-2 py-2 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300">{itemLabel(slot)}</td>
+                      <td className="px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300">{itemLabel(slot)}</td>
                       {/* תוכן */}
-                      <td className="px-2 py-2 whitespace-pre-wrap leading-snug">
+                      <td className="px-3 py-3 whitespace-pre-wrap leading-snug">
                         {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
                         {slot.lesson?.recordingDate && (
                           <span className="block text-[10px] text-muted-foreground tabular-nums mt-0.5">
@@ -312,11 +334,11 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         )}
                       </td>
                       {/* הערות */}
-                      <td className="px-2 py-2 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
+                      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
                         {slot.notes ?? ""}
                       </td>
                       {/* חומר לימוד */}
-                      <td className="px-2 py-2 border-s-2 border-s-slate-300">
+                      <td className="px-3 py-3 border-s-2 border-s-slate-300">
                         <div className="flex flex-col gap-1">
                           {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
                             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
@@ -330,47 +352,47 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         </div>
                       </td>
                       {/* שיעור מוקלט */}
-                      <td className="px-2 py-2 border-s-2 border-s-slate-300">
+                      <td className="px-3 py-3 border-s-2 border-s-slate-300">
                         {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
                           <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />
                         )}
                       </td>
                       {/* החל מדקה */}
-                      <td className="px-2 py-2 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">
+                      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">
                         {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType)
                           ? (() => { const hasSlotTC = slot.startTimecode && slot.endTimecode; return hasSlotTC ? slot.startTimecode : (slot.lesson?.startTimecode || "00:00:00"); })()
                           : (slot.startTimecode ?? "")}
                       </td>
                       {/* דבר המתחיל */}
-                      <td className="px-2 py-2 whitespace-pre-wrap leading-snug text-muted-foreground">
+                      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground">
                         {slot.openingWords ?? ""}
                       </td>
                       {/* עד דקה */}
-                      <td className="px-2 py-2 tabular-nums text-muted-foreground">
+                      <td className="px-3 py-3 tabular-nums text-muted-foreground">
                         {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType)
                           ? (() => { const hasSlotTC = slot.startTimecode && slot.endTimecode; return hasSlotTC ? slot.endTimecode : (slot.lesson?.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : "")); })()
                           : (slot.endTimecode ?? "")}
                       </td>
                       {/* דברי סיום */}
-                      <td className="px-2 py-2 whitespace-pre-wrap leading-snug text-muted-foreground">
+                      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground">
                         {slot.closingWords ?? ""}
                       </td>
                       {/* משך */}
-                      <td className="px-2 py-2 tabular-nums font-medium border-s-2 border-s-slate-300">
+                      <td className="px-3 py-3 tabular-nums font-medium border-s-2 border-s-slate-300">
                         {recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : "")}
                       </td>
                       {/* שעת סיום */}
-                      <td className="px-2 py-2 tabular-nums text-muted-foreground">{endTime}</td>
+                      <td className="px-3 py-3 tabular-nums text-muted-foreground">{endTime}</td>
                       {/* כתוביות */}
-                      <td className="px-2 py-2 text-center border-s-2 border-s-slate-300">
+                      <td className="px-3 py-3 text-center border-s-2 border-s-slate-300">
                         {slot.hasSubtitles && <Check className="h-3.5 w-3.5 text-green-600 mx-auto" />}
                       </td>
                       {/* סדנה */}
-                      <td className="px-2 py-2 text-center">
+                      <td className="px-3 py-3 text-center">
                         {slot.hasWorkshopQuestions && <Check className="h-3.5 w-3.5 text-green-600 mx-auto" />}
                       </td>
                       {/* שפה */}
-                      <td className="px-2 py-2 text-muted-foreground overflow-hidden">{slot.language ?? ""}</td>
+                      <td className="px-3 py-3 text-muted-foreground overflow-hidden">{slot.language ?? ""}</td>
                     </tr>
                   </React.Fragment>
                 );
@@ -387,9 +409,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
             {totalSeconds > 0 && (
               <tfoot>
                 <tr className="bg-muted/60 border-t-2 border-border font-semibold">
-                  <td className="px-2 py-2 tabular-nums">{runningTime}</td>
-                  <td colSpan={9} className="px-2 py-2 text-muted-foreground text-[11px]">סה״כ</td>
-                  <td className="px-2 py-2 tabular-nums">{formatDurationSec(totalSeconds)}</td>
+                  <td className="px-3 py-3 tabular-nums">{runningTime}</td>
+                  <td colSpan={9} className="px-3 py-3 text-muted-foreground text-[11px]">סה״כ</td>
+                  <td className="px-3 py-3 tabular-nums">{formatDurationSec(totalSeconds)}</td>
                   <td colSpan={COLS.length - 11} />
                 </tr>
               </tfoot>
