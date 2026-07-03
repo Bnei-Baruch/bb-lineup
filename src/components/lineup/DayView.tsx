@@ -292,7 +292,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   <React.Fragment key={slot.id}>
                     {startRow}
                     {cutoffRow}
-                    <tr className={`border-t border-border border-s-2 hover:brightness-90 transition-colors ${rowColor} ${altBg} ${isPreContent || isBelowCutoff ? "opacity-40" : ""}`}>
+                    <tr className={`border-t border-border border-s-2 hover:brightness-90 transition-colors ${rowColor} ${altBg}`}>
                       {/* שעות — sticky to inline-end */}
                       <td className={`px-2 py-2 tabular-nums font-semibold text-foreground sticky end-0 z-10 ${altBg} border-s border-border`}>
                         {clockTime}

@@ -25,11 +25,12 @@ function slotDuration(slot: SlotWithLesson): number {
 
 interface SlotCardProps {
   slot: SlotWithLesson;
+  clockTime?: string;
   onEdit: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
 }
 
-export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
+export function SlotCard({ slot, clockTime, onEdit, onDelete }: SlotCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: slot.id });
 
@@ -59,6 +60,7 @@ export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
         <span className="text-xs font-bold flex-1">
           חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
         </span>
+        {clockTime && <span className="text-xs tabular-nums text-muted-foreground">{clockTime}</span>}
         <div className="flex shrink-0 gap-0.5">
           <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onEdit(slot)}><Pencil className="h-3 w-3" /></Button>
           <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => onDelete(slot.id)}><Trash2 className="h-3 w-3" /></Button>
@@ -88,18 +90,23 @@ export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
           {showTypeLabel && (
             <p className="text-[10px] text-muted-foreground leading-tight">{typeLabel}</p>
           )}
-          <p className="text-sm font-semibold leading-snug">{label}</p>
+          <div className="flex items-baseline gap-2">
+            {clockTime && (
+              <span className="text-xs tabular-nums text-muted-foreground shrink-0">{clockTime}</span>
+            )}
+            <p className="text-sm font-semibold leading-snug">{label}</p>
+          </div>
         </div>
 
-        {/* Duration on the right */}
-        <div className="shrink-0 text-right">
+        {/* Duration */}
+        <div className="shrink-0 text-end">
           {dur > 0 && (
-            <span className="text-sm tabular-nums font-semibold text-foreground">
+            <p className="text-sm tabular-nums font-semibold text-foreground">
               {formatDurationSec(dur)}
               {slot.lesson?.videoDurationSec && dur !== slot.lesson.videoDurationSec && (
                 <span className="text-xs font-normal text-muted-foreground ms-1">({formatDurationSec(slot.lesson.videoDurationSec)})</span>
               )}
-            </span>
+            </p>
           )}
         </div>
       </div>
@@ -114,12 +121,67 @@ export function SlotCard({ slot, onEdit, onDelete }: SlotCardProps) {
             )}
             {LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson && (
               <>
-                {slot.lesson.sourceRef && <p>{slot.lesson.sourceRef}</p>}
+                {slot.lesson.sourceRef && <p className="font-medium text-foreground/80">{slot.lesson.sourceRef}</p>}
                 {slot.lesson.articleSourceRef && <p className="text-blue-600">{slot.lesson.articleSourceRef}</p>}
                 <div className="flex gap-2 flex-wrap">
                   {slot.lesson.narratorName && <span>{slot.lesson.narratorName}</span>}
-                  {slot.lesson.recordingDate && <span>{formatDate(slot.lesson.recordingDate)}</span>}
+                  {slot.lesson.recordingDate && <span className="tabular-nums">{formatDate(slot.lesson.recordingDate)}</span>}
                 </div>
+                {/* Timecodes */}
+                {(() => {
+                  const hasSlotTC = slot.startTimecode && slot.endTimecode;
+                  const inTC = hasSlotTC ? slot.startTimecode : slot.lesson!.startTimecode;
+                  const outTC = hasSlotTC ? slot.endTimecode : slot.lesson!.endTimecode;
+                  if (!inTC && !outTC) return null;
+                  return (
+                    <p className="tabular-nums">
+                      {inTC && <span>מ: {inTC}</span>}
+                      {inTC && outTC && <span className="mx-1">·</span>}
+                      {outTC && <span>עד: {outTC}</span>}
+                    </p>
+                  );
+                })()}
+                {/* Article reading time */}
+                {slot.lesson.articleReadingMin != null && (
+                  <p>{slot.lesson.articleReadingMin} דק׳ קריאה</p>
+                )}
+                {/* Links */}
+                {(slot.recordedLessonLink || slot.lesson.kmPageLink || slot.lesson.articleSourceLink || slot.lesson.transcriptionLink) && (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {(slot.recordedLessonLink || slot.lesson.kmPageLink) && (
+                      <a href={slot.recordedLessonLink ?? slot.lesson.kmPageLink ?? ""} target="_blank" rel="noopener noreferrer"
+                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                        onClick={(e) => e.stopPropagation()}>וידאו</a>
+                    )}
+                    {slot.lesson.articleSourceLink && (
+                      <a href={slot.lesson.articleSourceLink} target="_blank" rel="noopener noreferrer"
+                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                        onClick={(e) => e.stopPropagation()}>מאמר</a>
+                    )}
+                    {slot.lesson.transcriptionLink && (
+                      <a href={slot.lesson.transcriptionLink} target="_blank" rel="noopener noreferrer"
+                        className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+                        onClick={(e) => e.stopPropagation()}>תמליל</a>
+                    )}
+                  </div>
+                )}
+                {/* Status + flags */}
+                {(slot.lesson.approvalStatus || slot.hasSubtitles || slot.language) && (
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {slot.lesson.approvalStatus === "approved" && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">מאושר</span>
+                    )}
+                    {slot.lesson.approvalStatus === "used" && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">שודר</span>
+                    )}
+                    {slot.hasSubtitles && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-700">כתוביות</span>
+                    )}
+                    {slot.language && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">{slot.language}</span>
+                    )}
+                  </div>
+                )}
               </>
             )}
             {slot.slotType === "article_reading" && (

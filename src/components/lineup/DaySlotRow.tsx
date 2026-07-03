@@ -127,19 +127,75 @@ export function DaySlotRow({ slot, clockTime, onEdit, onDelete }: DaySlotRowProp
           )}
 
           {/* Lesson info */}
-          {slot.lesson?.sourceRef && (
-            <p className="text-xs truncate">{slot.lesson.sourceRef}</p>
-          )}
-
-          {/* Timecodes */}
-          {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && (
-            <div className="flex gap-3 text-xs text-muted-foreground tabular-nums">
+          {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson && (
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              {slot.lesson.sourceRef && (
+                <p className="font-medium text-foreground/80">{slot.lesson.sourceRef}</p>
+              )}
+              {slot.lesson.articleSourceRef && (
+                <p className="text-blue-600">{slot.lesson.articleSourceRef}</p>
+              )}
+              {(slot.lesson.narratorName || slot.lesson.recordingDate) && (
+                <p className="flex gap-2 flex-wrap tabular-nums">
+                  {slot.lesson.narratorName && <span>{slot.lesson.narratorName}</span>}
+                  {slot.lesson.recordingDate && <span>{slot.lesson.recordingDate.slice(0, 10)}</span>}
+                </p>
+              )}
+              {/* Timecodes */}
               {(() => {
                 const hasSlotTC = slot.startTimecode && slot.endTimecode;
-                const inTC = hasSlotTC ? slot.startTimecode : (slot.lesson?.startTimecode || "00:00:00");
-                const outTC = hasSlotTC ? slot.endTimecode : (slot.lesson?.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : "—"));
-                return (<><span>מ: {inTC}</span><span>עד: {outTC}</span></>);
+                const inTC = hasSlotTC ? slot.startTimecode : slot.lesson!.startTimecode;
+                const outTC = hasSlotTC ? slot.endTimecode : slot.lesson!.endTimecode;
+                if (!inTC && !outTC) return null;
+                return (
+                  <p className="tabular-nums">
+                    {inTC && <span>מ: {inTC}</span>}
+                    {inTC && outTC && <span className="mx-1">·</span>}
+                    {outTC && <span>עד: {outTC}</span>}
+                  </p>
+                );
               })()}
+              {/* Article reading time */}
+              {slot.lesson.articleReadingMin != null && (
+                <p>{slot.lesson.articleReadingMin} דק׳ קריאה</p>
+              )}
+              {/* Links */}
+              {(slot.recordedLessonLink || slot.lesson.kmPageLink || slot.lesson.articleSourceLink || slot.lesson.transcriptionLink) && (
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {(slot.recordedLessonLink || slot.lesson.kmPageLink) && (
+                    <a href={slot.recordedLessonLink ?? slot.lesson.kmPageLink ?? ""} target="_blank" rel="noopener noreferrer"
+                      className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                      onClick={(e) => e.stopPropagation()}>וידאו</a>
+                  )}
+                  {slot.lesson.articleSourceLink && (
+                    <a href={slot.lesson.articleSourceLink} target="_blank" rel="noopener noreferrer"
+                      className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                      onClick={(e) => e.stopPropagation()}>מאמר</a>
+                  )}
+                  {slot.lesson.transcriptionLink && (
+                    <a href={slot.lesson.transcriptionLink} target="_blank" rel="noopener noreferrer"
+                      className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+                      onClick={(e) => e.stopPropagation()}>תמליל</a>
+                  )}
+                </div>
+              )}
+              {/* Status + flags */}
+              {(slot.lesson.approvalStatus || slot.hasSubtitles || slot.language) && (
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {slot.lesson.approvalStatus === "approved" && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">מאושר</span>
+                  )}
+                  {slot.lesson.approvalStatus === "used" && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">שודר</span>
+                  )}
+                  {slot.hasSubtitles && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-100 text-sky-700">כתוביות</span>
+                  )}
+                  {slot.language && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-600">{slot.language}</span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

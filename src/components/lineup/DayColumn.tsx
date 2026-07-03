@@ -8,8 +8,10 @@ import { AddSlotMenu } from "./AddSlotMenu";
 import { SlotEditor } from "./SlotEditor";
 import { LessonPicker } from "./LessonPicker";
 import { DayTimeSummary } from "./DayTimeSummary";
-import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType } from "@/types";
+import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
+import { addSecondsToTime } from "@/lib/timecodes";
+import { timecodeToSeconds } from "@/lib/timecodes";
 import Link from "next/link";
 import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus, ChevronsRight, ChevronUp, ChevronDown } from "lucide-react";
 
@@ -323,6 +325,28 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
             const clampedCutoff = Math.min(cutoffIndex, day.slots.length);
             const items: React.ReactNode[] = [];
 
+            // Compute running clock times for each slot
+            const startTime = day.broadcastStartTime ?? "03:00";
+            let running = startTime;
+            const clockTimes = day.slots.map((slot) => {
+              const t = running;
+              let dur = 0;
+              if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
+                const hasSlotTC = slot.startTimecode && slot.endTimecode;
+                const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
+                const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
+                if (inTC && outTC) {
+                  const d = timecodeToSeconds(outTC) - timecodeToSeconds(inTC);
+                  if (d > 0) dur = d;
+                }
+                if (dur === 0) dur = slot.lesson.videoDurationSec ?? 0;
+              } else {
+                dur = slot.durationSec ?? 0;
+              }
+              running = addSecondsToTime(running, dur);
+              return t;
+            });
+
             const startLine = (
               <div key="start-line" className="flex items-center gap-2 py-1 select-none">
                 <div className="flex-1 border-t-2 border-dashed border-blue-400" />
@@ -352,11 +376,9 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
             day.slots.forEach((slot, i) => {
               if (i === clampedStart && clampedStart > 0) items.push(startLine);
               if (i === clampedCutoff) items.push(cutoffLine);
-              const isPreContent = i < clampedStart;
-              const isPostContent = i >= clampedCutoff;
               items.push(
-                <div key={slot.id} className={isPreContent || isPostContent ? "opacity-40" : undefined}>
-                  <SlotCard slot={slot} onEdit={handleEdit} onDelete={handleDelete} />
+                <div key={slot.id}>
+                  <SlotCard slot={slot} clockTime={clockTimes[i]} onEdit={handleEdit} onDelete={handleDelete} />
                 </div>
               );
             });

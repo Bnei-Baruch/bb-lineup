@@ -383,7 +383,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
                   running = addSecondsToTime(running, dur);
                   const isOutside = i < clampedStart || i >= clampedCutoff;
                   items.push(
-                    <div key={slot.id} className={isOutside ? "opacity-40" : undefined}>
+                    <div key={slot.id}>
                       <DaySlotRow slot={slot} clockTime={clockTime} onEdit={handleEdit} onDelete={handleDelete} />
                     </div>
                   );
