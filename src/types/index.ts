@@ -144,6 +144,7 @@ export interface LessonSummary {
   kmPageLink: string | null;
   videoLink: string | null;
   articleSourceLink: string | null;
+  transcriptionLink: string | null;
   startTimecode: string | null;
   endTimecode: string | null;
 }

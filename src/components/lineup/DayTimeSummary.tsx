@@ -1,5 +1,4 @@
 import { formatDurationSec } from "@/lib/time";
-import { timecodeToSeconds } from "@/lib/timecodes";
 import { SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
 
 function timeToSeconds(hhmm: string): number {
@@ -23,42 +22,43 @@ interface DayTimeSummaryProps {
   cutoffIndex?: number | null;
 }
 
+// For planning totals: use full video duration, not cut timecodes.
+// Cut durations are shown in slot cards for reference only.
+function slotDur(slot: SlotWithLesson): number {
+  if (slot.slotType === "part_header") return 0;
+  if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
+    return slot.lesson.videoDurationSec ?? 0;
+  }
+  return slot.durationSec ?? 0;
+}
+
 export function DayTimeSummary({ slots, startTime, endTime, startIndex, cutoffIndex }: DayTimeSummaryProps) {
   const from = startIndex ?? 0;
-  const countedSlots = cutoffIndex != null ? slots.slice(from, cutoffIndex) : slots.slice(from);
+  const contentSlots = cutoffIndex != null ? slots.slice(from, cutoffIndex) : slots.slice(from);
+
   let total = 0;
-  for (const slot of countedSlots) {
-    if (slot.slotType === "part_header") continue;
-    if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-      const hasSlotTC = slot.startTimecode && slot.endTimecode;
-      const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
-      const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
-      if (inTC && outTC) {
-        const dur = timecodeToSeconds(outTC) - timecodeToSeconds(inTC);
-        total += dur > 0 ? dur : (slot.lesson.videoDurationSec ?? 0);
-      } else {
-        total += slot.lesson.videoDurationSec ?? 0;
-      }
-    } else {
-      total += slot.durationSec ?? 0;
-    }
-  }
+  for (const slot of contentSlots) total += slotDur(slot);
 
   if (slots.length === 0) return null;
 
+  // Pre-content: slots before the תחילת תוכן marker
+  let preContentSec = 0;
+  for (const slot of slots.slice(0, from)) preContentSec += slotDur(slot);
 
+  // Target = broadcast window − pre-content (= time available for content)
   let targetSec: number | null = null;
   if (startTime && endTime) {
-    let diff = timeToSeconds(endTime) - timeToSeconds(startTime);
-    if (diff < 0) diff += 24 * 3600; // crosses midnight
-    targetSec = diff;
+    let window = timeToSeconds(endTime) - timeToSeconds(startTime);
+    if (window < 0) window += 24 * 3600;
+    targetSec = window - preContentSec;
   }
 
   const diff = targetSec !== null ? total - targetSec : null;
   const isOver = diff !== null && diff > 0;
   const isUnder = diff !== null && diff < 0;
 
-  const endTimestamp = startTime ? addSeconds(startTime, total) : null;
+  // End timestamp = when the content section finishes on the clock
+  const endTimestamp = startTime ? addSeconds(startTime, preContentSec + total) : null;
 
   return (
     <div className="px-3 py-2 bg-muted border-t border-border text-sm font-medium text-muted-foreground flex items-center justify-between gap-4">

@@ -43,6 +43,7 @@ export const slotWithLessonInclude = {
       kmPageLink: true,
       videoLink: true,
       articleSourceLink: true,
+      transcriptionLink: true,
     },
   },
   component: {

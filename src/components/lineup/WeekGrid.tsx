@@ -17,11 +17,18 @@ import { DayColumnGroup } from "./DayColumnGroup";
 import { SlotCard } from "./SlotCard";
 import { LineupWithDays, DayWithSlots, SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, dayDate, parseWeekParam, formatDate } from "@/lib/dates";
-import { timecodeToSeconds } from "@/lib/timecodes";
 
 function timeToSec(hhmm: string): number {
   const p = hhmm.split(":").map(Number);
   return p[0] * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0);
+}
+
+function slotDur(slot: SlotWithLesson): number {
+  if (slot.slotType === "part_header") return 0;
+  if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
+    return slot.lesson.videoDurationSec ?? 0;
+  }
+  return slot.durationSec ?? 0;
 }
 
 function sessionPlaylistSec(session: DayWithSlots): number {
@@ -29,24 +36,12 @@ function sessionPlaylistSec(session: DayWithSlots): number {
   const counted = session.contentCutoffIndex != null
     ? session.slots.slice(from, session.contentCutoffIndex)
     : session.slots.slice(from);
-  let total = 0;
-  for (const slot of counted) {
-    if (slot.slotType === "part_header") continue;
-    if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-      const hasSlotTC = slot.startTimecode && slot.endTimecode;
-      const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
-      const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
-      if (inTC && outTC) {
-        const dur = timecodeToSeconds(outTC) - timecodeToSeconds(inTC);
-        total += dur > 0 ? dur : (slot.lesson.videoDurationSec ?? 0);
-      } else {
-        total += slot.lesson.videoDurationSec ?? 0;
-      }
-    } else {
-      total += slot.durationSec ?? 0;
-    }
-  }
-  return total;
+  return counted.reduce((sum, s) => sum + slotDur(s), 0);
+}
+
+function sessionPreContentSec(session: DayWithSlots): number {
+  const from = session.contentStartIndex ?? 0;
+  return session.slots.slice(0, from).reduce((sum, s) => sum + slotDur(s), 0);
 }
 
 function fmtHHMM(sec: number): string {
@@ -211,9 +206,12 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
             if (diff < 0) diff += 24 * 3600;
             return sum + diff;
           }, 0);
+          const totalPreContentSec = sessions.reduce((sum, s) => sum + sessionPreContentSec(s), 0);
+          // Target = broadcast window − pre-content (available time for content)
+          const targetContentSec = totalBroadcastSec > 0 ? totalBroadcastSec - totalPreContentSec : 0;
           const hasBroadcastWindow = totalBroadcastSec > 0;
-          const isOver = hasBroadcastWindow && totalPlaylistSec > totalBroadcastSec;
-          const isUnder = hasBroadcastWindow && totalPlaylistSec < totalBroadcastSec;
+          const isOver = hasBroadcastWindow && totalPlaylistSec > targetContentSec;
+          const isUnder = hasBroadcastWindow && totalPlaylistSec < targetContentSec;
 
           if (!isExpanded) {
             return (

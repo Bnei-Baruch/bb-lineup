@@ -414,7 +414,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         </div>{/* end scrollable slot list */}
 
         <div className="shrink-0 mt-2 border border-border rounded-lg overflow-hidden bg-background">
-          <DayTimeSummary slots={slots.slice(startIndex, Math.min(cutoffIndex, slots.length))} startTime={startTime} endTime={endTime || undefined} />
+          <DayTimeSummary slots={slots} startIndex={startIndex} cutoffIndex={cutoffIndex < slots.length ? cutoffIndex : undefined} startTime={startTime} endTime={endTime || undefined} />
         </div>
       </div>
 
