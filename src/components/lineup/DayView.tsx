@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { DayWithSlots, SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
-import { Check } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 
 interface DayViewProps {
   enDayLabel?: string;
@@ -136,6 +136,32 @@ const Colgroup = () => (
   </colgroup>
 );
 
+interface NowPlaying {
+  clipName: string;
+  actualStartAt: string; // ISO-8601
+  durationSec?: number;
+}
+
+function isoToIsraelSec(iso: string): number {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat("he", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(d);
+  const h = parseInt(parts.find(p => p.type === "hour")?.value ?? "0");
+  const m = parseInt(parts.find(p => p.type === "minute")?.value ?? "0");
+  const s = parseInt(parts.find(p => p.type === "second")?.value ?? "0");
+  return h * 3600 + m * 60 + s;
+}
+
+function secToHHMMSS(totalSec: number): string {
+  const sec = ((totalSec % 86400) + 86400) % 86400;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
@@ -144,6 +170,36 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   useEffect(() => {
     const id = setInterval(() => setNowSec(getIsraelTimeSec()), 10_000);
     return () => clearInterval(id);
+  }, []);
+
+  const [lastPlaying, setLastPlaying] = useState<NowPlaying | null>(null);
+  const [isCurrentlyLive, setIsCurrentlyLive] = useState(false);
+
+  function computeIsLive(data: NowPlaying): boolean {
+    const startMs = new Date(data.actualStartAt).getTime();
+    const nowMs = Date.now();
+    if (nowMs < startMs) return false; // hasn't started yet
+    if (data.durationSec) return nowMs < startMs + (data.durationSec + 5) * 1000;
+    return true;
+  }
+
+  useEffect(() => {
+    async function poll() {
+      try {
+        const res = await fetch("/api/playout/current");
+        const data: NowPlaying | null = res.ok ? await res.json() : null;
+        if (data) {
+          setLastPlaying(data);
+          setIsCurrentlyLive(computeIsLive(data));
+        } else {
+          setIsCurrentlyLive(false);
+        }
+      } catch { setIsCurrentlyLive(false); }
+    }
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function onBodyScroll() {
@@ -177,22 +233,101 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   // Separate counter so part_header rows don't disturb the even/odd alternating pattern.
   let _altIdx = 0;
 
+  // Manual playout trigger
+  const [manualSlotId, setManualSlotId] = useState<string | null>(null);
+  const [manualTime, setManualTime] = useState("");
+
+  function openManual(slot: SlotWithLesson) {
+    const parts = new Intl.DateTimeFormat("he", {
+      timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    }).formatToParts(new Date());
+    const h = parts.find(p => p.type === "hour")?.value ?? "00";
+    const m = parts.find(p => p.type === "minute")?.value ?? "00";
+    const s = parts.find(p => p.type === "second")?.value ?? "00";
+    setManualTime(`${h}:${m}:${s}`);
+    setManualSlotId(slot.id);
+  }
+
+  async function confirmManual(slot: SlotWithLesson) {
+    const code = slot.lesson?.series?.playoutCode ?? slot.id;
+    if (!manualTime) return;
+    // Convert HH:MM:SS to a full ISO date in Israel timezone
+    const today = new Intl.DateTimeFormat("sv", { timeZone: "Asia/Jerusalem" }).format(new Date()); // YYYY-MM-DD
+    const iso = new Date(`${today}T${manualTime}+03:00`).toISOString();
+    const durationSec = slot.lesson?.videoDurationSec ?? undefined;
+    const body: Record<string, unknown> = { clipName: code, actualStartAt: iso };
+    if (durationSec) body.durationSec = durationSec;
+    try {
+      const res = await fetch("/api/playout/current", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data: NowPlaying = await res.json();
+        setLastPlaying(data);
+        setIsCurrentlyLive(computeIsLive(data));
+      }
+    } finally {
+      setManualSlotId(null);
+    }
+  }
+
+  // Precompute live slot index for matching — use lastPlaying for time correction (persists after clip ends)
+  const liveSlotIndex = lastPlaying
+    ? day.slots.findIndex(s => {
+        const code = s.lesson?.series?.playoutCode;
+        return (code && code.toUpperCase() === lastPlaying.clipName.toUpperCase()) ||
+               s.id === lastPlaying.clipName;
+      })
+    : -1;
+  const liveStartSec = lastPlaying ? isoToIsraelSec(lastPlaying.actualStartAt) : null;
+
   let runningSec = timeToSec(startTime);
+  let postAnchor = false; // true once we've passed any slot with a confirmed actual time
   const rows = day.slots.map((slot, i) => {
+    const isLive = i === liveSlotIndex;
+
+    // Determine the actual start time for this slot:
+    // - live slot: use lastPlaying.actualStartAt (most current, from Companion)
+    // - other slots: use persisted actualBroadcastAt (survives page reloads)
+    const actualStartSec = isLive && liveStartSec !== null
+      ? liveStartSec
+      : (slot.actualBroadcastAt ? isoToIsraelSec(slot.actualBroadcastAt) : null);
+
+    if (actualStartSec !== null) {
+      runningSec = actualStartSec;
+      runningTime = secToHHMMSS(actualStartSec);
+      if (isLive) postAnchor = false; // re-anchor: don't carry "postAnchor" into the live slot itself
+    }
+
     const clockTime = runningTime;
+    const hasConfirmedTime = actualStartSec !== null;
+    const scheduledClockTime = isLive ? secToHHMMSS(timeToSec(startTime) +
+      day.slots.slice(0, i).reduce((s, sl) => s + slotEffectiveDuration(sl), 0)) : null;
     const slotStartSec = runningSec;
-    const dur = slotEffectiveDuration(slot);
+
+    // Use actual Playdeck duration for the live slot if provided
+    const dur = isLive && lastPlaying?.durationSec
+      ? lastPlaying.durationSec
+      : slotEffectiveDuration(slot);
+
     if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += slotPlanDur(slot);
     if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTime;
     totalSeconds += dur;
     runningTime = addSecondsToTime(runningTime, dur);
     runningSec += dur;
+
+    if (isLive || slot.actualBroadcastAt) postAnchor = true;
+
     const recordedTime = slot.startTimecode && slot.endTimecode
       ? timecodeDuration(slot.startTimecode, slot.endTimecode)
       : null;
     const altIdx = slot.slotType === "part_header" ? -1 : _altIdx++;
     const isActive = dur > 0 && nowSec >= slotStartSec && nowSec < runningSec;
-    return { slot, clockTime, endTime: runningTime, recordedTime, altIdx, isActive };
+    // isProjected: past an anchor but this slot has no confirmed time of its own
+    const isProjected = postAnchor && !hasConfirmedTime;
+    return { slot, clockTime, scheduledClockTime, endTime: runningTime, recordedTime, altIdx, isActive, isLive, isProjected };
   });
 
   if (clampedCutoff === rows.length) cutoffClockTime = runningTime;
@@ -273,7 +408,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   </td>
                 </tr>
               )}
-              {rows.map(({ slot, clockTime, endTime, recordedTime, altIdx, isActive }, i) => {
+              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected }, i) => {
                 const startRow = clampedStart > 0 && clampedStart === i ? (
                   <tr key="start-line">
                     <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
@@ -304,6 +439,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   );
                 }
 
+                const isManualOpen = manualSlotId === slot.id;
                 const isPreContent = i < clampedStart;
                 const isBelowCutoff = clampedCutoff !== null && i >= clampedCutoff;
                 const rowColor = SLOT_ROW_COLORS[slot.slotType] ?? "border-s-border";
@@ -313,14 +449,69 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   <React.Fragment key={slot.id}>
                     {startRow}
                     {cutoffRow}
-                    <tr className={`border-t border-s-2 hover:brightness-90 transition-colors ${isActive ? `bg-green-50 border-s-green-500` : `${rowColor} ${altBg} border-border`}`}>
+                    <tr className={`border-t border-s-2 hover:brightness-90 transition-colors ${
+                      (isLive && isCurrentlyLive) ? "bg-amber-50 border-s-amber-500" :
+                      isActive                    ? "bg-green-50 border-s-green-500" :
+                                                    `${rowColor} ${altBg} border-border`
+                    }`}>
                       {/* שעות — sticky to inline-end */}
-                      <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border ${isActive ? "text-green-600 bg-green-50" : `${altBg} text-foreground`}`}>
-                        {isActive && <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse me-1.5 align-middle" />}
-                        {clockTime}
+                      <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${
+                        (isLive && isCurrentlyLive) ? "text-amber-700 bg-amber-50" :
+                        isActive                    ? "text-green-600 bg-green-50" :
+                                                      `${altBg} text-foreground`
+                      }`}>
+                        <div className="flex items-center justify-end gap-1">
+                          {!isManualOpen && (
+                            <button
+                              onClick={() => openManual(slot)}
+                              className="opacity-0 group-hover/timecell:opacity-100 transition-opacity text-muted-foreground hover:text-amber-600 shrink-0"
+                              title="סמן כמשודר עכשיו"
+                            >
+                              <Clock className="h-3 w-3" />
+                            </button>
+                          )}
+                          {(isLive && isCurrentlyLive) && <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />}
+                          {!(isLive && isCurrentlyLive) && isActive && <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />}
+                          <span className={isProjected ? "italic text-muted-foreground" : ""}>{clockTime}</span>
+                        </div>
+                        {(isLive && isCurrentlyLive) && scheduledClockTime && scheduledClockTime !== clockTime && (
+                          <span className="block text-[10px] font-normal text-amber-600 leading-none mt-0.5 text-right">
+                            מתוזמן {scheduledClockTime}
+                          </span>
+                        )}
+                        {isManualOpen && (
+                          <div className="mt-1 flex flex-col gap-1 items-end" onClick={e => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={manualTime}
+                              onChange={e => setManualTime(e.target.value)}
+                              className="w-24 text-xs border border-border rounded px-1 py-0.5 text-center font-mono bg-background text-foreground"
+                              placeholder="HH:MM:SS"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => confirmManual(slot)}
+                                className="px-2 py-0.5 text-[10px] rounded bg-amber-500 text-white font-semibold hover:bg-amber-600"
+                              >
+                                אישור
+                              </button>
+                              <button
+                                onClick={() => setManualSlotId(null)}
+                                className="px-2 py-0.5 text-[10px] rounded border border-border text-muted-foreground hover:bg-muted"
+                              >
+                                ביטול
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </td>
                       {/* אייטם */}
-                      <td className="px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300">{itemLabel(slot)}</td>
+                      <td className="px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300">
+                        {(isLive && isCurrentlyLive) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
+                        )}
+                        {itemLabel(slot)}
+                      </td>
                       {/* תוכן */}
                       <td className="px-3 py-3 whitespace-pre-wrap leading-snug">
                         {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
@@ -379,7 +570,19 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       </td>
                       {/* משך */}
                       <td className="px-3 py-3 tabular-nums font-medium border-s-2 border-s-slate-300">
-                        {recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : "")}
+                        {isLive && lastPlaying?.durationSec ? (
+                          <>
+                            <span className="text-amber-700">{formatDurationSec(lastPlaying.durationSec)}</span>
+                            {(() => {
+                              const sched = recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : null);
+                              return sched && sched !== formatDurationSec(lastPlaying.durationSec)
+                                ? <span className="block text-[10px] text-muted-foreground line-through">{sched}</span>
+                                : null;
+                            })()}
+                          </>
+                        ) : (
+                          recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : "")
+                        )}
                       </td>
                       {/* שעת סיום */}
                       <td className="px-3 py-3 tabular-nums text-muted-foreground">{endTime}</td>

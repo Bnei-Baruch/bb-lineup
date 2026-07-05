@@ -141,6 +141,7 @@ export interface LessonSummary {
   approvalStatus: string;
   tags: string | null;
   seriesId: string | null;
+  series: { playoutCode: string | null } | null;
   kmPageLink: string | null;
   videoLink: string | null;
   articleSourceLink: string | null;
@@ -182,6 +183,7 @@ export interface SlotWithLesson {
   contactPerson: string | null;
   holidayTag: string | null;
   notes: string | null;
+  actualBroadcastAt: string | null;
   componentId: string | null;
   component: { id: string; name: string; category: string } | null;
 }

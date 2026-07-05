@@ -40,6 +40,7 @@ interface SeriesRow {
   currentArticleRef: string | null;
   currentLessonRef: string | null;
   currentPage: string | null;
+  playoutCode: string | null;
   _count?: { lessons: number };
 }
 

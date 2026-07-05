@@ -18,6 +18,7 @@ interface SeriesRow {
   currentArticleRef: string | null;
   currentLessonRef: string | null;
   currentPage: string | null;
+  playoutCode: string | null;
   _count?: { lessons: number };
 }
 
@@ -155,6 +156,7 @@ function SeriesForm({
     currentArticleRef: series?.currentArticleRef ?? "",
     currentLessonRef: series?.currentLessonRef ?? "",
     currentPage: series?.currentPage ?? "",
+    playoutCode: series?.playoutCode ?? "",
   });
 
   function set(field: string, value: string) {
@@ -172,6 +174,7 @@ function SeriesForm({
         currentArticleRef: form.currentArticleRef || null,
         currentLessonRef: form.currentLessonRef || null,
         currentPage: form.currentPage || null,
+        playoutCode: form.playoutCode || null,
       };
 
       const url = series ? `/api/series/${series.id}` : "/api/series";
@@ -225,6 +228,11 @@ function SeriesForm({
           <div className="space-y-1.5">
             <Label>עמוד נוכחי</Label>
             <Input value={form.currentPage} onChange={(e) => set("currentPage", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>קוד פלאאוט (Companion)</Label>
+            <Input value={form.playoutCode} onChange={(e) => set("playoutCode", e.target.value)} placeholder="RAV" dir="ltr" className="font-mono" />
+            <p className="text-xs text-muted-foreground">קוד הקליפ שמזהה בקומפניון — חייב להתאים לשם הטריגר (לדוג׳ RAV, RABASH)</p>
           </div>
         </div>
         <DialogFooter>

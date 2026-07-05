@@ -18,11 +18,22 @@ model Series {
   currentArticleRef  String?
   currentLessonRef   String?
   currentPage        String?
+  playoutCode        String?  // e.g. "RAV", "RABASH" — matches Companion clip identifier
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   lessons            Lesson[]
   progress           SeriesProgress[]
+}
+
+// ─── PlayoutNowPlaying: live playout state pushed by Companion ────────────────
+
+model PlayoutNowPlaying {
+  id            String   @id @default("current")
+  clipName      String
+  actualStartAt String   // ISO-8601 datetime
+  durationSec   Int?
+  updatedAt     DateTime @updatedAt
 }
 
 // ─── SeriesProgress: per-day snapshot of where a series stands ────────────────
@@ -244,6 +255,9 @@ model LineupSlot {
 
   holidayTag          String?
   notes               String?
+
+  // Actual broadcast time recorded by Companion
+  actualBroadcastAt   String?  // ISO-8601: set when Companion confirms this slot started
 
   // Component template reference
   componentId         String?

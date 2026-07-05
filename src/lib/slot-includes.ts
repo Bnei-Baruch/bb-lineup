@@ -40,6 +40,7 @@ export const slotWithLessonInclude = {
       approvalStatus: true,
       tags: true,
       seriesId: true,
+      series: { select: { playoutCode: true } },
       kmPageLink: true,
       videoLink: true,
       articleSourceLink: true,
