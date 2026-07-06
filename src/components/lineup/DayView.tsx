@@ -138,7 +138,8 @@ const Colgroup = () => (
 
 interface NowPlaying {
   clipName: string;
-  actualStartAt: string; // ISO-8601
+  actualStartAt: string; // ISO-8601 — Playdeck clip start (may be old/stale)
+  updatedAt: string;     // ISO-8601 — when Companion sent the POST (always current)
   durationSec?: number;
 }
 
@@ -168,19 +169,22 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
   const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
   useEffect(() => {
-    const id = setInterval(() => setNowSec(getIsraelTimeSec()), 10_000);
+    const id = setInterval(() => setNowSec(getIsraelTimeSec()), 1_000);
     return () => clearInterval(id);
   }, []);
 
   const [lastPlaying, setLastPlaying] = useState<NowPlaying | null>(null);
   const [isCurrentlyLive, setIsCurrentlyLive] = useState(false);
 
+  // Refs so the poll interval closure can read current state without stale captures
+  const lastPlayingRef = useRef<NowPlaying | null>(null);
+  const isCurrentlyLiveRef = useRef(false);
+
   function computeIsLive(data: NowPlaying): boolean {
-    const startMs = new Date(data.actualStartAt).getTime();
+    const updatedMs = new Date(data.updatedAt).getTime();
     const nowMs = Date.now();
-    if (nowMs < startMs) return false; // hasn't started yet
-    if (data.durationSec) return nowMs < startMs + (data.durationSec + 5) * 1000;
-    return true;
+    if (data.durationSec) return nowMs < updatedMs + (data.durationSec + 5) * 1000;
+    return nowMs < updatedMs + 120 * 1000;
   }
 
   useEffect(() => {
@@ -189,15 +193,50 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
         const res = await fetch("/api/playout/current");
         const data: NowPlaying | null = res.ok ? await res.json() : null;
         if (data) {
+          lastPlayingRef.current = data;
           setLastPlaying(data);
-          setIsCurrentlyLive(computeIsLive(data));
+          const live = computeIsLive(data);
+          isCurrentlyLiveRef.current = live;
+          setIsCurrentlyLive(live);
         } else {
+          const wasLive = isCurrentlyLiveRef.current;
+          const prev = lastPlayingRef.current;
+          isCurrentlyLiveRef.current = false;
+          lastPlayingRef.current = null;
           setIsCurrentlyLive(false);
+          setLastPlaying(null);
+
+          // Clip just stopped — fetch the actual played duration from the slot and
+          // update slotOverrides so it shows without a page reload
+          if (wasLive && prev) {
+            const liveSlot = day.slots.find(s => {
+              const code = s.lesson?.series?.playoutCode;
+              return (code && code.toUpperCase() === prev.clipName.toUpperCase()) ||
+                     s.id === prev.clipName;
+            });
+            if (liveSlot) {
+              fetch(`/api/slots/${liveSlot.id}/actuals`)
+                .then(r => r.ok ? r.json() : null)
+                .then((actuals: { actualBroadcastAt: string | null; actualDurationSec: number | null } | null) => {
+                  if (actuals?.actualDurationSec != null) {
+                    setSlotOverrides(overrides => {
+                      const next = new Map(overrides);
+                      next.set(liveSlot.id, {
+                        actualBroadcastAt: overrides.get(liveSlot.id)?.actualBroadcastAt ?? actuals.actualBroadcastAt,
+                        actualDurationSec: actuals.actualDurationSec,
+                      });
+                      return next;
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
+          }
         }
       } catch { setIsCurrentlyLive(false); }
     }
     poll();
-    const id = setInterval(poll, 3000);
+    const id = setInterval(poll, 1000);
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -236,6 +275,11 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   // Manual playout trigger
   const [manualSlotId, setManualSlotId] = useState<string | null>(null);
   const [manualTime, setManualTime] = useState("");
+  const [manualDuration, setManualDuration] = useState("");
+
+  // Client-side overrides for actualBroadcastAt/actualDurationSec set by manual adjustments.
+  // Avoids needing a page reload to see the updated times.
+  const [slotOverrides, setSlotOverrides] = useState<Map<string, { actualBroadcastAt: string | null; actualDurationSec: number | null }>>(new Map());
 
   function openManual(slot: SlotWithLesson) {
     const parts = new Intl.DateTimeFormat("he", {
@@ -245,32 +289,34 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     const m = parts.find(p => p.type === "minute")?.value ?? "00";
     const s = parts.find(p => p.type === "second")?.value ?? "00";
     setManualTime(`${h}:${m}:${s}`);
+    const existingDur = slotOverrides.get(slot.id)?.actualDurationSec ?? slot.actualDurationSec ?? slotEffectiveDuration(slot);
+    setManualDuration(existingDur > 0 ? formatDurationSec(existingDur) : "");
     setManualSlotId(slot.id);
   }
 
-  async function confirmManual(slot: SlotWithLesson) {
+  function confirmManual(slot: SlotWithLesson) {
     const code = slot.lesson?.series?.playoutCode ?? slot.id;
     if (!manualTime) return;
-    // Convert HH:MM:SS to a full ISO date in Israel timezone
     const today = new Intl.DateTimeFormat("sv", { timeZone: "Asia/Jerusalem" }).format(new Date()); // YYYY-MM-DD
     const iso = new Date(`${today}T${manualTime}+03:00`).toISOString();
-    const durationSec = slot.lesson?.videoDurationSec ?? undefined;
-    const body: Record<string, unknown> = { clipName: code, actualStartAt: iso };
-    if (durationSec) body.durationSec = durationSec;
-    try {
-      const res = await fetch("/api/playout/current", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (res.ok) {
-        const data: NowPlaying = await res.json();
-        setLastPlaying(data);
-        setIsCurrentlyLive(computeIsLive(data));
-      }
-    } finally {
-      setManualSlotId(null);
-    }
+    const parsedDur = manualDuration ? timeToSec(manualDuration) : 0;
+
+    // Update UI immediately — no waiting for the network
+    setSlotOverrides(prev => {
+      const next = new Map(prev);
+      next.set(slot.id, { actualBroadcastAt: iso, actualDurationSec: parsedDur > 0 ? parsedDur : null });
+      return next;
+    });
+    setManualSlotId(null);
+
+    // Persist to server in the background (manual:true → only saves to slot, not PlayoutNowPlaying)
+    const body: Record<string, unknown> = { clipName: code, actualStartAt: iso, manual: true };
+    if (parsedDur > 0) body.durationSec = parsedDur;
+    fetch("/api/playout/current", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).catch(console.error);
   }
 
   // Precompute live slot index for matching — use lastPlaying for time correction (persists after clip ends)
@@ -288,17 +334,22 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   const rows = day.slots.map((slot, i) => {
     const isLive = i === liveSlotIndex;
 
+    // Merge server-side slot data with any client-side overrides from manual adjustments
+    const override = slotOverrides.get(slot.id);
+    const effectiveActualBroadcastAt = override?.actualBroadcastAt ?? slot.actualBroadcastAt;
+    const effectiveActualDurationSec = override?.actualDurationSec ?? slot.actualDurationSec;
+
     // Determine the actual start time for this slot:
     // - live slot: use lastPlaying.actualStartAt (most current, from Companion)
-    // - other slots: use persisted actualBroadcastAt (survives page reloads)
+    // - other slots: use actualBroadcastAt (persisted or locally overridden from manual trigger)
     const actualStartSec = isLive && liveStartSec !== null
       ? liveStartSec
-      : (slot.actualBroadcastAt ? isoToIsraelSec(slot.actualBroadcastAt) : null);
+      : (effectiveActualBroadcastAt ? isoToIsraelSec(effectiveActualBroadcastAt) : null);
 
     if (actualStartSec !== null) {
       runningSec = actualStartSec;
       runningTime = secToHHMMSS(actualStartSec);
-      if (isLive) postAnchor = false; // re-anchor: don't carry "postAnchor" into the live slot itself
+      if (isLive) postAnchor = false;
     }
 
     const clockTime = runningTime;
@@ -307,10 +358,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
       day.slots.slice(0, i).reduce((s, sl) => s + slotEffectiveDuration(sl), 0)) : null;
     const slotStartSec = runningSec;
 
-    // Use actual Playdeck duration for the live slot if provided
-    const dur = isLive && lastPlaying?.durationSec
+    // Duration priority: live Companion data > manual override / persisted actual > timecode/scheduled
+    const dur = (isLive && lastPlaying?.durationSec)
       ? lastPlaying.durationSec
-      : slotEffectiveDuration(slot);
+      : (effectiveActualDurationSec ?? slotEffectiveDuration(slot));
 
     if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += slotPlanDur(slot);
     if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTime;
@@ -318,7 +369,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     runningTime = addSecondsToTime(runningTime, dur);
     runningSec += dur;
 
-    if (isLive || slot.actualBroadcastAt) postAnchor = true;
+    if (isLive || effectiveActualBroadcastAt) postAnchor = true;
 
     const recordedTime = slot.startTimecode && slot.endTimecode
       ? timecodeDuration(slot.startTimecode, slot.endTimecode)
@@ -327,7 +378,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     const isActive = dur > 0 && nowSec >= slotStartSec && nowSec < runningSec;
     // isProjected: past an anchor but this slot has no confirmed time of its own
     const isProjected = postAnchor && !hasConfirmedTime;
-    return { slot, clockTime, scheduledClockTime, endTime: runningTime, recordedTime, altIdx, isActive, isLive, isProjected };
+    return { slot, clockTime, scheduledClockTime, endTime: runningTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec };
   });
 
   if (clampedCutoff === rows.length) cutoffClockTime = runningTime;
@@ -408,7 +459,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   </td>
                 </tr>
               )}
-              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected }, i) => {
+              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec }, i) => {
                 const startRow = clampedStart > 0 && clampedStart === i ? (
                   <tr key="start-line">
                     <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
@@ -481,13 +532,26 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         )}
                         {isManualOpen && (
                           <div className="mt-1 flex flex-col gap-1 items-end" onClick={e => e.stopPropagation()}>
-                            <input
-                              type="text"
-                              value={manualTime}
-                              onChange={e => setManualTime(e.target.value)}
-                              className="w-24 text-xs border border-border rounded px-1 py-0.5 text-center font-mono bg-background text-foreground"
-                              placeholder="HH:MM:SS"
-                            />
+                            <div className="flex flex-col gap-0.5 items-end">
+                              <span className="text-[9px] text-muted-foreground">התחלה</span>
+                              <input
+                                type="text"
+                                value={manualTime}
+                                onChange={e => setManualTime(e.target.value)}
+                                className="w-24 text-xs border border-border rounded px-1 py-0.5 text-center font-mono bg-background text-foreground"
+                                placeholder="HH:MM:SS"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-0.5 items-end">
+                              <span className="text-[9px] text-muted-foreground">משך (אופציונלי)</span>
+                              <input
+                                type="text"
+                                value={manualDuration}
+                                onChange={e => setManualDuration(e.target.value)}
+                                className="w-24 text-xs border border-border rounded px-1 py-0.5 text-center font-mono bg-background text-foreground"
+                                placeholder="HH:MM:SS"
+                              />
+                            </div>
                             <div className="flex gap-1">
                               <button
                                 onClick={() => confirmManual(slot)}
@@ -570,19 +634,34 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       </td>
                       {/* משך */}
                       <td className="px-3 py-3 tabular-nums font-medium border-s-2 border-s-slate-300">
-                        {isLive && lastPlaying?.durationSec ? (
-                          <>
-                            <span className="text-amber-700">{formatDurationSec(lastPlaying.durationSec)}</span>
-                            {(() => {
-                              const sched = recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : null);
-                              return sched && sched !== formatDurationSec(lastPlaying.durationSec)
-                                ? <span className="block text-[10px] text-muted-foreground line-through">{sched}</span>
-                                : null;
-                            })()}
-                          </>
-                        ) : (
-                          recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : "")
-                        )}
+                        {(() => {
+                          const scheduledDur = recordedTime ?? (slotEffectiveDuration(slot) > 0 ? formatDurationSec(slotEffectiveDuration(slot)) : null);
+                          // Live: show Companion duration in amber with strikethrough of scheduled
+                          if (isLive && lastPlaying?.durationSec) {
+                            const actual = formatDurationSec(lastPlaying.durationSec);
+                            return (
+                              <>
+                                <span className="text-amber-700">{actual}</span>
+                                {scheduledDur && scheduledDur !== actual && (
+                                  <span className="block text-[10px] text-muted-foreground line-through">{scheduledDur}</span>
+                                )}
+                              </>
+                            );
+                          }
+                          // Post-live: show persisted or locally-overridden actual duration
+                          if (effectiveActualDurationSec) {
+                            const actual = formatDurationSec(effectiveActualDurationSec);
+                            return (
+                              <>
+                                <span className="text-muted-foreground">{actual}</span>
+                                {scheduledDur && scheduledDur !== actual && (
+                                  <span className="block text-[10px] text-muted-foreground/60 line-through">{scheduledDur}</span>
+                                )}
+                              </>
+                            );
+                          }
+                          return scheduledDur ?? "";
+                        })()}
                       </td>
                       {/* שעת סיום */}
                       <td className="px-3 py-3 tabular-nums text-muted-foreground">{endTime}</td>

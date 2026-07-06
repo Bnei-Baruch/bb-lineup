@@ -184,6 +184,7 @@ export interface SlotWithLesson {
   holidayTag: string | null;
   notes: string | null;
   actualBroadcastAt: string | null;
+  actualDurationSec: number | null;
   componentId: string | null;
   component: { id: string; name: string; category: string } | null;
 }

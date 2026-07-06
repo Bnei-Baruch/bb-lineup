@@ -91,6 +91,38 @@ export default async function DayViewPage({
     } catch { /* broadcastEndTime also not migrated */ }
   }
 
+  // Fetch actual broadcast data via raw SQL — bypasses ORM client cache so new columns
+  // are always returned even if the running Prisma client was generated before they were added
+  const slotIds = dayData.slots.map((s) => s.id);
+  const actualBroadcastMap = new Map<string, { actualBroadcastAt: string | null; actualDurationSec: number | null }>();
+  if (slotIds.length > 0) {
+    try {
+      const { Prisma } = await import("@prisma/client");
+      const rows = await prisma.$queryRaw<{ id: string; actualBroadcastAt: string | null; actualDurationSec: number | null }[]>`
+        SELECT id, actualBroadcastAt, actualDurationSec FROM "LineupSlot"
+        WHERE id IN (${Prisma.join(slotIds)})
+      `;
+      for (const r of rows) actualBroadcastMap.set(r.id, { actualBroadcastAt: r.actualBroadcastAt, actualDurationSec: Number(r.actualDurationSec ?? null) || null });
+    } catch { /* column may not exist on older DBs */ }
+  }
+
+  // Fetch series.playoutCode via raw SQL — same reason: bypasses stale ORM client cache
+  // that may predate the playoutCode column being added to Series
+  const playoutCodeMap = new Map<string, string | null>();
+  if (slotIds.length > 0) {
+    try {
+      const { Prisma } = await import("@prisma/client");
+      const rows = await prisma.$queryRaw<{ slotId: string; playoutCode: string | null }[]>`
+        SELECT ls.id AS slotId, s.playoutCode
+        FROM "LineupSlot" ls
+        JOIN "Lesson" l ON ls.lessonId = l.id
+        JOIN "Series" s ON l.seriesId = s.id
+        WHERE ls.id IN (${Prisma.join(slotIds)})
+      `;
+      for (const r of rows) playoutCodeMap.set(r.slotId, r.playoutCode);
+    } catch { /* Series table or playoutCode column not available */ }
+  }
+
   const date = dayDate(ws, dow);
   const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
 
@@ -102,11 +134,22 @@ export default async function DayViewPage({
     broadcastEndTime,
     slots: dayData.slots.map((s) => {
       const srcId = slotSourceIdMap[s.id] ?? null;
+      const actualBroadcast = actualBroadcastMap.get(s.id);
+      const playoutCode = playoutCodeMap.has(s.id) ? playoutCodeMap.get(s.id) : undefined;
       return {
         ...s,
+        actualBroadcastAt: actualBroadcast?.actualBroadcastAt ?? (s as Record<string, unknown>).actualBroadcastAt ?? null,
+        actualDurationSec: actualBroadcast?.actualDurationSec ?? (s as Record<string, unknown>).actualDurationSec ?? null,
         studyMaterialSource: srcId ? (articleSourceMap[srcId] ?? null) : null,
         lesson: s.lesson
-          ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
+          ? {
+              ...s.lesson,
+              recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null,
+              // Override series.playoutCode with raw SQL result to bypass stale ORM client cache
+              series: playoutCode !== undefined
+                ? { ...(s.lesson.series ?? {}), playoutCode: playoutCode ?? null }
+                : (s.lesson.series ?? null),
+            }
           : null,
       };
     }),

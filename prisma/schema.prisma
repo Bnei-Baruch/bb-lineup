@@ -256,8 +256,9 @@ model LineupSlot {
   holidayTag          String?
   notes               String?
 
-  // Actual broadcast time recorded by Companion
+  // Actual broadcast data recorded by Companion
   actualBroadcastAt   String?  // ISO-8601: set when Companion confirms this slot started
+  actualDurationSec   Int?     // real played duration in seconds from Companion
 
   // Component template reference
   componentId         String?

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toWeekStart } from "@/lib/dates";
 
-/** After recording playout, find the matching slot in today's lineup and persist actualBroadcastAt */
-async function saveActualBroadcastToSlot(clipName: string, startAt: string) {
+/** After recording playout, find the matching slot in today's lineup and persist actual broadcast data */
+async function saveActualBroadcastToSlot(clipName: string, startAt: string, durationSec?: number) {
   try {
     const now = new Date();
     const ws = toWeekStart(now);
@@ -30,7 +30,9 @@ async function saveActualBroadcastToSlot(clipName: string, startAt: string) {
     `;
     if (slotsById[0]) {
       await prisma.$executeRaw`
-        UPDATE "LineupSlot" SET actualBroadcastAt = ${startAt}, updatedAt = ${now2} WHERE id = ${slotsById[0].id}
+        UPDATE "LineupSlot"
+        SET actualBroadcastAt = ${startAt}, actualDurationSec = ${durationSec ?? null}, updatedAt = ${now2}
+        WHERE id = ${slotsById[0].id}
       `;
       return;
     }
@@ -44,7 +46,9 @@ async function saveActualBroadcastToSlot(clipName: string, startAt: string) {
     `;
     for (const slot of matched) {
       await prisma.$executeRaw`
-        UPDATE "LineupSlot" SET actualBroadcastAt = ${startAt}, updatedAt = ${now2} WHERE id = ${slot.id}
+        UPDATE "LineupSlot"
+        SET actualBroadcastAt = ${startAt}, actualDurationSec = ${durationSec ?? null}, updatedAt = ${now2}
+        WHERE id = ${slot.id}
       `;
     }
   } catch (e) {
@@ -57,10 +61,11 @@ export async function GET() {
     const row = await prisma.playoutNowPlaying.findUnique({ where: { id: "current" } });
     if (!row) return NextResponse.json(null);
 
-    // TTL: if durationSec known and clip should have ended > 15s ago, treat as stale
+    // TTL: use updatedAt (time we received the POST) not actualStartAt (Playdeck clip time,
+    // which may be from yesterday). Companion-provided clip start times can be stale.
     if (row.durationSec) {
-      const startMs = new Date(row.actualStartAt).getTime();
-      const expireMs = startMs + (row.durationSec + 15) * 1000;
+      const updatedMs = new Date(row.updatedAt).getTime();
+      const expireMs = updatedMs + (Number(row.durationSec) + 15) * 1000;
       if (Date.now() > expireMs) {
         await prisma.playoutNowPlaying.delete({ where: { id: "current" } }).catch(() => {});
         return NextResponse.json(null);
@@ -76,31 +81,42 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { clipName, durationSec, actualStartAt } = body as {
-      clipName: string; durationSec?: number; actualStartAt?: string;
+    const { clipName, durationSec, actualStartAt, manual } = body as {
+      clipName: string; durationSec?: number; actualStartAt?: string; manual?: boolean;
     };
     if (!clipName) return NextResponse.json({ error: "clipName required" }, { status: 400 });
 
     const startAt = actualStartAt ?? new Date().toISOString();
 
+    // Manual operator adjustments only save to the slot — they don't touch PlayoutNowPlaying
+    // so the LIVE badge is not affected. Only Companion-triggered calls update live state.
+    if (manual) {
+      saveActualBroadcastToSlot(clipName, startAt, durationSec);
+      return NextResponse.json({ clipName, actualStartAt: startAt, durationSec: durationSec ?? null });
+    }
+
+    // For Companion calls: check if the same clip is already playing.
+    // If so, preserve actualStartAt (the original clip start time) so duration
+    // calculations remain correct even when Companion re-POSTs every 30s.
+    const existing = await prisma.playoutNowPlaying.findUnique({ where: { id: "current" } });
+    const isSameClip = existing && existing.clipName.toUpperCase() === clipName.toUpperCase();
+
+    if (isSameClip) {
+      // Same clip re-POST: only refresh durationSec + updatedAt (for TTL), keep actualStartAt
+      const record = await prisma.playoutNowPlaying.update({
+        where: { id: "current" },
+        data: { durationSec: durationSec ?? null },
+      });
+      return NextResponse.json(record);
+    }
+
+    // New clip: full upsert, save original start time, persist to slot
     const record = await prisma.playoutNowPlaying.upsert({
       where: { id: "current" },
-      create: {
-        id: "current",
-        clipName,
-        actualStartAt: startAt,
-        durationSec: durationSec ?? null,
-      },
-      update: {
-        clipName,
-        actualStartAt: startAt,
-        durationSec: durationSec ?? null,
-      },
+      create: { id: "current", clipName, actualStartAt: startAt, durationSec: durationSec ?? null },
+      update: { clipName, actualStartAt: startAt, durationSec: durationSec ?? null },
     });
-
-    // Persist actual start time back to the matching slot (fire-and-forget)
-    saveActualBroadcastToSlot(clipName, startAt);
-
+    saveActualBroadcastToSlot(clipName, startAt, durationSec);
     return NextResponse.json(record);
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
@@ -109,6 +125,18 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE() {
   try {
+    const row = await prisma.playoutNowPlaying.findUnique({ where: { id: "current" } });
+    if (row) {
+      // actualStartAt is preserved from the first Companion POST (same-clip re-POSTs don't
+      // update it), so duration = stopTime - originalStartTime = correct total play time.
+      const stopMs = Date.now();
+      const startMs = new Date(row.actualStartAt).getTime();
+      const computedDurationSec = Math.max(1, Math.round((stopMs - startMs) / 1000));
+      // Await the save so the duration is in the DB before we return 204.
+      // DayView fetches actuals immediately after seeing null from the poll — the save
+      // must be complete by then or it will read stale data.
+      await saveActualBroadcastToSlot(row.clipName, row.actualStartAt, computedDurationSec);
+    }
     await prisma.playoutNowPlaying.deleteMany({ where: { id: "current" } });
     return new NextResponse(null, { status: 204 });
   } catch {
