@@ -166,6 +166,7 @@ function secToHHMMSS(totalSec: number): string {
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
+  const activeRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
   useEffect(() => {
@@ -175,6 +176,21 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
   const [lastPlaying, setLastPlaying] = useState<NowPlaying | null>(null);
   const [isCurrentlyLive, setIsCurrentlyLive] = useState(false);
+
+  // Scroll to the active/live row on initial load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      activeRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Scroll to the live row when Companion triggers a clip
+  useEffect(() => {
+    if (isCurrentlyLive) {
+      activeRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [isCurrentlyLive]);
 
   // Refs so the poll interval closure can read current state without stale captures
   const lastPlayingRef = useRef<NowPlaying | null>(null);
@@ -500,11 +516,14 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   <React.Fragment key={slot.id}>
                     {startRow}
                     {cutoffRow}
-                    <tr className={`border-t border-s-2 hover:brightness-90 transition-colors ${
-                      (isLive && isCurrentlyLive) ? "bg-amber-50 border-s-amber-500" :
-                      isActive                    ? "bg-green-50 border-s-green-500" :
-                                                    `${rowColor} ${altBg} border-border`
-                    }`}>
+                    <tr
+                      ref={(isActive || (isLive && isCurrentlyLive)) ? activeRowRef : undefined}
+                      className={`border-t border-s-2 hover:brightness-90 transition-colors ${
+                        (isLive && isCurrentlyLive) ? "bg-amber-50 border-s-amber-500" :
+                        isActive                    ? "bg-green-50 border-s-green-500" :
+                                                      `${rowColor} ${altBg} border-border`
+                      }`}
+                    >
                       {/* שעות — sticky to inline-end */}
                       <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${
                         (isLive && isCurrentlyLive) ? "text-amber-700 bg-amber-50" :
