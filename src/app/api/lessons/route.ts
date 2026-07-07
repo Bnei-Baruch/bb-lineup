@@ -64,6 +64,8 @@ export async function GET(req: NextRequest) {
         kmPageLink: true,
         videoLink: true,
         articleSourceLink: true,
+        transcriptionLink: true,
+        broadcastDate: true,
         createdAt: true,
       },
     }),
