@@ -379,7 +379,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
       ? lastPlaying.durationSec
       : (effectiveActualDurationSec ?? slotEffectiveDuration(slot));
 
-    if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += slotPlanDur(slot);
+    if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += dur;
     if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTime;
     totalSeconds += dur;
     runningTime = addSecondsToTime(runningTime, dur);
@@ -391,7 +391,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
       ? timecodeDuration(slot.startTimecode, slot.endTimecode)
       : null;
     const altIdx = slot.slotType === "part_header" ? -1 : _altIdx++;
-    const isActive = dur > 0 && nowSec >= slotStartSec && nowSec < runningSec;
+    // Suppress scheduled-active highlight when Companion is live — avoids dual highlighting
+    // when the live anchor falls slightly before the previous slot's scheduled end time
+    const isActive = !isCurrentlyLive && dur > 0 && nowSec >= slotStartSec && nowSec < runningSec;
     // isProjected: past an anchor but this slot has no confirmed time of its own
     const isProjected = postAnchor && !hasConfirmedTime;
     return { slot, clockTime, scheduledClockTime, endTime: runningTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec };
