@@ -279,6 +279,21 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
               </Field>
             )}
 
+            {/* Transcription link — read-only, lives on the lesson */}
+            {hasRecording && lesson?.transcriptionLink && (
+              <Field label="לינק לתמליל">
+                <a
+                  href={lesson.transcriptionLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline break-all"
+                  dir="ltr"
+                >
+                  {lesson.transcriptionLink}
+                </a>
+              </Field>
+            )}
+
             {/* Media code */}
             {hasMedia && (
               <Field label="קוד מדיה / ניתוב">
