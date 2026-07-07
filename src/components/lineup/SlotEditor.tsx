@@ -67,6 +67,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
       holidayTag: s.holidayTag ?? "",
       partNumber: String(s.partNumber ?? ""),
       lessonId: s.lessonId ?? null,
+      transcriptionLink: s.lesson?.transcriptionLink ?? "",
     };
   }
 
@@ -123,6 +124,16 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
         partNumber: form.partNumber ? parseInt(form.partNumber) : null,
       };
       await onSave(data as Partial<SlotWithLesson>);
+      // Persist transcription link back to the lesson if it changed
+      const lessonId = form.lessonId ?? slot.lessonId;
+      const origLink = slot.lesson?.transcriptionLink ?? "";
+      if (lessonId && form.transcriptionLink !== origLink) {
+        await fetch(`/api/lessons/${lessonId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcriptionLink: form.transcriptionLink || null }),
+        });
+      }
       onClose();
     } finally {
       setSaving(false);
@@ -279,18 +290,10 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
               </Field>
             )}
 
-            {/* Transcription link — read-only, lives on the lesson */}
-            {hasRecording && lesson?.transcriptionLink && (
+            {/* Transcription link — editable, saved back to the lesson */}
+            {hasRecording && lesson && (
               <Field label="לינק לתמליל">
-                <a
-                  href={lesson.transcriptionLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline break-all"
-                  dir="ltr"
-                >
-                  {lesson.transcriptionLink}
-                </a>
+                <Input value={form.transcriptionLink} onChange={(e) => set("transcriptionLink", e.target.value)} dir="ltr" placeholder="https://..." />
               </Field>
             )}
 
