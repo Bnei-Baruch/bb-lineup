@@ -173,6 +173,7 @@ export interface SlotWithLesson {
   recordedLessonLink: string | null;
   startTimecode: string | null;
   endTimecode: string | null;
+  parentSlotId: string | null;
   openingWords: string | null;
   closingWords: string | null;
   hasSubtitles: boolean;

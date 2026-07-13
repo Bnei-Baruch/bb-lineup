@@ -45,6 +45,8 @@ export const slotWithLessonInclude = {
       videoLink: true,
       articleSourceLink: true,
       transcriptionLink: true,
+      startTimecode: true,
+      endTimecode: true,
     },
   },
   component: {

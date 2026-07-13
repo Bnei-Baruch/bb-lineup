@@ -264,6 +264,11 @@ model LineupSlot {
   componentId         String?
   component           LineupComponent? @relation(fields: [componentId], references: [id])
 
+  // Nesting: optional parent slot (child's duration excluded from totals)
+  parentSlotId        String?
+  parent              LineupSlot?      @relation("SlotNesting", fields: [parentSlotId], references: [id], onDelete: SetNull)
+  children            LineupSlot[]     @relation("SlotNesting")
+
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 

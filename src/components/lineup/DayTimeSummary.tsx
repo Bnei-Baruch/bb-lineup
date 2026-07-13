@@ -1,5 +1,6 @@
 import { formatDurationSec } from "@/lib/time";
-import { SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
+import { slotEffectiveDuration } from "@/lib/slot-duration";
+import { SlotWithLesson } from "@/types";
 
 function timeToSeconds(hhmm: string): number {
   const parts = hhmm.split(":").map(Number);
@@ -22,14 +23,10 @@ interface DayTimeSummaryProps {
   cutoffIndex?: number | null;
 }
 
-// For planning totals: use full video duration, not cut timecodes.
-// Cut durations are shown in slot cards for reference only.
+// Nested children don't add to the parent's time budget — only top-level slots count.
 function slotDur(slot: SlotWithLesson): number {
-  if (slot.slotType === "part_header") return 0;
-  if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-    return slot.lesson.videoDurationSec ?? 0;
-  }
-  return slot.durationSec ?? 0;
+  if (slot.parentSlotId) return 0;
+  return slotEffectiveDuration(slot);
 }
 
 export function DayTimeSummary({ slots, startTime, endTime, startIndex, cutoffIndex }: DayTimeSummaryProps) {

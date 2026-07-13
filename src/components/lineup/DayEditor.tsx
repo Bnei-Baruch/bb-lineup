@@ -1,27 +1,17 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import {
-  DndContext,
-  DragEndEvent,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  closestCenter,
-} from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { ComponentPalette } from "./ComponentPalette";
 import { SeriesLessonPalette } from "./SeriesLessonPalette";
-import { DaySlotRow } from "./DaySlotRow";
+import { DaySlotTable } from "./DaySlotTable";
 import { SlotEditor } from "./SlotEditor";
 import { DayTimeSummary } from "./DayTimeSummary";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
-import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
-import { addSecondsToTime, timecodeToSeconds } from "@/lib/timecodes";
-import { Wand2, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { DayWithSlots, SlotWithLesson, SlotType } from "@/types";
+import { Wand2, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface PaletteComponent {
   id: string;
@@ -53,33 +43,12 @@ interface DayEditorProps {
   series: SeriesRow[];
 }
 
-function CutoffLine({ onMoveUp, onMoveDown, color, label }: { onMoveUp: () => void; onMoveDown: () => void; color: "orange" | "blue"; label: string }) {
-  const colors = color === "orange"
-    ? { border: "border-orange-400", text: "text-orange-500", btn: "text-orange-400 hover:text-orange-600 hover:bg-orange-50" }
-    : { border: "border-blue-400", text: "text-blue-500", btn: "text-blue-400 hover:text-blue-600 hover:bg-blue-50" };
-  return (
-    <div className="flex items-center gap-2 py-1 select-none group">
-      <div className={`flex-1 border-t-2 border-dashed ${colors.border}`} />
-      <span className={`text-xs font-semibold whitespace-nowrap ${colors.text}`}>{label}</span>
-      <div className="flex gap-0.5">
-        <button onClick={onMoveUp} className={`p-0.5 rounded transition-colors ${colors.btn}`} title="הזז למעלה">
-          <ChevronUp className="h-4 w-4" />
-        </button>
-        <button onClick={onMoveDown} className={`p-0.5 rounded transition-colors ${colors.btn}`} title="הזז למטה">
-          <ChevronDown className="h-4 w-4" />
-        </button>
-      </div>
-      <div className={`flex-1 border-t-2 border-dashed ${colors.border}`} />
-    </div>
-  );
-}
-
 export function DayEditor({ day: initialDay, components, series }: DayEditorProps) {
   const router = useRouter();
   const [slots, setSlots] = useState<SlotWithLesson[]>(initialDay.slots);
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"components" | "series">("components");
-  const [sidebarWidth, setSidebarWidth] = useState(600);
+  const [addPanelOpen, setAddPanelOpen] = useState(false);
   const [startIndex, setStartIndex] = useState<number>(
     () => initialDay.contentStartIndex ?? 0
   );
@@ -113,26 +82,6 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       });
     }, 600);
   }
-  const sidebarRef = useRef<HTMLDivElement>(null);
-
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = sidebarRef.current?.getBoundingClientRect().width ?? sidebarWidth;
-
-    function onMove(ev: MouseEvent) {
-      // sidebar is on the left in RTL; drag handle is on its right edge
-      // moving mouse right = wider, left = narrower
-      const delta = ev.clientX - startX;
-      setSidebarWidth(Math.max(180, Math.min(600, startWidth + delta)));
-    }
-    function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  }, [sidebarWidth]);
   const [addedLabel, setAddedLabel] = useState<string | null>(null);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -160,11 +109,6 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       body: JSON.stringify({ broadcastEndTime: endTime || null }),
     });
   }
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor)
-  );
 
   function insertSlotBeforeCutoff(currentSlots: SlotWithLesson[], newSlot: SlotWithLesson, currentCutoff: number): SlotWithLesson[] {
     const insertAt = Math.min(currentCutoff, currentSlots.length);
@@ -269,17 +213,8 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     setEditingSlot({ ...slot, dayId: initialDay.id, slotType: slot.slotType as SlotType });
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = slots.findIndex((s) => s.id === active.id);
-    const newIndex = slots.findIndex((s) => s.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const newSlots = arrayMove(slots, oldIndex, newIndex);
+  function handleReorder(newSlots: SlotWithLesson[]) {
     setSlots(newSlots);
-
     fetch("/api/slots/reorder", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -288,7 +223,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   }
 
   return (
-    <div className="flex gap-4" style={{ height: "calc(100vh - 134px)" }}>
+    <div className="flex flex-col min-h-0" style={{ height: "calc(100vh - 134px)" }}>
       {/* Slot list (main area) */}
       <div className="flex-1 min-w-0 flex flex-col min-h-0">
         <div className="shrink-0 flex items-center justify-between gap-2 mb-3">
@@ -316,6 +251,15 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             <Button
               variant="outline"
               size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setAddPanelOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              הוסף תוכן
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               className="gap-1.5 text-xs text-destructive hover:text-destructive"
               onClick={handleClearDay}
               disabled={slots.length === 0}
@@ -336,81 +280,19 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
           </div>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {(() => {
-                const clampedStart = Math.min(startIndex, slots.length);
-                const clampedCutoff = Math.min(cutoffIndex, slots.length);
-                let running = startTime;
-                const items: React.ReactNode[] = [];
-
-                if (clampedStart === 0) {
-                  items.push(
-                    <CutoffLine key="start"
-                      color="blue" label="תחילת תוכן"
-                      onMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
-                      onMoveDown={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))}
-                    />
-                  );
-                }
-
-                slots.forEach((slot, i) => {
-                  if (i === clampedStart && clampedStart > 0) {
-                    items.push(
-                      <CutoffLine key="start"
-                        color="blue" label="תחילת תוכן"
-                        onMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
-                        onMoveDown={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))}
-                      />
-                    );
-                  }
-                  if (i === clampedCutoff) {
-                    items.push(
-                      <CutoffLine key="cutoff"
-                        color="orange" label="סוף תוכן"
-                        onMoveUp={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))}
-                        onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))}
-                      />
-                    );
-                  }
-                  const clockTime = running;
-                  const dur = LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson
-                    ? (slot.startTimecode && slot.endTimecode
-                        ? Math.max(0, timecodeToSeconds(slot.endTimecode) - timecodeToSeconds(slot.startTimecode)) || (slot.lesson.videoDurationSec ?? 0)
-                        : (slot.lesson.videoDurationSec ?? 0))
-                    : (slot.durationSec ?? 0);
-                  running = addSecondsToTime(running, dur);
-                  const isOutside = i < clampedStart || i >= clampedCutoff;
-                  items.push(
-                    <div key={slot.id}>
-                      <DaySlotRow slot={slot} clockTime={clockTime} onEdit={handleEdit} onDelete={handleDelete} />
-                    </div>
-                  );
-                });
-
-                if (clampedCutoff === slots.length) {
-                  items.push(
-                    <CutoffLine key="cutoff"
-                      color="orange" label="סוף תוכן"
-                      onMoveUp={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))}
-                      onMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))}
-                    />
-                  );
-                }
-
-                return items;
-              })()}
-            </div>
-          </SortableContext>
-        </DndContext>
-
-        {slots.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground border-2 border-dashed border-border rounded-lg">
-            <p>אין פריטים ביום זה</p>
-            <p className="text-xs mt-1">הוסף קומפוננטות מהפאנל או פריט חדש</p>
-          </div>
-        )}
+          <DaySlotTable
+            slots={slots}
+            startTime={startTime}
+            startIndex={startIndex}
+            cutoffIndex={cutoffIndex}
+            onRowClick={handleEdit}
+            onDelete={handleDelete}
+            onReorder={handleReorder}
+            onStartMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
+            onStartMoveDown={() => updateStartIndex(Math.min(Math.min(cutoffIndex, slots.length), startIndex + 1))}
+            onCutoffMoveUp={() => updateCutoff(Math.max(Math.min(startIndex, slots.length), cutoffIndex - 1))}
+            onCutoffMoveDown={() => updateCutoff(Math.min(slots.length, cutoffIndex + 1))}
+          />
         </div>{/* end scrollable slot list */}
 
         <div className="shrink-0 mt-2 border border-border rounded-lg overflow-hidden bg-background">
@@ -418,46 +300,47 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         </div>
       </div>
 
-      {/* Sidebar */}
-      <div
-        ref={sidebarRef}
-        className="shrink-0 border border-border rounded-lg bg-card flex flex-col relative h-full"
-        style={{width: sidebarWidth}}
-      >
-        {/* Drag-to-resize handle on the right edge */}
-        <div
-          onMouseDown={handleResizeStart}
-          className="absolute inset-y-0 right-0 w-1.5 cursor-col-resize hover:bg-primary/20 rounded-r-lg transition-colors z-10"
-        />
-
-        {/* Tab switcher */}
-        <div className="flex border-b border-border shrink-0">
-          <button
-            onClick={() => setSidebarTab("components")}
-            className={`flex-1 text-xs py-2 font-medium transition-colors ${sidebarTab === "components" ? "text-foreground border-b-2 border-primary -mb-px" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            רכיבים
-          </button>
-          <button
-            onClick={() => setSidebarTab("series")}
-            className={`flex-1 text-xs py-2 font-medium transition-colors ${sidebarTab === "series" ? "text-foreground border-b-2 border-primary -mb-px" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            סדרות
-          </button>
-        </div>
-        <div className="flex-1 min-h-0 flex flex-col">
-          {sidebarTab === "components" ? (
-            <ComponentPalette components={components} onAdd={handleAddFromComponent} />
-          ) : (
-            <SeriesLessonPalette series={series} onAdd={handleAddFromLesson} />
+      {/* Add-content slide-in panel */}
+      <Sheet open={addPanelOpen} onOpenChange={setAddPanelOpen}>
+        <SheetContent className="flex flex-col p-0 gap-0">
+          <SheetHeader className="p-4 pb-0">
+            <SheetTitle>הוסף תוכן</SheetTitle>
+          </SheetHeader>
+          {addedLabel && (
+            <div className="mx-4 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg border border-green-200 bg-green-50 text-green-800 text-sm font-medium shrink-0">
+              <span>✓</span>
+              <span>{addedLabel} נוסף ללינאפ</span>
+            </div>
           )}
-        </div>
-      </div>
+          <div className="flex border-b border-border shrink-0 mt-3">
+            <button
+              onClick={() => setSidebarTab("components")}
+              className={`flex-1 text-xs py-2 font-medium transition-colors ${sidebarTab === "components" ? "text-foreground border-b-2 border-primary -mb-px" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              רכיבים
+            </button>
+            <button
+              onClick={() => setSidebarTab("series")}
+              className={`flex-1 text-xs py-2 font-medium transition-colors ${sidebarTab === "series" ? "text-foreground border-b-2 border-primary -mb-px" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              סדרות
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 flex flex-col">
+            {sidebarTab === "components" ? (
+              <ComponentPalette components={components} onAdd={handleAddFromComponent} />
+            ) : (
+              <SeriesLessonPalette series={series} onAdd={handleAddFromLesson} />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
-      {/* Slot editor dialog */}
+      {/* Slot editor panel */}
       {editingSlot && (
         <SlotEditor
           slot={editingSlot}
+          allSlots={slots}
           open={true}
           onClose={() => setEditingSlot(null)}
           onSave={handleSave}
@@ -472,14 +355,6 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         startTime={startTime}
         endTime={endTime || undefined}
       />
-
-      {/* Fixed corner toast — visible regardless of scroll position */}
-      {addedLabel && (
-        <div className="fixed bottom-5 left-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-lg border border-green-200 bg-green-50 text-green-800 text-sm font-medium pointer-events-none">
-          <span>✓</span>
-          <span>{addedLabel}</span>
-        </div>
-      )}
     </div>
   );
 }

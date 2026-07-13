@@ -231,9 +231,12 @@ export async function GET() {
           updateData.articleSourceLink = articleSourceLink;
         }
         await prisma.lesson.update({ where: { id: existing.id }, data: updateData });
-        // Supplement articleReadingSec via raw SQL (Prisma client may not know the column)
+        // Supplement fields via raw SQL in case Prisma client doesn't recognise them
         if (articleReadingSec) {
           await prisma.$executeRaw`UPDATE "Lesson" SET "articleReadingSec" = ${articleReadingSec} WHERE id = ${existing.id}`;
+        }
+        if (rawTranscription) {
+          await prisma.$executeRaw`UPDATE "Lesson" SET "transcriptionLink" = ${rawTranscription} WHERE id = ${existing.id}`;
         }
         log.push(`UPDATE ${kmUid}: ${approvalStatus}${broadcastDate ? ` ${broadcastDate.toISOString().slice(0, 10)}` : ""}`);
         updated++;

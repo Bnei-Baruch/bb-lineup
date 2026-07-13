@@ -1,10 +1,15 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
-import { DayWithSlots, SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
+import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
-import { Check, Clock } from "lucide-react";
+import { slotEffectiveDuration } from "@/lib/slot-duration";
+import { Check, Clock, CornerDownRight } from "lucide-react";
+import {
+  COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
+  timeToSec, secToHHMMSS, itemLabel, contentText,
+} from "./slot-table-shared";
 
 interface DayViewProps {
   enDayLabel?: string;
@@ -25,117 +30,6 @@ function getIsraelTimeSec(): number {
   return h * 3600 + m * 60 + s;
 }
 
-function slotEffectiveDuration(slot: SlotWithLesson): number {
-  if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
-    const hasSlotTC = slot.startTimecode && slot.endTimecode;
-    const inTC = hasSlotTC ? slot.startTimecode : slot.lesson.startTimecode;
-    const outTC = hasSlotTC ? slot.endTimecode : slot.lesson.endTimecode;
-    if (inTC && outTC) {
-      const toSec = (tc: string) => { const p = tc.split(":").map(Number); return (p[0] ?? 0) * 3600 + (p[1] ?? 0) * 60 + (p[2] ?? 0); };
-      const dur = toSec(outTC) - toSec(inTC);
-      if (dur > 0) return dur;
-    }
-    return slot.lesson.videoDurationSec ?? 0;
-  }
-  return slot.durationSec ?? 0;
-}
-
-function itemLabel(slot: SlotWithLesson): string {
-  if (slot.slotType === "transition" && slot.transitionType) {
-    return `מעברון ${TRANSITION_LABELS[slot.transitionType as TransitionType] ?? slot.transitionType}`;
-  }
-  if (slot.slotType === "part_header") {
-    return `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
-  }
-  if (slot.slotType === "article_reading") {
-    return SLOT_TYPE_LABELS["article_reading"] || "קריאת מאמר";
-  }
-  return slot.label || slot.component?.name || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
-}
-
-function sourceSubline(vol: number | null | undefined, page: number | null | undefined): string {
-  const parts = [vol ? `כרך ${vol}` : null, page ? `עמוד ${page}` : null].filter(Boolean);
-  return parts.join(" · ");
-}
-
-function contentText(slot: SlotWithLesson): { main: string; sub: string } {
-  if (slot.slotType === "article_reading") {
-    const ref = slot.studyMaterialSourceRef || "";
-    const parts = ref.split(" | ");
-    const leaf = parts.length > 1 ? parts[parts.length - 1] : ref;
-    const parent = parts.length > 1 ? parts.slice(0, -1).join(" | ") : "";
-    const src = slot.studyMaterialSource;
-    const extra = sourceSubline(src?.bookVolume, src?.bookPage);
-    return { main: leaf || slot.label || "", sub: [parent, extra].filter(Boolean).join(" · ") };
-  }
-  if (slot.narratorScript) return { main: slot.narratorScript, sub: "" };
-  if (slot.lesson?.sourceRef) {
-    const src = slot.studyMaterialSource;
-    return { main: slot.lesson.sourceRef, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
-  }
-  if (slot.mediaCode) return { main: slot.mediaCode, sub: "" };
-  if (slot.groupLeader) return { main: slot.groupLeader, sub: "" };
-  return { main: "", sub: "" };
-}
-
-const SLOT_ROW_COLORS: Partial<Record<string, string>> = {
-  recorded_lesson: "border-s-purple-400",
-  article_reading: "border-s-green-400",
-  transition:      "border-s-gray-300",
-  narrator:        "border-s-blue-300",
-  workshop:        "border-s-orange-400",
-  live_content:    "border-s-teal-400",
-  song:            "border-s-pink-400",
-  acapella:        "border-s-pink-300",
-};
-
-function TableLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-    >
-      {label}
-    </a>
-  );
-}
-
-function timeToSec(hhmm: string): number {
-  const parts = hhmm.split(":").map(Number);
-  return (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
-}
-
-const COLS = [
-  { key: "time",     label: "שעות",       en: "Time",       cls: "sticky end-0 z-10", minWidth: 96,  sep: false },
-  { key: "item",     label: "אייטם",       en: "Item",       cls: "",                  minWidth: 112, sep: true  },
-  { key: "content",  label: "תוכן",        en: "Content",    cls: "",                  minWidth: 180, sep: false },
-  { key: "notes",    label: "הערות",       en: "Notes",      cls: "",                  minWidth: 120, sep: true  },
-  { key: "material", label: "חומר לימוד",  en: "Study Mat.", cls: "",                  minWidth: 96,  sep: true  },
-  { key: "recorded", label: "שיעור מוקלט", en: "Recorded",   cls: "",                  minWidth: 80,  sep: true  },
-  { key: "startTc",  label: "החל מדקה",    en: "From TC",    cls: "",                  minWidth: 76,  sep: false },
-  { key: "opening",  label: "דבר המתחיל",  en: "Opening",    cls: "",                  minWidth: 140, sep: false },
-  { key: "endTc",    label: "עד דקה",      en: "To TC",      cls: "",                  minWidth: 76,  sep: false },
-  { key: "closing",  label: "דברי סיום",   en: "Closing",    cls: "",                  minWidth: 140, sep: false },
-  { key: "recTime",  label: "משך",         en: "Duration",   cls: "",                  minWidth: 72,  sep: true  },
-  { key: "endTime",  label: "שעת סיום",    en: "End Time",   cls: "",                  minWidth: 72,  sep: false },
-  { key: "subs",     label: "כתוביות",     en: "Subs",       cls: "text-center",       minWidth: 64,  sep: true  },
-  { key: "workshop", label: "סדנה",        en: "Workshop",   cls: "text-center",       minWidth: 56,  sep: false },
-  { key: "lang",     label: "שפה",         en: "Lang",       cls: "",                  minWidth: 56,  sep: false },
-];
-
-const TABLE_MIN_WIDTH = COLS.reduce((sum, c) => sum + c.minWidth, 0);
-// table-layout:fixed only respects `width` on <col>, not minWidth.
-// width:100% + minWidth on the table lets it fill the container but never shrink below 1412px.
-const TABLE_STYLE: React.CSSProperties = { tableLayout: "fixed", width: "100%", minWidth: `${TABLE_MIN_WIDTH}px` };
-
-const Colgroup = () => (
-  <colgroup>
-    {COLS.map(c => <col key={c.key} style={{ width: `${c.minWidth}px` }} />)}
-  </colgroup>
-);
-
 interface NowPlaying {
   clipName: string;
   actualStartAt: string; // ISO-8601 — Playdeck clip start (may be old/stale)
@@ -153,14 +47,6 @@ function isoToIsraelSec(iso: string): number {
   const m = parseInt(parts.find(p => p.type === "minute")?.value ?? "0");
   const s = parseInt(parts.find(p => p.type === "second")?.value ?? "0");
   return h * 3600 + m * 60 + s;
-}
-
-function secToHHMMSS(totalSec: number): string {
-  const sec = ((totalSec % 86400) + 86400) % 86400;
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
@@ -276,6 +162,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
   // For planning totals: full video duration (not cut timecodes)
   function slotPlanDur(slot: SlotWithLesson): number {
+    if (slot.parentSlotId) return 0;
     if (slot.slotType === "part_header") return 0;
     if (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson) {
       return slot.lesson.videoDurationSec ?? 0;
@@ -347,7 +234,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
   let runningSec = timeToSec(startTime);
   let postAnchor = false; // true once we've passed any slot with a confirmed actual time
+  const slotClockSecs = new Map<string, number>(); // slotId → start sec (for child clock lookup)
   const rows = day.slots.map((slot, i) => {
+    const isChild = !!slot.parentSlotId;
     const isLive = i === liveSlotIndex;
 
     // Merge server-side slot data with any client-side overrides from manual adjustments
@@ -361,45 +250,70 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     const actualStartSec = isLive && liveStartSec !== null
       ? liveStartSec
       : (effectiveActualBroadcastAt ? isoToIsraelSec(effectiveActualBroadcastAt) : null);
-
-    if (actualStartSec !== null) {
-      runningSec = actualStartSec;
-      runningTime = secToHHMMSS(actualStartSec);
-      if (isLive) postAnchor = false;
-    }
-
-    const clockTime = runningTime;
     const hasConfirmedTime = actualStartSec !== null;
-    const scheduledClockTime = isLive ? secToHHMMSS(timeToSec(startTime) +
-      day.slots.slice(0, i).reduce((s, sl) => s + slotEffectiveDuration(sl), 0)) : null;
-    const slotStartSec = runningSec;
 
     // Duration priority: live Companion data > manual override / persisted actual > timecode/scheduled
     const dur = (isLive && lastPlaying?.durationSec)
       ? lastPlaying.durationSec
       : (effectiveActualDurationSec ?? slotEffectiveDuration(slot));
 
-    if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += dur;
-    if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTime;
-    totalSeconds += dur;
-    runningTime = addSecondsToTime(runningTime, dur);
-    runningSec += dur;
+    const scheduledClockTime = isLive ? secToHHMMSS(timeToSec(startTime) +
+      day.slots.slice(0, i).filter(sl => !sl.parentSlotId).reduce((s, sl) => s + slotEffectiveDuration(sl), 0)) : null;
+
+    let slotStartSec: number;
+    let clockTimeStr: string;
+
+    if (isChild) {
+      // Children never advance the shared clock — they play inside the parent's window.
+      // But a child can have its own confirmed/live actual start (it really did start then).
+      const parentStartSec = slotClockSecs.get(slot.parentSlotId!) ?? runningSec;
+      slotStartSec = actualStartSec !== null ? actualStartSec : parentStartSec;
+      clockTimeStr = secToHHMMSS(slotStartSec);
+      if (isLive) postAnchor = false;
+    } else {
+      if (actualStartSec !== null) {
+        runningSec = actualStartSec;
+        runningTime = secToHHMMSS(actualStartSec);
+        if (isLive) postAnchor = false;
+      }
+      slotStartSec = runningSec;
+      clockTimeStr = runningTime;
+    }
+
+    const rowEndSec = slotStartSec + dur;
+    const rowEndTime = secToHHMMSS(rowEndSec);
+
+    if (!isChild) {
+      slotClockSecs.set(slot.id, slotStartSec);
+      if (i >= clampedStart && (clampedCutoff === null || i < clampedCutoff)) cutoffTotalSec += dur;
+      if (clampedCutoff !== null && i === clampedCutoff) cutoffClockTime = clockTimeStr;
+      totalSeconds += dur;
+      runningTime = rowEndTime;
+      runningSec = rowEndSec;
+    }
 
     if (isLive || effectiveActualBroadcastAt) postAnchor = true;
 
-    const recordedTime = slot.startTimecode && slot.endTimecode
-      ? timecodeDuration(slot.startTimecode, slot.endTimecode)
-      : null;
+    const hasSlotTCr = slot.startTimecode && slot.endTimecode;
+    const rInTC = hasSlotTCr ? slot.startTimecode : slot.lesson?.startTimecode;
+    const rOutTC = hasSlotTCr ? slot.endTimecode : slot.lesson?.endTimecode;
+    const recordedTime = rInTC && rOutTC ? timecodeDuration(rInTC, rOutTC) : null;
     const altIdx = slot.slotType === "part_header" ? -1 : _altIdx++;
-    // Suppress scheduled-active highlight when Companion is live — avoids dual highlighting
-    // when the live anchor falls slightly before the previous slot's scheduled end time
-    const isActive = !isCurrentlyLive && dur > 0 && nowSec >= slotStartSec && nowSec < runningSec;
+    // Children are not independently active — they play within the parent's window
+    const isActive = !isChild && !isCurrentlyLive && dur > 0 && nowSec >= slotStartSec && nowSec < rowEndSec;
     // isProjected: past an anchor but this slot has no confirmed time of its own
     const isProjected = postAnchor && !hasConfirmedTime;
-    return { slot, clockTime, scheduledClockTime, endTime: runningTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec };
+    return { slot, clockTime: clockTimeStr, scheduledClockTime, endTime: rowEndTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild };
   });
 
   if (clampedCutoff === rows.length) cutoffClockTime = runningTime;
+
+  const childCountBySlotId = new Map<string, number>();
+  for (const slot of day.slots) {
+    if (slot.parentSlotId) {
+      childCountBySlotId.set(slot.parentSlotId, (childCountBySlotId.get(slot.parentSlotId) ?? 0) + 1);
+    }
+  }
 
   const broadcastWindowSec = day.broadcastEndTime && day.broadcastStartTime
     ? (() => {
@@ -477,7 +391,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                   </td>
                 </tr>
               )}
-              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec }, i) => {
+              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild }, i) => {
                 const startRow = clampedStart > 0 && clampedStart === i ? (
                   <tr key="start-line">
                     <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
@@ -512,7 +426,8 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                 const isPreContent = i < clampedStart;
                 const isBelowCutoff = clampedCutoff !== null && i >= clampedCutoff;
                 const rowColor = SLOT_ROW_COLORS[slot.slotType] ?? "border-s-border";
-                const altBg = altIdx % 2 !== 0 ? "bg-muted" : "bg-card";
+                const altBg = isChild ? "bg-indigo-50/70" : (altIdx % 2 !== 0 ? "bg-muted" : "bg-card");
+                const childCount = childCountBySlotId.get(slot.id) ?? 0;
 
                 return (
                   <React.Fragment key={slot.id}>
@@ -520,9 +435,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                     {cutoffRow}
                     <tr
                       ref={(isActive || (isLive && isCurrentlyLive)) ? activeRowRef : undefined}
-                      className={`border-t border-s-2 hover:brightness-90 transition-colors ${
+                      className={`border-s-2 hover:brightness-90 transition-colors ${isChild ? "border-t-0" : "border-t"} ${
                         (isLive && isCurrentlyLive) ? "bg-amber-50 border-s-amber-500" :
                         isActive                    ? "bg-green-50 border-s-green-500" :
+                        isChild                      ? "bg-indigo-50/70 border-s-indigo-300" :
                                                       `${rowColor} ${altBg} border-border`
                       }`}
                     >
@@ -530,6 +446,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${
                         (isLive && isCurrentlyLive) ? "text-amber-700 bg-amber-50" :
                         isActive                    ? "text-green-600 bg-green-50" :
+                        isChild                      ? "text-indigo-600/80 bg-indigo-50/70" :
                                                       `${altBg} text-foreground`
                       }`}>
                         <div className="flex items-center justify-end gap-1">
@@ -544,7 +461,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           )}
                           {(isLive && isCurrentlyLive) && <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />}
                           {!(isLive && isCurrentlyLive) && isActive && <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />}
-                          <span className={isProjected ? "italic text-muted-foreground" : ""}>{clockTime}</span>
+                          <span className={isChild ? "italic text-muted-foreground" : isProjected ? "italic text-muted-foreground" : ""}>{clockTime}</span>
                         </div>
                         {(isLive && isCurrentlyLive) && scheduledClockTime && scheduledClockTime !== clockTime && (
                           <span className="block text-[10px] font-normal text-amber-600 leading-none mt-0.5 text-right">
@@ -591,7 +508,13 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         )}
                       </td>
                       {/* אייטם */}
-                      <td className="px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300">
+                      <td className={`px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8 italic text-indigo-700/80" : ""}`}>
+                        {isChild && <CornerDownRight className="inline h-3.5 w-3.5 me-1 text-indigo-400 align-text-bottom" />}
+                        {childCount > 0 && (
+                          <span className="inline-flex items-center gap-0.5 me-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 align-middle">
+                            {childCount === 1 ? "מקנן פריט" : `מקנן ${childCount} פריטים`}
+                          </span>
+                        )}
                         {(isLive && isCurrentlyLive) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
                         )}

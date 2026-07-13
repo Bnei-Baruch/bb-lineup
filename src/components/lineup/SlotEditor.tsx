@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,15 +11,17 @@ import { SourceSearch } from "@/components/library/SourceSearch";
 import { SlotWithLesson, SlotType, SLOT_TYPE_LABELS, TRANSITION_LABELS, TransitionType, LessonSummary, COMPONENT_CATEGORIES } from "@/types";
 import { Loader2 } from "lucide-react";
 import { formatDurationSec, parseDurationToSec } from "@/lib/time";
+import { itemLabel } from "./slot-table-shared";
 
 interface SlotEditorProps {
   slot: Partial<SlotWithLesson> & { dayId: string; slotType: SlotType };
+  allSlots?: SlotWithLesson[];
   open: boolean;
   onClose: () => void;
   onSave: (data: Partial<SlotWithLesson>) => Promise<void>;
 }
 
-export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
+export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotEditorProps) {
   const [form, setForm] = useState(initForm(slot));
   const [lesson, setLesson] = useState<LessonSummary | null>(slot.lesson ?? null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -68,6 +70,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
       partNumber: String(s.partNumber ?? ""),
       lessonId: s.lessonId ?? null,
       transcriptionLink: s.lesson?.transcriptionLink ?? "",
+      parentSlotId: s.parentSlotId ?? "",
     };
   }
 
@@ -122,6 +125,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
         contactPerson: form.contactPerson || null,
         holidayTag: form.holidayTag || null,
         partNumber: form.partNumber ? parseInt(form.partNumber) : null,
+        parentSlotId: form.parentSlotId || null,
       };
       await onSave(data as Partial<SlotWithLesson>);
       // Persist transcription link back to the lesson if it changed
@@ -193,11 +197,11 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{typeLabel}</DialogTitle>
-          </DialogHeader>
+      <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{typeLabel}</SheetTitle>
+          </SheetHeader>
 
           <div className="space-y-4">
             {/* Label override */}
@@ -209,6 +213,24 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
             {hasPartNumber && (
               <Field label="מספר חלק">
                 <Input type="number" value={form.partNumber} onChange={(e) => set("partNumber", e.target.value)} dir="ltr" className="w-24" />
+              </Field>
+            )}
+
+            {/* Nest under another slot */}
+            {t !== "part_header" && (
+              <Field label="קנן תחת פריט">
+                <select
+                  value={form.parentSlotId}
+                  onChange={(e) => set("parentSlotId", e.target.value)}
+                  className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">ללא — ברמה עליונה</option>
+                  {allSlots
+                    .filter((s) => s.id !== slot.id && !s.parentSlotId && s.slotType !== "part_header")
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>{itemLabel(s)}</option>
+                    ))}
+                </select>
               </Field>
             )}
 
@@ -502,15 +524,15 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
             </Button>
           )}
 
-          <DialogFooter>
+          <SheetFooter>
             <Button variant="outline" onClick={onClose}>ביטול</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
               שמור
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       <LessonPicker
         open={pickerOpen}
@@ -525,6 +547,7 @@ export function SlotEditor({ slot, open, onClose, onSave }: SlotEditorProps) {
             studyMaterialLink: f.studyMaterialLink || l.articleSourceLink || "",
             startTimecode: f.startTimecode || "00:00:00",
             endTimecode: f.endTimecode || "",
+            transcriptionLink: f.transcriptionLink || l.transcriptionLink || "",
           }));
         }}
       />
