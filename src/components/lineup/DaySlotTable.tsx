@@ -16,7 +16,7 @@ import { SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
-import { GripVertical, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { GripVertical, Trash2, ChevronUp, ChevronDown, CornerDownRight, CornerUpLeft } from "lucide-react";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText,
@@ -30,6 +30,7 @@ interface DaySlotTableProps {
   onRowClick: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
   onReorder: (newSlots: SlotWithLesson[]) => void;
+  onNestToggle: (slotId: string, parentSlotId: string | null) => void;
   onStartMoveUp: () => void;
   onStartMoveDown: () => void;
   onCutoffMoveUp: () => void;
@@ -61,15 +62,18 @@ function CutoffBannerRow({ color, label, onMoveUp, onMoveDown }: {
   );
 }
 
-function SlotRow({ slot, clockTime, endTime, isChild, childCount, altBg, onRowClick, onDelete }: {
+function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, connectsDown, altBg, onRowClick, onDelete, onNestToggle }: {
   slot: SlotWithLesson;
   clockTime: string;
   endTime: string;
   isChild: boolean;
   childCount: number;
+  canNest: boolean;
+  connectsDown: boolean;
   altBg: string;
   onRowClick: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
+  onNestToggle: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slot.id });
   const style: React.CSSProperties = {
@@ -100,27 +104,20 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, altBg, onRowCl
   }
 
   const rowColor = SLOT_ROW_COLORS[slot.slotType] ?? "border-s-border";
-  const rowBg = isChild ? "bg-indigo-50/70" : altBg;
+  const rowBg = isChild ? "bg-indigo-100/70" : altBg;
 
   return (
     <tr
       ref={setNodeRef}
       style={style}
       onClick={() => onRowClick(slot)}
-      className={`border-s-2 hover:brightness-95 transition-colors cursor-pointer ${isChild ? "border-t-0" : "border-t"} ${
-        isChild ? "border-s-indigo-300" : `${rowColor} border-border`
+      className={`hover:brightness-95 transition-colors cursor-pointer ${isChild ? "border-t-0 border-s-4" : "border-t border-s-2"} ${
+        isChild ? "border-s-indigo-500" : `${rowColor} border-border`
       } ${rowBg}`}
     >
-      {/* שעות — sticky to inline-end; drag handle + delete live here */}
-      <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${isChild ? "text-indigo-600/80" : "text-foreground"} ${rowBg}`}>
+      {/* שעות — sticky to inline-end; drag handle on the time line, delete + nest toggle on a line below */}
+      <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${isChild ? "text-indigo-700" : "text-foreground"} ${rowBg}`}>
         <div className="flex items-center justify-end gap-1.5">
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(slot.id); }}
-            className="opacity-0 group-hover/timecell:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-            title="מחק פריט"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
           <span className={isChild ? "italic text-muted-foreground" : ""}>{clockTime}</span>
           <button
             {...attributes}
@@ -132,13 +129,36 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, altBg, onRowCl
             <GripVertical className="h-3.5 w-3.5" />
           </button>
         </div>
+        <div className={`flex items-center justify-end gap-1.5 mt-0.5 transition-opacity ${isChild ? "opacity-100" : "opacity-0 group-hover/timecell:opacity-100"}`}>
+          {(isChild || canNest) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onNestToggle(); }}
+              className={`shrink-0 ${isChild ? "text-indigo-500 hover:text-indigo-700" : "text-muted-foreground hover:text-indigo-600"}`}
+              title={isChild ? "בטל קינון" : "קנן תחת הפריט הקודם"}
+            >
+              {isChild ? <CornerUpLeft className="h-3.5 w-3.5" /> : <CornerDownRight className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(slot.id); }}
+            className="shrink-0 text-muted-foreground hover:text-destructive"
+            title="מחק פריט"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
       </td>
       {/* אייטם */}
-      <td className={`px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8 italic text-indigo-700/80" : ""}`}>
-        {childCount > 0 && (
-          <span className="inline-flex items-center gap-0.5 me-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 align-middle">
-            {childCount === 1 ? "מקנן פריט" : `מקנן ${childCount} פריטים`}
-          </span>
+      <td className={`relative px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
+        {isChild && (
+          <>
+            <span className="absolute start-[18px] top-0 h-1/2 w-px bg-indigo-400" />
+            {connectsDown && <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />}
+            <span className="absolute start-[18px] top-1/2 -translate-y-1/2 h-px w-3 bg-indigo-400" />
+          </>
+        )}
+        {childCount > 0 && connectsDown && (
+          <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />
         )}
         {itemLabel(slot)}
       </td>
@@ -221,7 +241,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, altBg, onRowCl
 
 export function DaySlotTable({
   slots, startTime, startIndex, cutoffIndex,
-  onRowClick, onDelete, onReorder,
+  onRowClick, onDelete, onReorder, onNestToggle,
   onStartMoveUp, onStartMoveDown, onCutoffMoveUp, onCutoffMoveDown,
 }: DaySlotTableProps) {
   const headerScrollRef = useRef<HTMLDivElement>(null);
@@ -258,8 +278,9 @@ export function DaySlotTable({
   let running = timeToSec(startTime);
   const slotClockSecs = new Map<string, number>();
   let _altIdx = 0;
+  let prevTopLevelId: string | null = null;
 
-  const rows = slots.map((slot) => {
+  const rows = slots.map((slot, idx) => {
     const isChild = !!slot.parentSlotId;
     const dur = slotEffectiveDuration(slot);
     const slotStartSec = isChild ? (slotClockSecs.get(slot.parentSlotId!) ?? running) : running;
@@ -268,12 +289,17 @@ export function DaySlotTable({
       running += dur;
     }
     const altIdx = slot.slotType === "part_header" ? -1 : _altIdx++;
-    return {
-      slot, isChild,
+    const next = slots[idx + 1];
+    const connectsDown = isChild ? next?.parentSlotId === slot.parentSlotId : next?.parentSlotId === slot.id;
+    const row = {
+      slot, isChild, connectsDown,
       clockTime: secToHHMMSS(slotStartSec),
       endTime: secToHHMMSS(slotStartSec + dur),
       altBg: altIdx % 2 !== 0 ? "bg-muted" : "bg-card",
+      prevTopLevelId,
     };
+    if (!isChild && slot.slotType !== "part_header") prevTopLevelId = slot.id;
+    return row;
   });
 
   return (
@@ -312,7 +338,7 @@ export function DaySlotTable({
                 {clampedStart === 0 && (
                   <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
                 )}
-                {rows.map(({ slot, clockTime, endTime, isChild, altBg }, i) => (
+                {rows.map(({ slot, clockTime, endTime, isChild, connectsDown, altBg, prevTopLevelId }, i) => (
                   <React.Fragment key={slot.id}>
                     {i === clampedStart && clampedStart > 0 && (
                       <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
@@ -326,9 +352,12 @@ export function DaySlotTable({
                       endTime={endTime}
                       isChild={isChild}
                       childCount={childCountBySlotId.get(slot.id) ?? 0}
+                      canNest={!isChild && slot.slotType !== "part_header" && prevTopLevelId !== null}
+                      connectsDown={connectsDown}
                       altBg={altBg}
                       onRowClick={onRowClick}
                       onDelete={onDelete}
+                      onNestToggle={() => onNestToggle(slot.id, isChild ? null : prevTopLevelId)}
                     />
                   </React.Fragment>
                 ))}

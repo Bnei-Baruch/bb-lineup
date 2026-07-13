@@ -213,6 +213,18 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     setEditingSlot({ ...slot, dayId: initialDay.id, slotType: slot.slotType as SlotType });
   }
 
+  async function handleNestToggle(slotId: string, parentSlotId: string | null) {
+    const res = await fetch(`/api/slots/${slotId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parentSlotId }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    }
+  }
+
   function handleReorder(newSlots: SlotWithLesson[]) {
     setSlots(newSlots);
     fetch("/api/slots/reorder", {
@@ -288,6 +300,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             onRowClick={handleEdit}
             onDelete={handleDelete}
             onReorder={handleReorder}
+            onNestToggle={handleNestToggle}
             onStartMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
             onStartMoveDown={() => updateStartIndex(Math.min(Math.min(cutoffIndex, slots.length), startIndex + 1))}
             onCutoffMoveUp={() => updateCutoff(Math.max(Math.min(startIndex, slots.length), cutoffIndex - 1))}

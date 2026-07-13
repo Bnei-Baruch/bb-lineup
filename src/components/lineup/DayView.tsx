@@ -5,7 +5,7 @@ import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/typ
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
-import { Check, Clock, CornerDownRight } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText,
@@ -435,10 +435,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                     {cutoffRow}
                     <tr
                       ref={(isActive || (isLive && isCurrentlyLive)) ? activeRowRef : undefined}
-                      className={`border-s-2 hover:brightness-90 transition-colors ${isChild ? "border-t-0" : "border-t"} ${
+                      className={`hover:brightness-90 transition-colors ${isChild ? "border-t-0 border-s-4" : "border-t border-s-2"} ${
                         (isLive && isCurrentlyLive) ? "bg-amber-50 border-s-amber-500" :
                         isActive                    ? "bg-green-50 border-s-green-500" :
-                        isChild                      ? "bg-indigo-50/70 border-s-indigo-300" :
+                        isChild                      ? "bg-indigo-100/70 border-s-indigo-500" :
                                                       `${rowColor} ${altBg} border-border`
                       }`}
                     >
@@ -446,7 +446,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${
                         (isLive && isCurrentlyLive) ? "text-amber-700 bg-amber-50" :
                         isActive                    ? "text-green-600 bg-green-50" :
-                        isChild                      ? "text-indigo-600/80 bg-indigo-50/70" :
+                        isChild                      ? "text-indigo-700 bg-indigo-100/70" :
                                                       `${altBg} text-foreground`
                       }`}>
                         <div className="flex items-center justify-end gap-1">
@@ -508,12 +508,18 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         )}
                       </td>
                       {/* אייטם */}
-                      <td className={`px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8 italic text-indigo-700/80" : ""}`}>
-                        {isChild && <CornerDownRight className="inline h-3.5 w-3.5 me-1 text-indigo-400 align-text-bottom" />}
-                        {childCount > 0 && (
-                          <span className="inline-flex items-center gap-0.5 me-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 align-middle">
-                            {childCount === 1 ? "מקנן פריט" : `מקנן ${childCount} פריטים`}
-                          </span>
+                      <td className={`relative px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
+                        {isChild && (
+                          <>
+                            <span className="absolute start-[18px] top-0 h-1/2 w-px bg-indigo-400" />
+                            {day.slots[i + 1]?.parentSlotId === slot.parentSlotId && (
+                              <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />
+                            )}
+                            <span className="absolute start-[18px] top-1/2 -translate-y-1/2 h-px w-3 bg-indigo-400" />
+                          </>
+                        )}
+                        {childCount > 0 && day.slots[i + 1]?.parentSlotId === slot.id && (
+                          <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />
                         )}
                         {(isLive && isCurrentlyLive) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
