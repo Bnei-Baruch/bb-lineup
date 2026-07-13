@@ -1,15 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/dates";
-import Link from "next/link";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { currentWeekParam } from "@/lib/dates";
 import { NewWeekButton } from "./NewWeekButton";
+import { LineupList } from "./LineupList";
 import { CalendarDays } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function LineupsPage() {
   const lineups = await prisma.lineup.findMany({
-    orderBy: { weekStart: "desc" },
+    orderBy: { weekStart: "asc" },
     select: { id: true, weekStart: true, notes: true },
   });
 
@@ -27,28 +26,7 @@ export default async function LineupsPage() {
           <p className="text-sm mt-1">צור תוכנית חדשה כדי להתחיל</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {lineups.map((lineup) => {
-            const ws = new Date(lineup.weekStart);
-            const we = new Date(ws);
-            we.setUTCDate(we.getUTCDate() + 6);
-            const param = ws.toISOString().slice(0, 10);
-            return (
-              <Link key={lineup.id} href={`/lineup/${param}`}>
-                <Card className="hover:bg-accent transition-colors cursor-pointer">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base tabular-nums">
-                      {formatDate(ws)} – {formatDate(we)}
-                    </CardTitle>
-                    {lineup.notes && (
-                      <CardDescription className="truncate">{lineup.notes}</CardDescription>
-                    )}
-                  </CardHeader>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+        <LineupList lineups={lineups} currentWeekParam={currentWeekParam()} />
       )}
     </div>
   );

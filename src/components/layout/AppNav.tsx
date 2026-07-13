@@ -16,14 +16,26 @@ const links = [
 export function AppNav() {
   const pathname = usePathname();
 
+  const isLineupsListActive = pathname === "/lineup";
+
   return (
     <nav className="border-b border-border bg-card sticky top-0 z-50">
       <div className="flex items-center gap-1 px-4 h-12">
-        <span className="font-bold text-sm me-4 text-muted-foreground">תוכנית</span>
+        <Link
+          href="/lineup"
+          className={cn(
+            "px-3 py-1.5 rounded-md text-sm font-bold me-4 transition-colors",
+            isLineupsListActive
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent"
+          )}
+        >
+          תוכנית
+        </Link>
         {links.map(({ href, label }) => {
           const to = href();
           const active =
-            to.startsWith("/lineup") ? pathname.startsWith("/lineup") :
+            to.startsWith("/lineup") ? (pathname.startsWith("/lineup") && !isLineupsListActive) :
             pathname.startsWith(to);
           return (
             <Link
