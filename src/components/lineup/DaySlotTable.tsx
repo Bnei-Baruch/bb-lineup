@@ -163,7 +163,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, conne
         {itemLabel(slot)}
       </td>
       {/* תוכן */}
-      <td className="px-3 py-3 whitespace-pre-wrap leading-snug">
+      <td className="px-3 py-3 whitespace-pre-wrap leading-snug border-s-2 border-s-slate-300">
         {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
         {slot.lesson?.recordingDate && (
           <span className="block text-[10px] text-muted-foreground tabular-nums mt-0.5">
@@ -199,17 +199,17 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, conne
           : (slot.startTimecode ?? "")}
       </td>
       {/* דבר המתחיל */}
-      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground">
+      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
         {slot.openingWords ?? ""}
       </td>
       {/* עד דקה */}
-      <td className="px-3 py-3 tabular-nums text-muted-foreground">
+      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">
         {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType)
           ? (() => { const hasSlotTC = slot.startTimecode && slot.endTimecode; return hasSlotTC ? slot.endTimecode : (slot.lesson?.endTimecode || (slot.lesson?.videoDurationSec ? formatDurationSec(slot.lesson.videoDurationSec) : "")); })()
           : (slot.endTimecode ?? "")}
       </td>
       {/* דברי סיום */}
-      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground">
+      <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
         {slot.closingWords ?? ""}
       </td>
       {/* משך */}
@@ -224,17 +224,17 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, conne
         })()}
       </td>
       {/* שעת סיום */}
-      <td className="px-3 py-3 tabular-nums text-muted-foreground">{endTime}</td>
+      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">{endTime}</td>
       {/* כתוביות */}
       <td className="px-3 py-3 text-center border-s-2 border-s-slate-300">
         {slot.hasSubtitles && <span className="text-green-600">✓</span>}
       </td>
       {/* סדנה */}
-      <td className="px-3 py-3 text-center">
+      <td className="px-3 py-3 text-center border-s-2 border-s-slate-300">
         {slot.hasWorkshopQuestions && <span className="text-green-600">✓</span>}
       </td>
       {/* שפה */}
-      <td className="px-3 py-3 text-muted-foreground overflow-hidden">{slot.language ?? ""}</td>
+      <td className="px-3 py-3 text-muted-foreground overflow-hidden border-s-2 border-s-slate-300">{slot.language ?? ""}</td>
     </tr>
   );
 }
