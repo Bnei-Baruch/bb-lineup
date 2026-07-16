@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
+import { SessionTabs } from "@/components/lineup/SessionTabs";
 import { DayWithSlots } from "@/types";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
@@ -53,6 +54,17 @@ export default async function DayViewPage({
       </div>
     );
   }
+
+  // All sessions on the same day (e.g. a second lesson) — render as tabs if more than one
+  let daySessions: { sessionIndex: number; sessionLabel: string | null }[] = [];
+  try {
+    daySessions = await prisma.$queryRaw<{ sessionIndex: number; sessionLabel: string | null }[]>`
+      SELECT ld.sessionIndex, ld.sessionLabel FROM "LineupDay" ld
+      JOIN "Lineup" l ON ld.lineupId = l.id
+      WHERE l.weekStart = ${ws} AND ld.dayOfWeek = ${dow}
+      ORDER BY ld.sessionIndex ASC
+    `;
+  } catch { /* sessionIndex column not migrated */ }
 
   const dayData = await prisma.lineupDay.findUnique({
     where: { id: dayId },
@@ -170,15 +182,18 @@ export default async function DayViewPage({
             {DAY_NAMES[dow]} <span className="text-muted-foreground font-normal text-xs">{EN_DAY_NAMES[dow]}</span>{sessionSuffix}
           </span>
         </div>
-        {isAdmin && (
-          <Link
-            href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}/edit`}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            <Pencil className="me-2 h-4 w-4" />
-            עריכה
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          <SessionTabs weekStart={weekStart} dow={dow} sessions={daySessions} currentIndex={sessionIdx} />
+          {isAdmin && (
+            <Link
+              href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}/edit`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <Pencil className="me-2 h-4 w-4" />
+              עריכה
+            </Link>
+          )}
+        </div>
       </div>
 
       <DayView day={serialized} dayLabel={dayLabel} enDayLabel={enDayLabel} contentStartIndex={contentStartIndex} contentCutoffIndex={contentCutoffIndex} />
