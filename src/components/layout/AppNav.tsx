@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import { currentWeekParam } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -13,10 +14,19 @@ const links = [
   { href: () => "/settings/week-templates", label: "תבניות שבוע" },
 ];
 
+// Broadcast day-view pages (not their /edit siblings) render full-screen, no nav chrome.
+const BROADCAST_VIEW = /^\/lineup\/[^/]+\/day\/[^/]+(\/(?!edit$)[^/]+)?$/;
+
 export function AppNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
+  if (BROADCAST_VIEW.test(pathname)) return null;
 
   const isLineupsListActive = pathname === "/lineup";
+  const roles = session?.user?.roles ?? [];
+  const isAdmin = roles.includes("lineup_admin");
+  const visibleLinks = isAdmin ? links : links.filter((l) => l.label === "לוח שבועי");
 
   return (
     <nav className="border-b border-border bg-card sticky top-0 z-50">
@@ -32,7 +42,7 @@ export function AppNav() {
         >
           תוכנית
         </Link>
-        {links.map(({ href, label }) => {
+        {visibleLinks.map(({ href, label }) => {
           const to = href();
           const active =
             to.startsWith("/lineup") ? (pathname.startsWith("/lineup") && !isLineupsListActive) :
@@ -52,6 +62,17 @@ export function AppNav() {
             </Link>
           );
         })}
+        {session?.user && (
+          <div className="ms-auto flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{session.user.name ?? session.user.email}</span>
+            <button
+              onClick={() => signOut({ callbackUrl: "/signin" })}
+              className="px-2 py-1 rounded-md hover:bg-accent hover:text-foreground transition-colors"
+            >
+              התנתק
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );
