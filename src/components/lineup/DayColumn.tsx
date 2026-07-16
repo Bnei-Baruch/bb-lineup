@@ -211,6 +211,9 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
         body: JSON.stringify({ dayId: day.id, clearExisting }),
       });
       if (!res.ok) return;
+      const { contentStartIndex, contentCutoffIndex } = await res.json();
+      if (contentStartIndex != null) setStartIndex(contentStartIndex);
+      if (contentCutoffIndex != null) setCutoffIndex(contentCutoffIndex);
       const dayRes = await fetch(`/api/days/${day.id}/slots`);
       if (dayRes.ok) {
         const slots = await dayRes.json();

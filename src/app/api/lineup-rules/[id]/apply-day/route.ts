@@ -12,14 +12,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { dayTemplate, broadcastStartTime, broadcastEndTime } = rows[0];
 
-  let templateSlots: {
+  type TemplateSlot = {
     type: string; slotType?: string; componentId?: string; label?: string;
     durationSec?: number; startTimecode?: string; endTimecode?: string; partNumber?: number;
     narratorScript?: string; transitionType?: string; mediaCode?: string;
     language?: string; hasSubtitles?: boolean; hasWorkshopQuestions?: boolean; notes?: string;
-  }[];
+  };
+  let templateSlots: TemplateSlot[];
+  let templateStartIndex: number | null = null;
+  let templateCutoffIndex: number | null = null;
   try {
-    templateSlots = JSON.parse(dayTemplate);
+    const parsed = JSON.parse(dayTemplate);
+    // Some older templates are stored wrapped as { slots: [...], contentStartIndex, contentCutoffIndex }
+    // instead of a bare array
+    if (Array.isArray(parsed)) {
+      templateSlots = parsed;
+    } else {
+      templateSlots = parsed?.slots ?? [];
+      templateStartIndex = parsed?.contentStartIndex ?? null;
+      templateCutoffIndex = parsed?.contentCutoffIndex ?? null;
+    }
   } catch {
     return NextResponse.json({ error: "Invalid template" }, { status: 500 });
   }
@@ -38,7 +50,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
-  let sortOrder = (maxSlot?.sortOrder ?? -1) + 1;
+  const insertOffset = (maxSlot?.sortOrder ?? -1) + 1;
+  let sortOrder = insertOffset;
 
   for (const slot of templateSlots) {
     if (slot.componentId) {
@@ -98,5 +111,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     sortOrder++;
   }
 
-  return NextResponse.json({ created: templateSlots.length });
+  // Carry over the template's content start/cutoff markers, offset by however many slots
+  // already existed on this day (0 when clearExisting, since the day was just emptied).
+  const contentStartIndex = templateStartIndex != null ? insertOffset + templateStartIndex : null;
+  const contentCutoffIndex = templateCutoffIndex != null ? insertOffset + templateCutoffIndex : null;
+  if (contentStartIndex != null || contentCutoffIndex != null) {
+    await prisma.$executeRaw`
+      UPDATE "LineupDay"
+      SET "contentStartIndex" = COALESCE(${contentStartIndex}, "contentStartIndex"),
+          "contentCutoffIndex" = COALESCE(${contentCutoffIndex}, "contentCutoffIndex")
+      WHERE id = ${dayId}
+    `;
+  }
+
+  return NextResponse.json({ created: templateSlots.length, contentStartIndex, contentCutoffIndex });
 }

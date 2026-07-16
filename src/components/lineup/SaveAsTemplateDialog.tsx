@@ -91,11 +91,13 @@ interface Props {
   open: boolean;
   onClose: () => void;
   slots: SlotWithLesson[];
+  startIndex?: number;
+  cutoffIndex?: number;
   startTime?: string;
   endTime?: string;
 }
 
-export function SaveAsTemplateDialog({ open, onClose, slots, startTime, endTime }: Props) {
+export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffIndex, startTime, endTime }: Props) {
   const [ruleSets, setRuleSets] = useState<RuleSet[]>([]);
   const [mode, setMode] = useState<"pick" | "new">("pick");
   const [selectedId, setSelectedId] = useState<string>("");
@@ -116,7 +118,11 @@ export function SaveAsTemplateDialog({ open, onClose, slots, startTime, endTime 
     setSaving(true);
     try {
       const payload = {
-        dayTemplate: JSON.stringify(template),
+        dayTemplate: JSON.stringify({
+          slots: template,
+          contentStartIndex: startIndex ?? 0,
+          contentCutoffIndex: cutoffIndex ?? slots.length,
+        }),
         broadcastStartTime: startTime || "02:40",
         broadcastEndTime: endTime || null,
       };

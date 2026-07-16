@@ -365,6 +365,8 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         open={saveTemplateOpen}
         onClose={() => setSaveTemplateOpen(false)}
         slots={slots}
+        startIndex={startIndex}
+        cutoffIndex={cutoffIndex}
         startTime={startTime}
         endTime={endTime || undefined}
       />

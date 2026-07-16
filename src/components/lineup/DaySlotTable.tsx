@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -244,15 +244,6 @@ export function DaySlotTable({
   onRowClick, onDelete, onReorder, onNestToggle,
   onStartMoveUp, onStartMoveDown, onCutoffMoveUp, onCutoffMoveDown,
 }: DaySlotTableProps) {
-  const headerScrollRef = useRef<HTMLDivElement>(null);
-  const bodyScrollRef = useRef<HTMLDivElement>(null);
-
-  function onBodyScroll() {
-    if (headerScrollRef.current && bodyScrollRef.current) {
-      headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
-    }
-  }
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
@@ -303,80 +294,63 @@ export function DaySlotTable({
   });
 
   return (
-    <div className="relative">
-      {/* Sticky column header — overflow-x hidden, scrollLeft synced by JS with body */}
-      <div
-        ref={headerScrollRef}
-        className="sticky top-0 z-20 overflow-x-hidden border border-border rounded-t-lg bg-muted"
-      >
-        <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
-          <Colgroup />
-          <thead>
-            <tr className="bg-muted">
-              {COLS.map((c) => (
-                <th key={c.key} className={`px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}>
-                  <div className="font-semibold text-foreground leading-tight">{c.label}</div>
-                  <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
-                </th>
+    <div className="overflow-x-auto border border-border rounded-lg shadow-sm">
+      <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
+        <Colgroup />
+        <thead>
+          <tr className="bg-muted">
+            {COLS.map((c) => (
+              <th key={c.key} className={`sticky top-0 z-20 px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}>
+                <div className="font-semibold text-foreground leading-tight">{c.label}</div>
+                <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            <tbody>
+              {clampedStart === 0 && (
+                <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
+              )}
+              {rows.map(({ slot, clockTime, endTime, isChild, connectsDown, altBg, prevTopLevelId }, i) => (
+                <React.Fragment key={slot.id}>
+                  {i === clampedStart && clampedStart > 0 && (
+                    <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
+                  )}
+                  {i === clampedCutoff && (
+                    <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
+                  )}
+                  <SlotRow
+                    slot={slot}
+                    clockTime={clockTime}
+                    endTime={endTime}
+                    isChild={isChild}
+                    childCount={childCountBySlotId.get(slot.id) ?? 0}
+                    canNest={!isChild && slot.slotType !== "part_header" && prevTopLevelId !== null}
+                    connectsDown={connectsDown}
+                    altBg={altBg}
+                    onRowClick={onRowClick}
+                    onDelete={onDelete}
+                    onNestToggle={() => onNestToggle(slot.id, isChild ? null : prevTopLevelId)}
+                  />
+                </React.Fragment>
               ))}
-            </tr>
-          </thead>
-        </table>
-      </div>
-
-      {/* Body — horizontally scrollable; drives header scroll via onBodyScroll */}
-      <div
-        ref={bodyScrollRef}
-        className="overflow-x-auto border-x border-b border-border rounded-b-lg shadow-sm"
-        onScroll={onBodyScroll}
-      >
-        <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
-          <Colgroup />
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-              <tbody>
-                {clampedStart === 0 && (
-                  <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
-                )}
-                {rows.map(({ slot, clockTime, endTime, isChild, connectsDown, altBg, prevTopLevelId }, i) => (
-                  <React.Fragment key={slot.id}>
-                    {i === clampedStart && clampedStart > 0 && (
-                      <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
-                    )}
-                    {i === clampedCutoff && (
-                      <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
-                    )}
-                    <SlotRow
-                      slot={slot}
-                      clockTime={clockTime}
-                      endTime={endTime}
-                      isChild={isChild}
-                      childCount={childCountBySlotId.get(slot.id) ?? 0}
-                      canNest={!isChild && slot.slotType !== "part_header" && prevTopLevelId !== null}
-                      connectsDown={connectsDown}
-                      altBg={altBg}
-                      onRowClick={onRowClick}
-                      onDelete={onDelete}
-                      onNestToggle={() => onNestToggle(slot.id, isChild ? null : prevTopLevelId)}
-                    />
-                  </React.Fragment>
-                ))}
-                {clampedCutoff === rows.length && (
-                  <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
-                )}
-                {slots.length === 0 && (
-                  <tr>
-                    <td colSpan={COLS.length} className="px-4 py-12 text-center text-muted-foreground">
-                      <p>אין פריטים ביום זה</p>
-                      <p className="text-xs mt-1">הוסף תוכן מהתפריט למעלה</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </SortableContext>
-          </DndContext>
-        </table>
-      </div>
+              {clampedCutoff === rows.length && (
+                <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
+              )}
+              {slots.length === 0 && (
+                <tr>
+                  <td colSpan={COLS.length} className="px-4 py-12 text-center text-muted-foreground">
+                    <p>אין פריטים ביום זה</p>
+                    <p className="text-xs mt-1">הוסף תוכן מהתפריט למעלה</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </SortableContext>
+        </DndContext>
+      </table>
     </div>
   );
 }
