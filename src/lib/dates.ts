@@ -24,6 +24,15 @@ export function currentWeekParam(): string {
   return weekStartParam(new Date());
 }
 
+/** Today's date in Asia/Jerusalem, as a UTC-midnight Date (avoids off-by-one near midnight on UTC servers) */
+export function todayInIsrael(): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).formatToParts(new Date());
+  const y = parts.find((p) => p.type === "year")!.value;
+  const m = parts.find((p) => p.type === "month")!.value;
+  const d = parts.find((p) => p.type === "day")!.value;
+  return new Date(`${y}-${m}-${d}T00:00:00.000Z`);
+}
+
 /** Format a date as DD.MM.YY */
 export function formatDate(date: Date | string): string {
   const d = new Date(date);

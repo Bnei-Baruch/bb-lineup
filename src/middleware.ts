@@ -2,12 +2,15 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 // Pages any logged-in user may open (readonly tier): the weekly list, the day grid,
-// and the broadcast day-view pages — but never their /edit siblings.
+// the broadcast day-view pages (but never their /edit siblings), and the fixed
+// /today (/today/1, /today/2, ...) broadcast-display redirect links.
 const READONLY_PATTERNS = [
   /^\/lineup$/,
   /^\/lineup\/[^/]+$/,
   /^\/lineup\/[^/]+\/day\/[^/]+$/,
   /^\/lineup\/[^/]+\/day\/[^/]+\/(?!edit$)[^/]+$/,
+  /^\/today$/,
+  /^\/today\/[^/]+$/,
 ];
 
 function isReadonlyOk(pathname: string): boolean {
