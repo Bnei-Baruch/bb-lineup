@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
@@ -17,6 +18,9 @@ export default async function DayViewPage({
   const { weekStart, dayOfWeek: dowStr } = await params;
   const dow = parseInt(dowStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
+
+  const session = await auth();
+  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
 
   const lineup = await prisma.lineup.findUnique({
     where: { weekStart: ws },
@@ -165,13 +169,15 @@ export default async function DayViewPage({
           <ChevronRight className="h-4 w-4 rotate-180" />
           <span className="text-foreground font-medium">{DAY_NAMES[dow]}</span>
         </div>
-        <Link
-          href={`/lineup/${weekStart}/day/${dow}/edit`}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <Pencil className="me-2 h-4 w-4" />
-          עריכה
-        </Link>
+        {isAdmin && (
+          <Link
+            href={`/lineup/${weekStart}/day/${dow}/edit`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Pencil className="me-2 h-4 w-4" />
+            עריכה
+          </Link>
+        )}
       </div>
 
       <DayView day={serialized} dayLabel={dayLabel} contentCutoffIndex={contentCutoffIndex} />

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
@@ -18,6 +19,9 @@ export default async function DayViewPage({
   const dow = parseInt(dowStr);
   const sessionIdx = parseInt(sessionIdxStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
+
+  const session = await auth();
+  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
 
   // Find the specific session's LineupDay (sessionIndex column may not exist on older DBs)
   let dayId: string | undefined;
@@ -166,13 +170,15 @@ export default async function DayViewPage({
             {DAY_NAMES[dow]} <span className="text-muted-foreground font-normal text-xs">{EN_DAY_NAMES[dow]}</span>{sessionSuffix}
           </span>
         </div>
-        <Link
-          href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}/edit`}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <Pencil className="me-2 h-4 w-4" />
-          עריכה
-        </Link>
+        {isAdmin && (
+          <Link
+            href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}/edit`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Pencil className="me-2 h-4 w-4" />
+            עריכה
+          </Link>
+        )}
       </div>
 
       <DayView day={serialized} dayLabel={dayLabel} enDayLabel={enDayLabel} contentStartIndex={contentStartIndex} contentCutoffIndex={contentCutoffIndex} />

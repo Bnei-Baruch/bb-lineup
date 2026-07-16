@@ -12,7 +12,6 @@ declare module "next-auth" {
 type TokenWithRoles = { roles?: string[] };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  debug: true,
   providers: [
     Keycloak({
       // Public client (no client secret) — PKCE-protected authorization code flow.

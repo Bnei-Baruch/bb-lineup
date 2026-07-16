@@ -27,11 +27,12 @@ interface SlotCardProps {
   slot: SlotWithLesson;
   clockTime?: string;
   isActive?: boolean;
+  readOnly?: boolean;
   onEdit: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
 }
 
-export function SlotCard({ slot, clockTime, isActive, onEdit, onDelete }: SlotCardProps) {
+export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete }: SlotCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: slot.id });
 
@@ -55,17 +56,21 @@ export function SlotCard({ slot, clockTime, isActive, onEdit, onDelete }: SlotCa
         style={style}
         className="rounded-md bg-yellow-100 border border-yellow-300 px-2 py-1 select-none flex items-center gap-1"
       >
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground shrink-0">
-          <GripVertical className="h-3 w-3" />
-        </button>
+        {!readOnly && (
+          <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground shrink-0">
+            <GripVertical className="h-3 w-3" />
+          </button>
+        )}
         <span className="text-xs font-bold flex-1">
           חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
         </span>
         {clockTime && <span className="text-xs tabular-nums text-muted-foreground">{clockTime}</span>}
-        <div className="flex shrink-0 gap-0.5">
-          <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onEdit(slot)}><Pencil className="h-3 w-3" /></Button>
-          <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => onDelete(slot.id)}><Trash2 className="h-3 w-3" /></Button>
-        </div>
+        {!readOnly && (
+          <div className="flex shrink-0 gap-0.5">
+            <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => onEdit(slot)}><Pencil className="h-3 w-3" /></Button>
+            <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => onDelete(slot.id)}><Trash2 className="h-3 w-3" /></Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -78,13 +83,15 @@ export function SlotCard({ slot, clockTime, isActive, onEdit, onDelete }: SlotCa
     >
       <div className="flex items-start gap-2">
         {/* Grip */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        {!readOnly && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="mt-0.5 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Title + details */}
         <div className="flex-1 min-w-0">
@@ -227,14 +234,16 @@ export function SlotCard({ slot, clockTime, isActive, onEdit, onDelete }: SlotCa
             {slot.chevrutaPartners && <p>{JSON.parse(slot.chevrutaPartners).join(", ")}</p>}
             {slot.notes && <p>{slot.notes}</p>}
           </div>
-          <div className="flex justify-end gap-0.5 mt-1">
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(slot)}>
-              <Pencil className="h-3 w-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => onDelete(slot.id)}>
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex justify-end gap-0.5 mt-1">
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(slot)}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => onDelete(slot.id)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

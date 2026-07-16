@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SlotCard } from "./SlotCard";
@@ -52,6 +53,8 @@ interface DayColumnProps {
 }
 
 export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAddSession, onDeleteSession, onCollapse }: DayColumnProps) {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
@@ -243,7 +246,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               <ChevronsRight className="h-4 w-4" />
             </button>
           )}
-          {onAddSession && (
+          {isAdmin && onAddSession && (
             <button
               onClick={onAddSession}
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -252,7 +255,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               <Plus className="h-4 w-4" />
             </button>
           )}
-          {onDeleteSession && (
+          {isAdmin && onDeleteSession && (
             <button
               onClick={onDeleteSession}
               className="text-muted-foreground hover:text-destructive transition-colors"
@@ -261,27 +264,33 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               <X className="h-4 w-4" />
             </button>
           )}
-          <button
-            onClick={() => setTemplateOpen((v) => !v)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title="החל תבנית"
-          >
-            <LayoutTemplate className="h-4 w-4" />
-          </button>
-          <button
-            onClick={handleClearDay}
-            className="text-muted-foreground hover:text-destructive transition-colors"
-            title="נקה יום"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          <Link
-            href={`/lineup/${weekStart}/day/${day.dayOfWeek}/${day.sessionIndex ?? 0}/edit`}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title="עריכת יום"
-          >
-            <Pencil className="h-4 w-4" />
-          </Link>
+          {isAdmin && (
+            <button
+              onClick={() => setTemplateOpen((v) => !v)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="החל תבנית"
+            >
+              <LayoutTemplate className="h-4 w-4" />
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={handleClearDay}
+              className="text-muted-foreground hover:text-destructive transition-colors"
+              title="נקה יום"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+          {isAdmin && (
+            <Link
+              href={`/lineup/${weekStart}/day/${day.dayOfWeek}/${day.sessionIndex ?? 0}/edit`}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="עריכת יום"
+            >
+              <Pencil className="h-4 w-4" />
+            </Link>
+          )}
           <Link
             href={`/lineup/${weekStart}/day/${day.dayOfWeek}/${day.sessionIndex ?? 0}`}
             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -378,10 +387,12 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               <div key="start-line" className="flex items-center gap-2 py-1 select-none">
                 <div className="flex-1 border-t-2 border-dashed border-blue-400" />
                 <span className="text-xs font-semibold text-blue-500 whitespace-nowrap">תחילת תוכן</span>
-                <div className="flex gap-0.5">
-                  <button onClick={() => updateStartIndex(Math.max(0, startIndex - 1))} className="p-0.5 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="הזז למעלה"><ChevronUp className="h-4 w-4" /></button>
-                  <button onClick={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))} className="p-0.5 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="הזז למטה"><ChevronDown className="h-4 w-4" /></button>
-                </div>
+                {isAdmin && (
+                  <div className="flex gap-0.5">
+                    <button onClick={() => updateStartIndex(Math.max(0, startIndex - 1))} className="p-0.5 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="הזז למעלה"><ChevronUp className="h-4 w-4" /></button>
+                    <button onClick={() => updateStartIndex(Math.min(clampedCutoff, startIndex + 1))} className="p-0.5 rounded text-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="הזז למטה"><ChevronDown className="h-4 w-4" /></button>
+                  </div>
+                )}
                 <div className="flex-1 border-t-2 border-dashed border-blue-400" />
               </div>
             );
@@ -390,10 +401,12 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               <div key="cutoff-line" className="flex items-center gap-2 py-1 select-none">
                 <div className="flex-1 border-t-2 border-dashed border-orange-400" />
                 <span className="text-xs font-semibold text-orange-500 whitespace-nowrap">סוף תוכן</span>
-                <div className="flex gap-0.5">
-                  <button onClick={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למעלה"><ChevronUp className="h-4 w-4" /></button>
-                  <button onClick={() => updateCutoff(Math.min(day.slots.length, cutoffIndex + 1))} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למטה"><ChevronDown className="h-4 w-4" /></button>
-                </div>
+                {isAdmin && (
+                  <div className="flex gap-0.5">
+                    <button onClick={() => updateCutoff(Math.max(clampedStart, cutoffIndex - 1))} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למעלה"><ChevronUp className="h-4 w-4" /></button>
+                    <button onClick={() => updateCutoff(Math.min(day.slots.length, cutoffIndex + 1))} className="p-0.5 rounded text-orange-400 hover:text-orange-600 hover:bg-orange-50 transition-colors" title="הזז למטה"><ChevronDown className="h-4 w-4" /></button>
+                  </div>
+                )}
                 <div className="flex-1 border-t-2 border-dashed border-orange-400" />
               </div>
             );
@@ -405,7 +418,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
               if (i === clampedCutoff) items.push(cutoffLine);
               items.push(
                 <div key={slot.id}>
-                  <SlotCard slot={slot} clockTime={clockTimes[i]} isActive={activeSlots[i]} onEdit={handleEdit} onDelete={handleDelete} />
+                  <SlotCard slot={slot} clockTime={clockTimes[i]} isActive={activeSlots[i]} readOnly={!isAdmin} onEdit={handleEdit} onDelete={handleDelete} />
                 </div>
               );
             });
@@ -419,6 +432,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
 
       {/* Footer */}
       <DayTimeSummary slots={day.slots} startTime={day.broadcastStartTime ?? undefined} endTime={day.broadcastEndTime ?? undefined} startIndex={startIndex} cutoffIndex={cutoffIndex} />
+      {isAdmin && (
       <div className="border-t border-border flex">
         <AddSlotMenu onAdd={handleAdd} onAddComponent={handleAddComponent} />
         <button
@@ -429,14 +443,17 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
           מהספרייה
         </button>
       </div>
+      )}
 
       {/* Editor */}
+      {isAdmin && (
       <SlotEditor
         slot={editingSlot ?? { dayId: day.id, slotType: "narrator_announcement" as SlotType }}
         open={!!editingSlot}
         onClose={() => setEditingSlot(null)}
         onSave={handleSave}
       />
+      )}
       <LessonPicker
         open={lessonPickerOpen}
         onClose={() => setLessonPickerOpen(false)}

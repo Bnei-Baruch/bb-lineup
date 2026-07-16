@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { toWeekStart, parseWeekParam } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { Prisma } from "@prisma/client";
@@ -27,6 +28,9 @@ const weekInclude = {
 
 export default async function WeekPage({ params }: { params: Promise<{ weekStart: string }> }) {
   const { weekStart } = await params;
+
+  const session = await auth();
+  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
 
   const [ruleSets, weekTemplates] = await Promise.all([
     prisma.lineupRuleSet.findMany({
@@ -133,18 +137,20 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
           <span className="text-muted-foreground">/</span>
           <WeekPicker weekStart={weekStart} />
         </div>
-        <div className="flex items-center gap-2">
-          <ApplyTemplateDialog weekStart={weekStart} templates={weekTemplates} />
-          <WeekAIButton
-            weekStart={weekStart}
-            ruleSets={ruleSets}
-            dayIds={Object.fromEntries(data.days.map((d) => [d.dayOfWeek, d.id]))}
-          />
-          <Link href="/library" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <BookOpen className="me-2 h-4 w-4" />
-            ספרייה
-          </Link>
-        </div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <ApplyTemplateDialog weekStart={weekStart} templates={weekTemplates} />
+            <WeekAIButton
+              weekStart={weekStart}
+              ruleSets={ruleSets}
+              dayIds={Object.fromEntries(data.days.map((d) => [d.dayOfWeek, d.id]))}
+            />
+            <Link href="/library" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              <BookOpen className="me-2 h-4 w-4" />
+              ספרייה
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="pb-4">

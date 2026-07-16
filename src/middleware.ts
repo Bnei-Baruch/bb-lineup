@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-// Pages a lineup_viewer (readonly) may open: the weekly list, the day grid,
+// Pages any logged-in user may open (readonly tier): the weekly list, the day grid,
 // and the broadcast day-view pages — but never their /edit siblings.
 const READONLY_PATTERNS = [
   /^\/lineup$/,
@@ -18,24 +18,18 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   if (pathname === "/signin") return NextResponse.next();
 
-  const roles = req.auth?.user?.roles ?? [];
-  const isAdmin = roles.includes("lineup_admin");
-  const isViewer = roles.includes("lineup_viewer");
-
   if (!req.auth) {
     const signInUrl = new URL("/signin", req.nextUrl.origin);
     signInUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(signInUrl);
   }
 
-  if (isReadonlyOk(pathname)) {
-    if (isAdmin || isViewer) return NextResponse.next();
-    return NextResponse.redirect(new URL("/signin", req.nextUrl.origin));
-  }
+  // Any authenticated user gets readonly access; lineup_admin is required for everything else.
+  const isAdmin = (req.auth.user?.roles ?? []).includes("lineup_admin");
 
-  if (isAdmin) return NextResponse.next();
-  if (isViewer) return NextResponse.redirect(new URL("/lineup", req.nextUrl.origin));
-  return NextResponse.redirect(new URL("/signin", req.nextUrl.origin));
+  if (isAdmin || isReadonlyOk(pathname)) return NextResponse.next();
+
+  return NextResponse.redirect(new URL("/lineup", req.nextUrl.origin));
 });
 
 export const config = {
