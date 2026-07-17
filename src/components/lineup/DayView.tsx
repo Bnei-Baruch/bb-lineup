@@ -50,8 +50,6 @@ function isoToIsraelSec(iso: string): number {
 }
 
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
-  const headerScrollRef = useRef<HTMLDivElement>(null);
-  const bodyScrollRef = useRef<HTMLDivElement>(null);
   const activeRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
@@ -142,12 +140,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  function onBodyScroll() {
-    if (headerScrollRef.current && bodyScrollRef.current) {
-      headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft;
-    }
-  }
 
   const startTime = day.broadcastStartTime ?? "03:00";
   let runningTime = startTime;
@@ -351,38 +343,22 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
         <h2 className="text-xl font-bold">{dayLabel}</h2>
         {enDayLabel && <p className="text-sm text-muted-foreground">{enDayLabel}</p>}
       </div>
-      <div className="relative">
-        {/* Sticky column header — overflow-x hidden, scrollLeft synced by JS with body */}
-        <div
-          ref={headerScrollRef}
-          className="sticky top-12 z-20 overflow-x-hidden border border-border rounded-t-lg bg-muted"
-        >
-          <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
-            <Colgroup />
-            <thead>
-              <tr className="bg-muted">
-                {COLS.map((c) => (
-                  <th
-                    key={c.key}
-                    className={`px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}
-                  >
-                    <div className="font-semibold text-foreground leading-tight">{c.label}</div>
-                    <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-          </table>
-        </div>
-
-        {/* Body — horizontally scrollable; drives header scroll via onBodyScroll */}
-        <div
-          ref={bodyScrollRef}
-          className="overflow-x-auto border-x border-b border-border rounded-b-lg shadow-sm"
-          onScroll={onBodyScroll}
-        >
-          <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
-            <Colgroup />
+      <div className="overflow-auto border border-border rounded-lg shadow-sm" style={{ maxHeight: "calc(100vh - 160px)" }}>
+        <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
+          <Colgroup />
+          <thead>
+            <tr className="bg-muted">
+              {COLS.map((c) => (
+                <th
+                  key={c.key}
+                  className={`sticky top-0 z-20 px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}
+                >
+                  <div className="font-semibold text-foreground leading-tight">{c.label}</div>
+                  <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
             <tbody>
               {clampedStart === 0 && (
                 <tr>
@@ -650,7 +626,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
             )}
           </table>
         </div>
-      </div>
     </div>
   );
 }

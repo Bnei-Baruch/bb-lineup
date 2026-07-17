@@ -294,7 +294,7 @@ export function DaySlotTable({
   });
 
   return (
-    <div className="overflow-x-auto border border-border rounded-lg shadow-sm">
+    <div className="border border-border rounded-lg shadow-sm">
       <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
         <Colgroup />
         <thead>
