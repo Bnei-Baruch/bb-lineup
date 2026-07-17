@@ -40,14 +40,14 @@ export const SLOT_ROW_COLORS: Partial<Record<string, string>> = {
   acapella:        "border-s-pink-300",
 };
 
-export function TableLink({ href, label }: { href: string; label: string }) {
+export function TableLink({ href, label, size = "sm" }: { href: string; label: string; size?: "sm" | "md" }) {
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+      className={`inline-block px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors ${size === "md" ? "text-xs" : "text-[10px]"}`}
     >
       {label}
     </a>

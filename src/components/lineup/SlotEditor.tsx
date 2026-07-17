@@ -52,6 +52,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       studyMaterialSourceRef: s.studyMaterialSourceRef ?? "",
       studyMaterialSourceId: s.studyMaterialSourceId ?? "",
       lineupLink: s.lineupLink ?? "",
+      slidesLink: s.slidesLink ?? "",
       mediaCode: s.mediaCode ?? "",
       recordedLessonLink: s.recordedLessonLink ?? "",
       startTimecode: s.startTimecode ?? "",
@@ -106,6 +107,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
         studyMaterialSourceRef: form.studyMaterialSourceRef || null,
         studyMaterialSourceId: form.studyMaterialSourceId || null,
         lineupLink: form.lineupLink || null,
+        slidesLink: form.slidesLink || null,
         mediaCode: form.mediaCode || null,
         recordedLessonLink: form.recordedLessonLink || null,
         startTimecode: form.startTimecode || null,
@@ -243,6 +245,13 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
             {hasNarrator && (
               <Field label="קישור (לינק)">
                 <Input value={form.lineupLink} onChange={(e) => set("lineupLink", e.target.value)} dir="ltr" placeholder="https://..." />
+              </Field>
+            )}
+
+            {/* Slides link for narrator slots */}
+            {hasNarrator && (
+              <Field label="קישור שקופיות">
+                <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
               </Field>
             )}
 
@@ -445,6 +454,10 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
 
                 <Field label="לינק ללינאפ">
                   <Input value={form.lineupLink} onChange={(e) => set("lineupLink", e.target.value)} dir="ltr" placeholder="https://..." />
+                </Field>
+
+                <Field label="קישור שקופיות">
+                  <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
                 </Field>
               </>
             )}

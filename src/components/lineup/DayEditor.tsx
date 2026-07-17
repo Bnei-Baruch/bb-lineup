@@ -8,8 +8,9 @@ import { DaySlotTable } from "./DaySlotTable";
 import { SlotEditor } from "./SlotEditor";
 import { DayTimeSummary } from "./DayTimeSummary";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
+import { ApplyDayTemplateDialog } from "./ApplyDayTemplateDialog";
 import { DayWithSlots, SlotWithLesson, SlotType } from "@/types";
-import { Wand2, Trash2, Plus } from "lucide-react";
+import { Wand2, Trash2, Plus, LayoutTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -93,6 +94,14 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   const [startTime, setStartTime] = useState(initialDay.broadcastStartTime ?? "03:00");
   const [endTime, setEndTime] = useState(initialDay.broadcastEndTime ?? "");
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [applyTemplateOpen, setApplyTemplateOpen] = useState(false);
+
+  function handleTemplateApplied(newSlots: SlotWithLesson[], contentStartIndex: number | null, contentCutoffIndex: number | null) {
+    setSlots(newSlots);
+    if (contentStartIndex != null) setStartIndex(contentStartIndex);
+    if (contentCutoffIndex != null) setCutoffIndex(contentCutoffIndex);
+    router.refresh();
+  }
 
   async function handleStartTimeBlur() {
     await fetch(`/api/days/${initialDay.id}`, {
@@ -283,6 +292,15 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
               variant="outline"
               size="sm"
               className="gap-1.5 text-xs"
+              onClick={() => setApplyTemplateOpen(true)}
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              החל תבנית AI
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
               onClick={() => setSaveTemplateOpen(true)}
               disabled={slots.length === 0}
             >
@@ -369,6 +387,14 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         cutoffIndex={cutoffIndex}
         startTime={startTime}
         endTime={endTime || undefined}
+      />
+
+      {/* Apply AI template dialog */}
+      <ApplyDayTemplateDialog
+        open={applyTemplateOpen}
+        onClose={() => setApplyTemplateOpen(false)}
+        dayId={initialDay.id}
+        onApplied={handleTemplateApplied}
       />
     </div>
   );

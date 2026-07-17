@@ -510,8 +510,19 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                             {slot.lesson.recordingDate.slice(0, 10)}
                           </span>
                         )}
-                        {slot.lineupLink && (
-                          <TableLink href={slot.lineupLink} label="ליינאפ" />
+                        {((slot.lineupLink ?? slot.component?.defaultLineupLink) || (slot.slidesLink ?? slot.component?.defaultSlidesLink)) && (
+                          <div className="flex flex-col items-start gap-1 mt-1">
+                            {(slot.lineupLink ?? slot.component?.defaultLineupLink) && (
+                              <TableLink
+                                href={(slot.lineupLink ?? slot.component?.defaultLineupLink)!}
+                                label={slot.component?.name === "הודעות לסיום" ? "הודעות קריין" : "ליינאפ"}
+                                size="md"
+                              />
+                            )}
+                            {(slot.slidesLink ?? slot.component?.defaultSlidesLink) && (
+                              <TableLink href={(slot.slidesLink ?? slot.component?.defaultSlidesLink)!} label="שקופיות" size="md" />
+                            )}
+                          </div>
                         )}
                       </td>
                       {/* הערות */}

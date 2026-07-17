@@ -14,11 +14,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Component not found" }, { status: 404 });
   }
 
-  // Fetch defaultLineupLink via raw SQL (not in Prisma client on all envs)
-  const linkRow = await prisma.$queryRaw<{ defaultLineupLink: string | null }[]>`
-    SELECT defaultLineupLink FROM "LineupComponent" WHERE id = ${componentId}
-  `.catch(() => [] as { defaultLineupLink: string | null }[]);
+  // Fetch defaultLineupLink/defaultSlidesLink via raw SQL (not in Prisma client on all envs)
+  const linkRow = await prisma.$queryRaw<{ defaultLineupLink: string | null; defaultSlidesLink: string | null }[]>`
+    SELECT defaultLineupLink, defaultSlidesLink FROM "LineupComponent" WHERE id = ${componentId}
+  `.catch(() => [] as { defaultLineupLink: string | null; defaultSlidesLink: string | null }[]);
   const defaultLineupLink = (component as Record<string, unknown>).defaultLineupLink as string | null ?? linkRow[0]?.defaultLineupLink ?? null;
+  const defaultSlidesLink = (component as Record<string, unknown>).defaultSlidesLink as string | null ?? linkRow[0]?.defaultSlidesLink ?? null;
 
   // Find the next sort order
   const last = await prisma.lineupSlot.findFirst({
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       durationSec: component.defaultDurationSec,
       narratorScript: component.defaultNarratorScript,
       lineupLink: defaultLineupLink,
+      slidesLink: defaultSlidesLink,
       transitionType: component.defaultTransitionType,
       mediaCode: component.defaultMediaCode,
       language: component.defaultLanguage,

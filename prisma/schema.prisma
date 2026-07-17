@@ -97,6 +97,7 @@ model LineupComponent {
   defaultDurationSec          Int?
   defaultNarratorScript       String?
   defaultLineupLink           String?
+  defaultSlidesLink           String?
   defaultTransitionType       String?
   defaultMediaCode            String?
   defaultLanguage             String?
@@ -234,6 +235,7 @@ model LineupSlot {
   mediaCode              String?
   recordedLessonLink     String?
   lineupLink             String?
+  slidesLink             String?
   likutimLink            String?
   likutimName            String?
 

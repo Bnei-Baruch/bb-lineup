@@ -66,6 +66,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             label: component.defaultLabel,
             durationSec: component.defaultDurationSec,
             narratorScript: component.defaultNarratorScript,
+            lineupLink: component.defaultLineupLink,
+            slidesLink: component.defaultSlidesLink,
             transitionType: component.defaultTransitionType,
             mediaCode: component.defaultMediaCode,
             language: component.defaultLanguage,

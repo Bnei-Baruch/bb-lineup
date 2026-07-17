@@ -54,6 +54,8 @@ export const slotWithLessonInclude = {
       id: true,
       name: true,
       category: true,
+      defaultLineupLink: true,
+      defaultSlidesLink: true,
     },
   },
   studyMaterialSource: {

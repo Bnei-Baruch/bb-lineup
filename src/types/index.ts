@@ -168,6 +168,7 @@ export interface SlotWithLesson {
   studyMaterialSource: { bookVolume: number | null; bookPage: number | null; link: string | null } | null;
   mediaCode: string | null;
   lineupLink: string | null;
+  slidesLink: string | null;
   likutimLink: string | null;
   likutimName: string | null;
   recordedLessonLink: string | null;
@@ -187,7 +188,7 @@ export interface SlotWithLesson {
   actualBroadcastAt: string | null;
   actualDurationSec: number | null;
   componentId: string | null;
-  component: { id: string; name: string; category: string } | null;
+  component: { id: string; name: string; category: string; defaultLineupLink: string | null; defaultSlidesLink: string | null } | null;
 }
 
 export interface DayWithSlots {

@@ -18,6 +18,7 @@ interface ComponentRow {
   defaultDurationSec: number | null;
   defaultNarratorScript: string | null;
   defaultLineupLink: string | null;
+  defaultSlidesLink: string | null;
   defaultTransitionType: string | null;
   defaultMediaCode: string | null;
 }

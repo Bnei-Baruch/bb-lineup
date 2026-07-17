@@ -10,25 +10,31 @@ export async function GET(req: NextRequest) {
     orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
   });
 
-  // Merge defaultLineupLink via raw SQL (not in Prisma client on all envs)
-  const links = await prisma.$queryRaw<{ id: string; defaultLineupLink: string | null }[]>`
-    SELECT id, defaultLineupLink FROM "LineupComponent"
-  `.catch(() => [] as { id: string; defaultLineupLink: string | null }[]);
-  const linkMap = Object.fromEntries(links.map((r) => [r.id, r.defaultLineupLink]));
+  // Merge defaultLineupLink/defaultSlidesLink via raw SQL (not in Prisma client on all envs)
+  const links = await prisma.$queryRaw<{ id: string; defaultLineupLink: string | null; defaultSlidesLink: string | null }[]>`
+    SELECT id, defaultLineupLink, defaultSlidesLink FROM "LineupComponent"
+  `.catch(() => [] as { id: string; defaultLineupLink: string | null; defaultSlidesLink: string | null }[]);
+  const linkMap = Object.fromEntries(links.map((r) => [r.id, { defaultLineupLink: r.defaultLineupLink, defaultSlidesLink: r.defaultSlidesLink }]));
 
-  return NextResponse.json(components.map((c) => ({ ...c, defaultLineupLink: linkMap[c.id] ?? null })));
+  return NextResponse.json(components.map((c) => ({
+    ...c,
+    defaultLineupLink: linkMap[c.id]?.defaultLineupLink ?? null,
+    defaultSlidesLink: linkMap[c.id]?.defaultSlidesLink ?? null,
+  })));
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const defaultLineupLink = body.defaultLineupLink ?? null;
+  const defaultSlidesLink = body.defaultSlidesLink ?? null;
   delete body.defaultLineupLink;
+  delete body.defaultSlidesLink;
   try {
     const component = await prisma.lineupComponent.create({ data: body });
-    if (defaultLineupLink !== null) {
-      await prisma.$executeRaw`UPDATE "LineupComponent" SET "defaultLineupLink" = ${defaultLineupLink} WHERE "id" = ${component.id}`.catch(() => {});
+    if (defaultLineupLink !== null || defaultSlidesLink !== null) {
+      await prisma.$executeRaw`UPDATE "LineupComponent" SET "defaultLineupLink" = ${defaultLineupLink}, "defaultSlidesLink" = ${defaultSlidesLink} WHERE "id" = ${component.id}`.catch(() => {});
     }
-    return NextResponse.json({ ...component, defaultLineupLink }, { status: 201 });
+    return NextResponse.json({ ...component, defaultLineupLink, defaultSlidesLink }, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes("Unique constraint")) {
