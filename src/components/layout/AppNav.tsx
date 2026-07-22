@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useAuth } from "@/components/providers/KeycloakProvider";
 import { currentWeekParam } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -19,13 +19,11 @@ const BROADCAST_VIEW = /^\/lineup\/[^/]+\/day\/[^/]+(\/(?!edit$)[^/]+)?$/;
 
 export function AppNav() {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { authenticated, isAdmin, userName, logout } = useAuth();
 
   if (BROADCAST_VIEW.test(pathname)) return null;
 
   const isLineupsListActive = pathname === "/lineup";
-  const roles = session?.user?.roles ?? [];
-  const isAdmin = roles.includes("lineup_admin");
   const visibleLinks = isAdmin ? links : links.filter((l) => l.label === "לוח שבועי");
 
   return (
@@ -62,11 +60,11 @@ export function AppNav() {
             </Link>
           );
         })}
-        {session?.user && (
+        {authenticated && (
           <div className="ms-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{session.user.name ?? session.user.email}</span>
+            <span>{userName}</span>
             <button
-              onClick={() => signOut({ callbackUrl: "/signin" })}
+              onClick={logout}
               className="px-2 py-1 rounded-md hover:bg-accent hover:text-foreground transition-colors"
             >
               התנתק

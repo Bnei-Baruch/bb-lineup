@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Heebo } from "next/font/google";
 import { AppNav } from "@/components/layout/AppNav";
-import { SessionProvider } from "@/components/providers/SessionProvider";
+import { KeycloakProvider } from "@/components/providers/KeycloakProvider";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -23,10 +23,10 @@ export default function RootLayout({
   return (
     <html lang="he" dir="rtl">
       <body className={`${heebo.variable} font-sans antialiased bg-background text-foreground`}>
-        <SessionProvider>
+        <KeycloakProvider>
           <AppNav />
           {children}
-        </SessionProvider>
+        </KeycloakProvider>
       </body>
     </html>
   );

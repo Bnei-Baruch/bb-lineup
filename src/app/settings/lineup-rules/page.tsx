@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { RuleSetManager } from "@/components/ai/RuleSetManager";
+import { RequireAdmin } from "@/components/providers/RequireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -14,16 +15,18 @@ export default async function LineupRulesPage() {
   ]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">תבניות תכנון</h1>
-        <p className="text-sm text-muted-foreground mt-1">הגדר תבניות לינאפ ומגבלות לתכנון AI</p>
+    <RequireAdmin>
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">תבניות תכנון</h1>
+          <p className="text-sm text-muted-foreground mt-1">הגדר תבניות לינאפ ומגבלות לתכנון AI</p>
+        </div>
+        <RuleSetManager
+          initialRuleSets={JSON.parse(JSON.stringify(ruleSets))}
+          series={series}
+          components={components}
+        />
       </div>
-      <RuleSetManager
-        initialRuleSets={JSON.parse(JSON.stringify(ruleSets))}
-        series={series}
-        components={components}
-      />
-    </div>
+    </RequireAdmin>
   );
 }

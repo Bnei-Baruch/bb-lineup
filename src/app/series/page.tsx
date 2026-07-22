@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { SeriesManager } from "@/components/series/SeriesManager";
+import { RequireAdmin } from "@/components/providers/RequireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,10 @@ export default async function SeriesPage() {
   });
 
   return (
-    <div className="p-6">
-      <SeriesManager series={JSON.parse(JSON.stringify(series))} />
-    </div>
+    <RequireAdmin>
+      <div className="p-6">
+        <SeriesManager series={JSON.parse(JSON.stringify(series))} />
+      </div>
+    </RequireAdmin>
   );
 }

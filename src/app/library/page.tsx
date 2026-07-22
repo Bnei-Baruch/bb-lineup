@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { LibraryClient } from "./LibraryClient";
+import { RequireAdmin } from "@/components/providers/RequireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -59,11 +60,13 @@ export default async function LibraryPage() {
   const lessonsWithTimecodes = lessons.map((l) => ({ ...l, ...timecodeMap.get(l.id) }));
 
   return (
-    <LibraryClient
-      lessons={lessonsWithTimecodes as Parameters<typeof LibraryClient>[0]["lessons"]}
-      series={JSON.parse(JSON.stringify(series))}
-      currentSlotIds={currentSlotIds}
-      pastSlotIds={pastSlotIds}
-    />
+    <RequireAdmin>
+      <LibraryClient
+        lessons={lessonsWithTimecodes as Parameters<typeof LibraryClient>[0]["lessons"]}
+        series={JSON.parse(JSON.stringify(series))}
+        currentSlotIds={currentSlotIds}
+        pastSlotIds={pastSlotIds}
+      />
+    </RequireAdmin>
   );
 }

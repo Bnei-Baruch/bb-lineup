@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { WeekTemplateManager } from "@/components/lineup/WeekTemplateManager";
+import { RequireAdmin } from "@/components/providers/RequireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -13,15 +14,17 @@ export default async function WeekTemplatesPage() {
   ]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">תבניות שבועיות</h1>
-        <p className="text-sm text-muted-foreground mt-1">הגדר תבניות מבנה שבועי ליישום מהיר על לינאפ</p>
+    <RequireAdmin>
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">תבניות שבועיות</h1>
+          <p className="text-sm text-muted-foreground mt-1">הגדר תבניות מבנה שבועי ליישום מהיר על לינאפ</p>
+        </div>
+        <WeekTemplateManager
+          initialTemplates={JSON.parse(JSON.stringify(templates))}
+          components={components}
+        />
       </div>
-      <WeekTemplateManager
-        initialTemplates={JSON.parse(JSON.stringify(templates))}
-        components={components}
-      />
-    </div>
+    </RequireAdmin>
   );
 }

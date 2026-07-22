@@ -7,6 +7,7 @@ import { DayWithSlots } from "@/types";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
 import { ChevronRight, Eye } from "lucide-react";
+import { RequireAdmin } from "@/components/providers/RequireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -80,12 +81,14 @@ export default async function DayEditPage({
   const dayData = lineup?.days[0];
   if (!dayData) {
     return (
-      <div className="p-6 text-center text-muted-foreground">
-        <p>לא נמצא יום זה</p>
-        <Link href={`/lineup/${weekStart}`} className="text-sm text-blue-600 hover:underline mt-2 block">
-          חזרה לשבוע
-        </Link>
-      </div>
+      <RequireAdmin>
+        <div className="p-6 text-center text-muted-foreground">
+          <p>לא נמצא יום זה</p>
+          <Link href={`/lineup/${weekStart}`} className="text-sm text-blue-600 hover:underline mt-2 block">
+            חזרה לשבוע
+          </Link>
+        </div>
+      </RequireAdmin>
     );
   }
 
@@ -136,36 +139,38 @@ export default async function DayEditPage({
   }));
 
   return (
-    <div className="p-4 space-y-4 min-h-screen">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link href={`/lineup/${weekStart}`} className="hover:text-foreground transition-colors">
-            שבוע {formatDate(ws)}
+    <RequireAdmin>
+      <div className="p-4 space-y-4 min-h-screen">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Link href={`/lineup/${weekStart}`} className="hover:text-foreground transition-colors">
+              שבוע {formatDate(ws)}
+            </Link>
+            <ChevronRight className="h-4 w-4 rotate-180" />
+            <span className="text-foreground font-medium">
+              עריכה — {DAY_NAMES[dow]} {formatDate(date)}
+            </span>
+          </div>
+          <Link
+            href={`/lineup/${weekStart}/day/${dow}`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Eye className="me-2 h-4 w-4" />
+            תצוגת שידור
           </Link>
-          <ChevronRight className="h-4 w-4 rotate-180" />
-          <span className="text-foreground font-medium">
-            עריכה — {DAY_NAMES[dow]} {formatDate(date)}
-          </span>
         </div>
-        <Link
-          href={`/lineup/${weekStart}/day/${dow}`}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <Eye className="me-2 h-4 w-4" />
-          תצוגת שידור
-        </Link>
-      </div>
 
-      <DayEditor
-        day={serialized}
-        components={components}
-        series={[
-          ...JSON.parse(JSON.stringify(series)),
-          ...(unseriedLessons.length > 0
-            ? [{ id: "__none__", name: "ללא סדרה", color: null, lessons: JSON.parse(JSON.stringify(unseriedLessons)) }]
-            : []),
-        ]}
-      />
-    </div>
+        <DayEditor
+          day={serialized}
+          components={components}
+          series={[
+            ...JSON.parse(JSON.stringify(series)),
+            ...(unseriedLessons.length > 0
+              ? [{ id: "__none__", name: "ללא סדרה", color: null, lessons: JSON.parse(JSON.stringify(unseriedLessons)) }]
+              : []),
+          ]}
+        />
+      </div>
+    </RequireAdmin>
   );
 }

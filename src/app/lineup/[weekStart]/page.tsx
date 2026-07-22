@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { toWeekStart, parseWeekParam } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { Prisma } from "@prisma/client";
@@ -7,6 +6,7 @@ import { WeekGrid } from "@/components/lineup/WeekGrid";
 import { WeekPicker } from "@/components/lineup/WeekPicker";
 import { WeekAIButton } from "@/components/ai/WeekAIButton";
 import { ApplyTemplateDialog } from "@/components/lineup/ApplyTemplateDialog";
+import { AdminOnly } from "@/components/providers/AdminOnly";
 import { LineupWithDays } from "@/types";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
@@ -28,9 +28,6 @@ const weekInclude = {
 
 export default async function WeekPage({ params }: { params: Promise<{ weekStart: string }> }) {
   const { weekStart } = await params;
-
-  const session = await auth();
-  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
 
   const [ruleSets, weekTemplates] = await Promise.all([
     prisma.lineupRuleSet.findMany({
@@ -137,7 +134,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
           <span className="text-muted-foreground">/</span>
           <WeekPicker weekStart={weekStart} />
         </div>
-        {isAdmin && (
+        <AdminOnly>
           <div className="flex items-center gap-2">
             <ApplyTemplateDialog weekStart={weekStart} templates={weekTemplates} />
             <WeekAIButton
@@ -150,7 +147,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
               ספרייה
             </Link>
           </div>
-        )}
+        </AdminOnly>
       </div>
 
       <div className="pb-4">

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ComponentTable } from "@/components/components/ComponentTable";
+import { RequireAdmin } from "@/components/providers/RequireAdmin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,10 @@ export default async function ComponentsPage() {
   }));
 
   return (
-    <div className="p-6">
-      <ComponentTable components={JSON.parse(JSON.stringify(rows))} />
-    </div>
+    <RequireAdmin>
+      <div className="p-6">
+        <ComponentTable components={JSON.parse(JSON.stringify(rows))} />
+      </div>
+    </RequireAdmin>
   );
 }

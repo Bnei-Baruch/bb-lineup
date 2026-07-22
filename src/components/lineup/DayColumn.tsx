@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/components/providers/KeycloakProvider";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { SlotCard } from "./SlotCard";
@@ -53,8 +53,7 @@ interface DayColumnProps {
 }
 
 export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAddSession, onDeleteSession, onCollapse }: DayColumnProps) {
-  const { data: session } = useSession();
-  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
+  const { isAdmin } = useAuth();
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);

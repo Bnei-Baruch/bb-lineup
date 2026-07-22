@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
 import { SessionTabs } from "@/components/lineup/SessionTabs";
+import { AdminOnly } from "@/components/providers/AdminOnly";
 import { DayWithSlots } from "@/types";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
@@ -20,9 +20,6 @@ export default async function DayViewPage({
   const dow = parseInt(dowStr);
   const sessionIdx = parseInt(sessionIdxStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
-
-  const session = await auth();
-  const isAdmin = (session?.user?.roles ?? []).includes("lineup_admin");
 
   // Find the specific session's LineupDay (sessionIndex column may not exist on older DBs)
   let dayId: string | undefined;
@@ -184,7 +181,7 @@ export default async function DayViewPage({
         </div>
         <div className="flex items-center gap-3">
           <SessionTabs weekStart={weekStart} dow={dow} sessions={daySessions} currentIndex={sessionIdx} />
-          {isAdmin && (
+          <AdminOnly>
             <Link
               href={`/lineup/${weekStart}/day/${dow}/${sessionIdx}/edit`}
               className={buttonVariants({ variant: "outline", size: "sm" })}
@@ -192,7 +189,7 @@ export default async function DayViewPage({
               <Pencil className="me-2 h-4 w-4" />
               עריכה
             </Link>
-          )}
+          </AdminOnly>
         </div>
       </div>
 
