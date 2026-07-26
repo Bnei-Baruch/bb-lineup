@@ -16,6 +16,7 @@ import {
 } from "@/types";
 import { Loader2 } from "lucide-react";
 import { formatDurationSec, parseDurationToSec } from "@/lib/time";
+import { LineupLinkPicker } from "@/components/lineup/LineupLinkPicker";
 
 interface ComponentFormProps {
   component?: Record<string, unknown> | null;
@@ -89,6 +90,7 @@ export function ComponentForm({ component, open, onClose }: ComponentFormProps) 
   const isTransition = form.slotType === "transition";
   const isMedia = ["acapella", "song", "slide_melodies"].includes(form.slotType);
   const isPartHeader = form.slotType === "part_header";
+  const isLiveContent = form.category === "live_content";
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -166,6 +168,13 @@ export function ComponentForm({ component, open, onClose }: ComponentFormProps) 
             <div className="space-y-1.5">
               <Label>קישור שקופיות ברירת מחדל</Label>
               <Input value={form.defaultSlidesLink} onChange={(e) => set("defaultSlidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
+            </div>
+          )}
+
+          {isLiveContent && (
+            <div className="space-y-1.5">
+              <Label>קישור ללינאפ ברירת מחדל</Label>
+              <LineupLinkPicker value={form.defaultLineupLink} onChange={(v) => set("defaultLineupLink", v)} />
             </div>
           )}
 

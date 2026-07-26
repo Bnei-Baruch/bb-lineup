@@ -129,6 +129,18 @@ export const COMPONENT_CATEGORIES = [
 
 export type ComponentCategory = (typeof COMPONENT_CATEGORIES)[number]["value"];
 
+// Predefined לינק ללינאפ options for "תוכן חי" (live_content) components/slots
+export const LIVE_CONTENT_LINEUP_LINKS: { label: string; url: string }[] = [
+  { label: "יום א", url: "https://docs.google.com/document/d/1e8TYHCjPtRyFXwSQE3iJhNbfDQmj-ZYsbV_JLDF4dV4/edit?tab=t.0" },
+  { label: "יום ב", url: "https://docs.google.com/document/d/1tOAf-84e-d3tGbguXF4v2c6kdNnYga44UFXWCgbzhU0/edit?tab=t.0" },
+  { label: "יום ג", url: "https://docs.google.com/document/d/1UbpzYcLylnoIBnULYwNeZpvzdPbaQ82DJTpk0hhI5Wo/edit?tab=t.0" },
+  { label: "יום ד", url: "https://docs.google.com/document/d/1sOCsdUQ6YvoQDV1-yfdPhqqReQTSZEirZXLwf1kY8-M/edit?tab=t.0" },
+  { label: "יום ה", url: "https://docs.google.com/document/u/3/d/1kfODAzIzvUzlLXl7t5WQDqhY4taaE1V0UBFaIRSO1oA/edit?tab=t.0" },
+  { label: "יום ו", url: "https://docs.google.com/document/d/1dGUFqkTC1xv-XTn1tgOFyjaLmb4fH_fjEaGYmjHU95k/edit?tab=t.0" },
+  { label: "שבת בוקר", url: "https://docs.google.com/document/d/1QtTvd25yaqmW_eMUP0OauuDbgFES2tgaWGXuNVRD86g/edit?tab=t.0" },
+  { label: "שבת צהריים", url: "https://docs.google.com/document/d/13UBuXScJK_3N1ZdF5U1EYJqpMfjF3UjwiXvnLo-XNrk/edit?tab=t.0" },
+];
+
 export interface LessonSummary {
   id: string;
   sourceRef: string | null;

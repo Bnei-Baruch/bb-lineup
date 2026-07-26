@@ -12,6 +12,7 @@ import { SlotWithLesson, SlotType, SLOT_TYPE_LABELS, TRANSITION_LABELS, Transiti
 import { Loader2 } from "lucide-react";
 import { formatDurationSec, parseDurationToSec } from "@/lib/time";
 import { itemLabel } from "./slot-table-shared";
+import { LineupLinkPicker } from "./LineupLinkPicker";
 
 interface SlotEditorProps {
   slot: Partial<SlotWithLesson> & { dayId: string; slotType: SlotType };
@@ -453,11 +454,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
                 </Field>
 
                 <Field label="לינק ללינאפ">
-                  <Input value={form.lineupLink} onChange={(e) => set("lineupLink", e.target.value)} dir="ltr" placeholder="https://..." />
-                </Field>
-
-                <Field label="קישור שקופיות">
-                  <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
+                  <LineupLinkPicker value={form.lineupLink} onChange={(v) => set("lineupLink", v)} />
                 </Field>
               </>
             )}
