@@ -34,6 +34,7 @@ export function SeriesManager({ series: initial, onChanged }: SeriesManagerProps
   const [editing, setEditing] = useState<SeriesRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [sheetImporting, setSheetImporting] = useState(false);
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`למחוק את הסדרה "${name}"? השיעורים הקשורים לא יימחקו.`)) return;
@@ -49,6 +50,10 @@ export function SeriesManager({ series: initial, onChanged }: SeriesManagerProps
         <Button variant="outline" onClick={() => setImporting(true)}>
           <Download className="me-2 h-4 w-4" />
           ייבא מקישור
+        </Button>
+        <Button variant="outline" onClick={() => setSheetImporting(true)}>
+          <Download className="me-2 h-4 w-4" />
+          ייבוא מגיליון
         </Button>
         <Button onClick={() => setCreating(true)}>
           <Plus className="me-2 h-4 w-4" />
@@ -130,6 +135,16 @@ export function SeriesManager({ series: initial, onChanged }: SeriesManagerProps
           open={true}
           onClose={() => {
             setImporting(false);
+            refresh();
+          }}
+        />
+      )}
+
+      {sheetImporting && (
+        <SheetImport
+          open={true}
+          onClose={() => {
+            setSheetImporting(false);
             refresh();
           }}
         />
@@ -307,6 +322,106 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
             <div className="rounded-md bg-green-500/10 border border-green-500/30 p-3 text-sm space-y-1">
               <p className="font-semibold">{result.name}</p>
               <p className="text-muted-foreground">יובאו {result.imported} שיעורים מתוך {result.total}</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            {result ? "סגור" : "ביטול"}
+          </Button>
+          {!result && (
+            <Button onClick={handleImport} disabled={loading || !url.trim()}>
+              {loading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+              ייבא
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SheetImport({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [url, setUrl] = useState("");
+  const [color, setColor] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{
+    seriesCreated: string[];
+    lessonsImported: number;
+    rowsSkipped: number;
+    noPartsSkipped: number;
+    errors: { row: number; reason: string }[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleImport() {
+    if (!url.trim()) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch("/api/series/from-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim(), color: color || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "שגיאה בייבוא");
+      } else {
+        setResult(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleClose() {
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>ייבוא סדרה מגיליון</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>קישור לגיליון Google Sheets</Label>
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/.../edit?gid=..."
+              dir="ltr"
+            />
+            <p className="text-xs text-muted-foreground">
+              הגיליון צריך לכלול עמודות: תאריך, מס', שיעור, קריאת מקורות, קישור, תמליל, זמנים, וכן זוגות תאריך שידור/חלק N לכל חלק שידור. שורת כותרת סדרה (בלי מס'/שיעור/קישור) פותחת סדרה חדשה.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>צבע (אופציונלי, לכל הסדרות שייווצרו)</Label>
+            <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="purple" dir="ltr" />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {result && (
+            <div className="rounded-md bg-green-500/10 border border-green-500/30 p-3 text-sm space-y-1">
+              {result.seriesCreated.length > 0 && (
+                <p className="font-semibold">סדרות חדשות: {result.seriesCreated.join(", ")}</p>
+              )}
+              <p className="text-muted-foreground">
+                יובאו {result.lessonsImported} חלקי שיעורים
+                {result.rowsSkipped > 0 ? `, דולגו ${result.rowsSkipped} שיעורים (כבר קיימים)` : ""}
+                {result.noPartsSkipped > 0 ? `, דולגו ${result.noPartsSkipped} שיעורים (ללא חלוקה לחלקים)` : ""}
+              </p>
+              {result.errors.length > 0 && (
+                <div className="pt-1 space-y-0.5">
+                  <p className="text-destructive font-medium">{result.errors.length} שגיאות:</p>
+                  {result.errors.slice(0, 10).map((e, i) => (
+                    <p key={i} className="text-xs text-muted-foreground">שורה {e.row}: {e.reason}</p>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
