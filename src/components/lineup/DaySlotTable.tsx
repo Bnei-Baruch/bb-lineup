@@ -62,14 +62,12 @@ function CutoffBannerRow({ color, label, onMoveUp, onMoveDown }: {
   );
 }
 
-function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, connectsDown, altBg, onRowClick, onDelete, onNestToggle }: {
+function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick, onDelete, onNestToggle }: {
   slot: SlotWithLesson;
   clockTime: string;
   endTime: string;
   isChild: boolean;
-  childCount: number;
   canNest: boolean;
-  connectsDown: boolean;
   altBg: string;
   onRowClick: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
@@ -149,17 +147,8 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, conne
         </div>
       </td>
       {/* אייטם */}
-      <td className={`relative px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
-        {isChild && (
-          <>
-            <span className="absolute start-[18px] top-0 h-1/2 w-px bg-indigo-400" />
-            {connectsDown && <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />}
-            <span className="absolute start-[18px] top-1/2 -translate-y-1/2 h-px w-3 bg-indigo-400" />
-          </>
-        )}
-        {childCount > 0 && connectsDown && (
-          <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />
-        )}
+      <td className={`px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
+        {isChild && <span className="text-indigo-400 font-bold me-1">↳</span>}
         {itemLabel(slot)}
       </td>
       {/* תוכן */}
@@ -197,13 +186,10 @@ function SlotRow({ slot, clockTime, endTime, isChild, childCount, canNest, conne
           )}
           {slot.likutimLink && <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />}
           {slot.lesson?.transcriptionLink && <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />}
+          {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
+            <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />
+          )}
         </div>
-      </td>
-      {/* שיעור מוקלט */}
-      <td className="px-3 py-3 border-s-2 border-s-slate-300">
-        {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
-          <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />
-        )}
       </td>
       {/* החל מדקה */}
       <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">
@@ -274,17 +260,12 @@ export function DaySlotTable({
   const clampedStart = Math.min(startIndex, slots.length);
   const clampedCutoff = Math.min(cutoffIndex, slots.length);
 
-  const childCountBySlotId = new Map<string, number>();
-  for (const s of slots) {
-    if (s.parentSlotId) childCountBySlotId.set(s.parentSlotId, (childCountBySlotId.get(s.parentSlotId) ?? 0) + 1);
-  }
-
   let running = timeToSec(startTime);
   const slotClockSecs = new Map<string, number>();
   let _altIdx = 0;
   let prevTopLevelId: string | null = null;
 
-  const rows = slots.map((slot, idx) => {
+  const rows = slots.map((slot) => {
     const isChild = !!slot.parentSlotId;
     const dur = slotEffectiveDuration(slot);
     const slotStartSec = isChild ? (slotClockSecs.get(slot.parentSlotId!) ?? running) : running;
@@ -293,10 +274,8 @@ export function DaySlotTable({
       running += dur;
     }
     const altIdx = slot.slotType === "part_header" ? -1 : _altIdx++;
-    const next = slots[idx + 1];
-    const connectsDown = isChild ? next?.parentSlotId === slot.parentSlotId : next?.parentSlotId === slot.id;
     const row = {
-      slot, isChild, connectsDown,
+      slot, isChild,
       clockTime: secToHHMMSS(slotStartSec),
       endTime: secToHHMMSS(slotStartSec + dur),
       altBg: altIdx % 2 !== 0 ? "bg-muted" : "bg-card",
@@ -326,7 +305,7 @@ export function DaySlotTable({
               {clampedStart === 0 && (
                 <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
               )}
-              {rows.map(({ slot, clockTime, endTime, isChild, connectsDown, altBg, prevTopLevelId }, i) => (
+              {rows.map(({ slot, clockTime, endTime, isChild, altBg, prevTopLevelId }, i) => (
                 <React.Fragment key={slot.id}>
                   {i === clampedStart && clampedStart > 0 && (
                     <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
@@ -339,9 +318,7 @@ export function DaySlotTable({
                     clockTime={clockTime}
                     endTime={endTime}
                     isChild={isChild}
-                    childCount={childCountBySlotId.get(slot.id) ?? 0}
                     canNest={!isChild && slot.slotType !== "part_header" && prevTopLevelId !== null}
-                    connectsDown={connectsDown}
                     altBg={altBg}
                     onRowClick={onRowClick}
                     onDelete={onDelete}

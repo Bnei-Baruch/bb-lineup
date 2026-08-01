@@ -1,12 +1,11 @@
-import { SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType } from "@/types";
+import { SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
 
 export const COLS = [
   { key: "time",     label: "שעות",       en: "Time",       cls: "sticky end-0 z-10", minWidth: 96,  sep: false },
   { key: "item",     label: "אייטם",       en: "Item",       cls: "",                  minWidth: 112, sep: true  },
   { key: "content",  label: "תוכן",        en: "Content",    cls: "",                  minWidth: 180, sep: true  },
   { key: "notes",    label: "הערות",       en: "Notes",      cls: "",                  minWidth: 120, sep: true  },
-  { key: "material", label: "חומר לימוד",  en: "Study Mat.", cls: "",                  minWidth: 96,  sep: true  },
-  { key: "recorded", label: "שיעור מוקלט", en: "Recorded",   cls: "",                  minWidth: 80,  sep: true  },
+  { key: "material", label: "חומר לימוד",  en: "Study Mat.", cls: "",                  minWidth: 112, sep: true  },
   { key: "startTc",  label: "החל מדקה",    en: "From TC",    cls: "",                  minWidth: 76,  sep: true  },
   { key: "opening",  label: "דבר המתחיל",  en: "Opening",    cls: "",                  minWidth: 140, sep: true  },
   { key: "endTc",    label: "עד דקה",      en: "To TC",      cls: "",                  minWidth: 76,  sep: true  },
@@ -23,9 +22,9 @@ export const TABLE_MIN_WIDTH = COLS.reduce((sum, c) => sum + c.minWidth, 0);
 // width:100% + minWidth on the table lets it fill the container but never shrink below its natural width.
 export const TABLE_STYLE: React.CSSProperties = { tableLayout: "fixed", width: "100%", minWidth: `${TABLE_MIN_WIDTH}px` };
 
-export const Colgroup = () => (
+export const Colgroup = ({ cols = COLS }: { cols?: readonly (typeof COLS)[number][] } = {}) => (
   <colgroup>
-    {COLS.map(c => <col key={c.key} style={{ width: `${c.minWidth}px` }} />)}
+    {cols.map(c => <col key={c.key} style={{ width: `${c.minWidth}px` }} />)}
   </colgroup>
 );
 
@@ -68,16 +67,23 @@ export function secToHHMMSS(totalSec: number): string {
 }
 
 export function itemLabel(slot: SlotWithLesson): string {
-  if (slot.slotType === "transition" && slot.transitionType) {
-    return `מעברון ${TRANSITION_LABELS[slot.transitionType as TransitionType] ?? slot.transitionType}`;
-  }
   if (slot.slotType === "part_header") {
     return `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
+  }
+  // A lesson pulled from the library already shows its own title/reference in the
+  // Content column — keep the Item column a plain type label so it doesn't duplicate it.
+  if (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson) {
+    return SLOT_TYPE_LABELS[slot.slotType as SlotType];
+  }
+  if (slot.label) return slot.label;
+  if (slot.component?.name) return slot.component.name;
+  if (slot.slotType === "transition" && slot.transitionType) {
+    return `מעברון ${TRANSITION_LABELS[slot.transitionType as TransitionType] ?? slot.transitionType}`;
   }
   if (slot.slotType === "article_reading") {
     return SLOT_TYPE_LABELS["article_reading"] || "קריאת מאמר";
   }
-  return slot.label || slot.component?.name || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
+  return SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
 }
 
 export function sourceSubline(vol: number | null | undefined, page: number | null | undefined): string {

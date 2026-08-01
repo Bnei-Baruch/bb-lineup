@@ -1,15 +1,19 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
-import { Check, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText,
 } from "./slot-table-shared";
+
+const HIDDEN_COLS = new Set(["subs", "workshop", "lang"]);
+const VISIBLE_COLS = COLS.filter((c) => !HIDDEN_COLS.has(c.key));
 
 interface DayViewProps {
   enDayLabel?: string;
@@ -50,6 +54,7 @@ function isoToIsraelSec(iso: string): number {
 }
 
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
+  const router = useRouter();
   const activeRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
@@ -57,6 +62,16 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     const id = setInterval(() => setNowSec(getIsraelTimeSec()), 1_000);
     return () => clearInterval(id);
   }, []);
+
+  // Broadcast displays are often left open for hours — re-fetch the lineup data
+  // whenever the tab regains focus/visibility, so it never shows stale content.
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") router.refresh();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [router]);
 
   const [lastPlaying, setLastPlaying] = useState<NowPlaying | null>(null);
   const [isCurrentlyLive, setIsCurrentlyLive] = useState(false);
@@ -300,13 +315,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
   if (clampedCutoff === rows.length) cutoffClockTime = runningTime;
 
-  const childCountBySlotId = new Map<string, number>();
-  for (const slot of day.slots) {
-    if (slot.parentSlotId) {
-      childCountBySlotId.set(slot.parentSlotId, (childCountBySlotId.get(slot.parentSlotId) ?? 0) + 1);
-    }
-  }
-
   const broadcastWindowSec = day.broadcastEndTime && day.broadcastStartTime
     ? (() => {
         let diff = timeToSec(day.broadcastEndTime) - timeToSec(day.broadcastStartTime);
@@ -345,10 +353,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
       </div>
       <div className="overflow-auto border border-border rounded-lg shadow-sm" style={{ maxHeight: "calc(100vh - 160px)" }}>
         <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
-          <Colgroup />
+          <Colgroup cols={VISIBLE_COLS} />
           <thead>
             <tr className="bg-muted">
-              {COLS.map((c) => (
+              {VISIBLE_COLS.map((c) => (
                 <th
                   key={c.key}
                   className={`sticky top-0 z-20 px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}
@@ -362,7 +370,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
             <tbody>
               {clampedStart === 0 && (
                 <tr>
-                  <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
+                  <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
                     <div className="px-4 py-1.5 text-xs font-bold text-blue-700 tracking-wide text-center">▶ תחילת תוכן</div>
                   </td>
                 </tr>
@@ -370,7 +378,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
               {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild }, i) => {
                 const startRow = clampedStart > 0 && clampedStart === i ? (
                   <tr key="start-line">
-                    <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
+                    <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
                       <div className="px-4 py-1.5 text-xs font-bold text-blue-700 tracking-wide text-center">▶ תחילת תוכן</div>
                     </td>
                   </tr>
@@ -378,7 +386,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
                 const cutoffRow = clampedCutoff === i ? (
                   <tr key="cutoff-line">
-                    <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100">
+                    <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100">
                       {cutoffBanner}
                     </td>
                   </tr>
@@ -390,7 +398,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {startRow}
                       {cutoffRow}
                       <tr className="bg-yellow-100 border-t-2 border-yellow-400">
-                        <td colSpan={COLS.length} className="px-3 py-3 font-bold text-sm text-yellow-900 tracking-wide">
+                        <td colSpan={VISIBLE_COLS.length} className="px-3 py-3 font-bold text-sm text-yellow-900 tracking-wide">
                           חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
                         </td>
                       </tr>
@@ -403,7 +411,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                 const isBelowCutoff = clampedCutoff !== null && i >= clampedCutoff;
                 const rowColor = SLOT_ROW_COLORS[slot.slotType] ?? "border-s-border";
                 const altBg = isChild ? "bg-indigo-50/70" : (altIdx % 2 !== 0 ? "bg-muted" : "bg-card");
-                const childCount = childCountBySlotId.get(slot.id) ?? 0;
 
                 return (
                   <React.Fragment key={slot.id}>
@@ -484,22 +491,11 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         )}
                       </td>
                       {/* אייטם */}
-                      <td className={`relative px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
-                        {isChild && (
-                          <>
-                            <span className="absolute start-[18px] top-0 h-1/2 w-px bg-indigo-400" />
-                            {day.slots[i + 1]?.parentSlotId === slot.parentSlotId && (
-                              <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />
-                            )}
-                            <span className="absolute start-[18px] top-1/2 -translate-y-1/2 h-px w-3 bg-indigo-400" />
-                          </>
-                        )}
-                        {childCount > 0 && day.slots[i + 1]?.parentSlotId === slot.id && (
-                          <span className="absolute start-[18px] top-1/2 h-1/2 w-px bg-indigo-400" />
-                        )}
+                      <td className={`px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
                         {(isLive && isCurrentlyLive) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
                         )}
+                        {isChild && <span className="text-indigo-400 font-bold me-1">↳</span>}
                         {itemLabel(slot)}
                       </td>
                       {/* תוכן */}
@@ -541,13 +537,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           {slot.lesson?.transcriptionLink && (
                             <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />
                           )}
+                          {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
+                            <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />
+                          )}
                         </div>
-                      </td>
-                      {/* שיעור מוקלט */}
-                      <td className="px-3 py-3 border-s-2 border-s-slate-300">
-                        {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
-                          <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />
-                        )}
                       </td>
                       {/* החל מדקה */}
                       <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">
@@ -602,16 +595,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       </td>
                       {/* שעת סיום */}
                       <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">{endTime}</td>
-                      {/* כתוביות */}
-                      <td className="px-3 py-3 text-center border-s-2 border-s-slate-300">
-                        {slot.hasSubtitles && <Check className="h-3.5 w-3.5 text-green-600 mx-auto" />}
-                      </td>
-                      {/* סדנה */}
-                      <td className="px-3 py-3 text-center border-s-2 border-s-slate-300">
-                        {slot.hasWorkshopQuestions && <Check className="h-3.5 w-3.5 text-green-600 mx-auto" />}
-                      </td>
-                      {/* שפה */}
-                      <td className="px-3 py-3 text-muted-foreground overflow-hidden border-s-2 border-s-slate-300">{slot.language ?? ""}</td>
                     </tr>
                   </React.Fragment>
                 );
@@ -619,7 +602,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
               {/* Cutoff banner at end of list */}
               {clampedCutoff === rows.length && (
                 <tr>
-                  <td colSpan={COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100">
+                  <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100">
                     {cutoffBanner}
                   </td>
                 </tr>
@@ -629,9 +612,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
               <tfoot>
                 <tr className="bg-muted/60 border-t-2 border-border font-semibold">
                   <td className="px-3 py-3 tabular-nums">{runningTime}</td>
-                  <td colSpan={9} className="px-3 py-3 text-muted-foreground text-[11px]">סה״כ</td>
+                  <td colSpan={8} className="px-3 py-3 text-muted-foreground text-[11px]">סה״כ</td>
                   <td className="px-3 py-3 tabular-nums">{formatDurationSec(totalSeconds)}</td>
-                  <td colSpan={COLS.length - 11} />
+                  <td colSpan={VISIBLE_COLS.length - 10} />
                 </tr>
               </tfoot>
             )}

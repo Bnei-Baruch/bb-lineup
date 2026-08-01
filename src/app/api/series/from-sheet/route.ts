@@ -59,6 +59,13 @@ function parsePartTimeRange(text: string): { start: string; end: string } | null
   return null;
 }
 
+/** Part N's Lesson.kmUid: the row's real KM id for part 1 (the dedup/lookup anchor),
+ *  a suffixed synthetic id for every other part (kmUid is @unique, so they can't share
+ *  the real one — the suffix keeps them unique while staying correlatable to the row). */
+function partKmUid(rowKmUid: string, partIndex: number): string {
+  return partIndex === 0 ? rowKmUid : `${rowKmUid}-p${partIndex + 1}`;
+}
+
 interface PartCol {
   partNumber: number;
   dateColIdx: number | null;
@@ -214,23 +221,25 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Dedup against already-imported lessons — keyed on the row's kmUid (stored only on
-  // that row's first part), so re-running the import skips the whole group together.
-  const existingUids = new Set(
-    pending.length
-      ? (await prisma.lesson.findMany({
-          where: { kmUid: { in: pending.map((p) => p.kmUid) } },
-          select: { kmUid: true },
-        })).map((l) => l.kmUid)
-      : []
-  );
-  const toImport = pending.filter((p) => !existingUids.has(p.kmUid));
-  const rowsSkipped = pending.length - toImport.length;
+  // Find every existing lesson for every pending row — matched either as the row's primary
+  // kmUid (part 1) or one of its synthetic sibling ids (part 2+, "{kmUid}-p2" etc). This is
+  // how we tell "never imported" (create) apart from "imported before, maybe changed" (update).
+  const existingByRowUid = new Map<string, { id: string; kmUid: string | null }[]>();
+  if (pending.length > 0) {
+    const rowUids = pending.map((p) => p.kmUid);
+    const existing = await prisma.lesson.findMany({
+      where: { OR: rowUids.map((uid) => ({ kmUid: { startsWith: uid } })) },
+      select: { id: true, kmUid: true },
+    });
+    for (const uid of rowUids) {
+      existingByRowUid.set(uid, existing.filter((l) => l.kmUid === uid || l.kmUid?.startsWith(`${uid}-p`)));
+    }
+  }
 
   // Find-or-create every series encountered
   const seriesByName = new Map<string, { id: string }>();
   const seriesCreated: string[] = [];
-  for (const seriesName of Array.from(new Set(toImport.map((p) => p.seriesName)))) {
+  for (const seriesName of Array.from(new Set(pending.map((p) => p.seriesName)))) {
     let series = await prisma.series.findUnique({ where: { name: seriesName } });
     if (!series) {
       const count = await prisma.series.count();
@@ -258,7 +267,7 @@ export async function POST(req: NextRequest) {
   }
 
   const rowFetches: RowFetch[] = await Promise.all(
-    toImport.map(async (p): Promise<RowFetch> => {
+    pending.map(async (p): Promise<RowFetch> => {
       try {
         const unit = await fetchContentUnit(p.kmUid);
         const files = unit.files ?? [];
@@ -296,17 +305,23 @@ export async function POST(req: NextRequest) {
     if (r.error) errors.push({ row: r.p.rowIdx, reason: r.error });
   }
 
-  const rowsToCreate = rowFetches.filter((r) => !r.error);
-  const lessonData = rowsToCreate.flatMap((r) => {
+  const rowsOk = rowFetches.filter((r) => !r.error);
+  const lessonsToCreate: Record<string, unknown>[] = [];
+  let lessonsUpdated = 0;
+
+  for (const r of rowsOk) {
     const recordingDate = r.p.recordingDate ?? (r.filmDate ? new Date(r.filmDate) : null);
-    return r.p.parts.map((part, idx) => {
+    const existingParts = existingByRowUid.get(r.p.kmUid) ?? [];
+    const existingByKmUid = new Map(existingParts.map((l) => [l.kmUid, l.id]));
+
+    for (let idx = 0; idx < r.p.parts.length; idx++) {
+      const part = r.p.parts[idx];
       const noteLines: string[] = [];
       if (r.p.sourceReadingNote) noteLines.push(`קריאת מקורות: ${r.p.sourceReadingNote}`);
       if (part.broadcastDate) noteLines.push(`תאריך שידור מתוכנן: ${part.broadcastDate}`);
       noteLines.push(part.raw);
 
-      return {
-        kmUid: idx === 0 ? r.p.kmUid : null,
+      const fields = {
         kmPageLink: `${KM_BASE}/he/lessons/cu/${r.p.kmUid}`,
         sourceRef: `${r.sourceRef} - חלק ${part.partNumber}`,
         recordingDate,
@@ -318,23 +333,33 @@ export async function POST(req: NextRequest) {
         articleSourceLink: r.articleSourceLink,
         transcriptionLink: r.transcriptionLink,
         approvalStatus: r.p.approvalStatus,
+        broadcastDate: part.broadcastDate ? parseRowDate(part.broadcastDate) : null,
         startTimecode: part.start,
         endTimecode: part.end,
         initialNotes: noteLines.join("\n"),
         seriesId: seriesByName.get(r.p.seriesName)!.id,
       };
-    });
-  });
 
-  if (lessonData.length > 0) {
-    await prisma.lesson.createMany({ data: lessonData });
+      const expectedKmUid = partKmUid(r.p.kmUid, idx);
+      const existingId = existingByKmUid.get(expectedKmUid);
+      if (existingId) {
+        await prisma.lesson.update({ where: { id: existingId }, data: fields });
+        lessonsUpdated++;
+      } else {
+        lessonsToCreate.push({ kmUid: expectedKmUid, ...fields });
+      }
+    }
+  }
+
+  if (lessonsToCreate.length > 0) {
+    await prisma.lesson.createMany({ data: lessonsToCreate });
   }
 
   return NextResponse.json(
     {
       seriesCreated,
-      lessonsImported: lessonData.length,
-      rowsSkipped,
+      lessonsImported: lessonsToCreate.length,
+      lessonsUpdated,
       noPartsSkipped,
       errors,
     },

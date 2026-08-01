@@ -1,10 +1,13 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
+import DaySessionViewPage from "@/app/lineup/[weekStart]/day/[dayOfWeek]/[sessionIndex]/page";
 import { todayInIsrael, weekStartParam } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
 // Fixed URL for a broadcast display: /today/1 = today's first session, /today/2 = second, etc.
-export default async function TodaySessionRedirectPage({
+// Renders the day view directly (rather than redirecting) so the address bar — and whatever
+// users bookmark — stays on /today/N instead of drifting to today's specific date.
+export default async function TodaySessionPage({
   params,
 }: {
   params: Promise<{ session: string }>;
@@ -15,7 +18,7 @@ export default async function TodaySessionRedirectPage({
 
   const today = todayInIsrael();
   const weekStart = weekStartParam(today);
-  const dayOfWeek = today.getUTCDay();
-  const sessionIndex = sessionNumber - 1;
-  redirect(`/lineup/${weekStart}/day/${dayOfWeek}/${sessionIndex}`);
+  const dayOfWeek = String(today.getUTCDay());
+  const sessionIndex = String(sessionNumber - 1);
+  return DaySessionViewPage({ params: Promise.resolve({ weekStart, dayOfWeek, sessionIndex }) });
 }

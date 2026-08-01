@@ -128,13 +128,25 @@ function SortableRow({ slot, index: _index, components, onUpdate, onRemove }: So
         />
       )}
 
-      <Input
-        value={slot.durationSec ? formatDurationSec(slot.durationSec) : ""}
-        onChange={(e) => onUpdate({ durationSec: parseDurationToSec(e.target.value) ?? undefined })}
-        placeholder="משך"
-        className="w-20 h-6 text-xs px-2"
-        dir="ltr"
-      />
+      {slot.componentId ? (
+        <span
+          className="w-20 h-6 text-xs px-2 flex items-center text-muted-foreground shrink-0"
+          title="המשך נלקח מהקומפוננטה בעת היישום"
+        >
+          {(() => {
+            const comp = components.find((c) => c.id === slot.componentId);
+            return comp?.defaultDurationSec ? formatDurationSec(comp.defaultDurationSec) : "—";
+          })()}
+        </span>
+      ) : (
+        <Input
+          value={slot.durationSec ? formatDurationSec(slot.durationSec) : ""}
+          onChange={(e) => onUpdate({ durationSec: parseDurationToSec(e.target.value) ?? undefined })}
+          placeholder="משך"
+          className="w-20 h-6 text-xs px-2"
+          dir="ltr"
+        />
+      )}
 
       <button type="button" onClick={onRemove} className="text-destructive hover:text-destructive/80 shrink-0">
         <Trash2 className="h-3.5 w-3.5" />
@@ -197,10 +209,12 @@ export function WeekTemplateForm({ open, template, components, onSave, onClose }
   }
 
   function addSlot(day: number, slotType: string, componentId?: string) {
-    const comp = componentId ? components.find((c) => c.id === componentId) : null;
     const state = getDayState(day);
+    // Component-linked slots pull their label/duration/etc. from the live component at
+    // apply time (so editing the component later updates every template that uses it) —
+    // don't bake in a duration here, only custom (non-component) slots keep their own.
     setDayState(day, {
-      slots: [...state.slots, { id: makeId(), slotType, componentId: componentId ?? undefined, durationSec: comp?.defaultDurationSec ?? undefined }],
+      slots: [...state.slots, { id: makeId(), slotType, componentId: componentId ?? undefined }],
     });
   }
 

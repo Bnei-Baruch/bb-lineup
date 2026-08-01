@@ -55,6 +55,13 @@ function slotsToTemplate(slots: SlotWithLesson[]): TemplateSlot[] {
     if (s.slotType === "part_header") {
       return { type: "fixed" as const, slotType: "part_header", partNumber: s.partNumber ?? undefined };
     }
+    // Component-based slot — save only the reference, pull defaults at apply time.
+    // Checked before the article/lesson special cases below so a component-linked
+    // article_reading slot (e.g. a narrator "read the article" component) keeps its
+    // component reference instead of being flattened into a bare placeholder.
+    if (s.componentId) {
+      return { type: "fixed" as const, componentId: s.componentId, slotType: s.slotType };
+    }
     if (s.slotType === "article_reading") {
       return { type: "article" as const, durationSec };
     }
@@ -65,10 +72,6 @@ function slotsToTemplate(slots: SlotWithLesson[]): TemplateSlot[] {
         durationSec,
         ...(hasTimecodes && { startTimecode: s.startTimecode!, endTimecode: s.endTimecode! }),
       };
-    }
-    // Component-based slot — save only the reference, pull defaults at apply time
-    if (s.componentId) {
-      return { type: "fixed" as const, componentId: s.componentId, slotType: s.slotType };
     }
     // Custom slot — save full details
     return {

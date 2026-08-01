@@ -350,7 +350,7 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                     className="rounded"
                   />
                 </td>
-                <td className="px-4 py-3 max-w-xs truncate">
+                <td className="px-4 py-3 max-w-md">
                   <Link href={`/library/${l.id}`} className="hover:underline">
                     {l.sourceRef ?? "—"}
                   </Link>

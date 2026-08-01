@@ -348,7 +348,7 @@ function SheetImport({ open, onClose }: { open: boolean; onClose: () => void }) 
   const [result, setResult] = useState<{
     seriesCreated: string[];
     lessonsImported: number;
-    rowsSkipped: number;
+    lessonsUpdated: number;
     noPartsSkipped: number;
     errors: { row: number; reason: string }[];
   } | null>(null);
@@ -410,8 +410,8 @@ function SheetImport({ open, onClose }: { open: boolean; onClose: () => void }) 
                 <p className="font-semibold">סדרות חדשות: {result.seriesCreated.join(", ")}</p>
               )}
               <p className="text-muted-foreground">
-                יובאו {result.lessonsImported} חלקי שיעורים
-                {result.rowsSkipped > 0 ? `, דולגו ${result.rowsSkipped} שיעורים (כבר קיימים)` : ""}
+                יובאו {result.lessonsImported} חלקי שיעורים חדשים
+                {result.lessonsUpdated > 0 ? `, עודכנו ${result.lessonsUpdated} חלקי שיעורים קיימים` : ""}
                 {result.noPartsSkipped > 0 ? `, דולגו ${result.noPartsSkipped} שיעורים (ללא חלוקה לחלקים)` : ""}
               </p>
               {result.errors.length > 0 && (

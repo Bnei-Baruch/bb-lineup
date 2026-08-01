@@ -55,7 +55,17 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
     };
 
     keycloak
-      .init({ onLoad: "check-sso", pkceMethod: "S256", checkLoginIframe: false })
+      .init({
+        onLoad: "check-sso",
+        pkceMethod: "S256",
+        checkLoginIframe: false,
+        // Without this, the initial silent SSO check falls back to a full top-level
+        // redirect round-trip — normally invisible, but it can leave the OIDC response
+        // fragment (#state=...&code=...) sitting in the address bar. Pointing it at a
+        // dedicated static page runs the whole check inside a hidden iframe instead, so
+        // the visible URL is never touched at all.
+        silentCheckSsoRedirectUri: `${window.location.origin}/silent-check-sso.html`,
+      })
       .then((auth) => {
         setAuthenticated(auth);
         setInitialized(true);

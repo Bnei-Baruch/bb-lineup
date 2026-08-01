@@ -49,6 +49,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Invalid template days JSON" }, { status: 500 });
   }
 
+  // Batch-fetch every component referenced anywhere in the template, once, so each
+  // component-linked slot always uses its CURRENT defaults — not whatever was baked
+  // into the template JSON when it was last saved (matching apply-day's behavior).
+  const allSlots = Object.values(templateDays).flatMap((dayEntry) =>
+    Array.isArray(dayEntry) ? dayEntry : (dayEntry.slots ?? [])
+  );
+  const componentIds = Array.from(new Set(allSlots.map((s) => s.componentId).filter(Boolean))) as string[];
+  const components = componentIds.length
+    ? await prisma.lineupComponent.findMany({ where: { id: { in: componentIds } } })
+    : [];
+  const componentById = new Map(components.map((c) => [c.id, c]));
+
   let totalCreated = 0;
   let daysAffected = 0;
 
@@ -77,15 +89,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     let sortOrder = (maxSlot?.sortOrder ?? -1) + 1;
 
     for (const slot of slots) {
+      const component = slot.componentId ? componentById.get(slot.componentId) : null;
+
       await prisma.lineupSlot.create({
-        data: {
-          dayId: lineupDay.id,
-          slotType: slot.slotType,
-          label: slot.label ?? null,
-          durationSec: slot.durationSec ?? null,
-          componentId: slot.componentId ?? null,
-          sortOrder,
-        },
+        data: component
+          ? {
+              dayId: lineupDay.id,
+              slotType: component.slotType,
+              componentId: component.id,
+              label: component.defaultLabel,
+              durationSec: component.defaultDurationSec,
+              narratorScript: component.defaultNarratorScript,
+              lineupLink: component.defaultLineupLink,
+              slidesLink: component.defaultSlidesLink,
+              transitionType: component.defaultTransitionType,
+              mediaCode: component.defaultMediaCode,
+              language: component.defaultLanguage,
+              hasSubtitles: component.defaultHasSubtitles,
+              hasWorkshopQuestions: component.defaultHasWorkshopQuestions,
+              notes: component.defaultNotes,
+              partNumber: component.defaultPartNumber,
+              sortOrder,
+            }
+          : {
+              dayId: lineupDay.id,
+              slotType: slot.slotType,
+              label: slot.label ?? null,
+              durationSec: slot.durationSec ?? null,
+              sortOrder,
+            },
       });
       sortOrder++;
       totalCreated++;
