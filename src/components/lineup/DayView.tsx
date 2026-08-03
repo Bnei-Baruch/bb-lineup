@@ -6,7 +6,7 @@ import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/typ
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
-import { Clock } from "lucide-react";
+import { Clock, ZoomIn, ZoomOut, Sun, Moon } from "lucide-react";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText,
@@ -72,6 +72,27 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [router]);
+
+  // Display prefs (font zoom, dark mode) — persisted per-browser since this is a
+  // broadcast-room display setting, not user account data.
+  const [fontScale, setFontScale] = useState(1);
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    const savedScale = Number(localStorage.getItem("dayview-font-scale"));
+    if (savedScale) setFontScale(savedScale);
+    setDarkMode(localStorage.getItem("dayview-dark-mode") === "1");
+  }, []);
+  useEffect(() => { localStorage.setItem("dayview-font-scale", String(fontScale)); }, [fontScale]);
+  useEffect(() => {
+    localStorage.setItem("dayview-dark-mode", darkMode ? "1" : "0");
+    // Applied on <html> (not a local wrapper div) so every element on the page —
+    // including the breadcrumb/edit bar the page renders around DayView — inherits
+    // the dark foreground/background instead of some text staying stuck at the
+    // light theme's near-black color. Reverts on unmount so it doesn't bleed into
+    // other (unaudited) admin pages after navigating away.
+    document.documentElement.classList.toggle("dark", darkMode);
+    return () => document.documentElement.classList.remove("dark");
+  }, [darkMode]);
 
   const [lastPlaying, setLastPlaying] = useState<NowPlaying | null>(null);
   const [isCurrentlyLive, setIsCurrentlyLive] = useState(false);
@@ -310,7 +331,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     const isActive = !isChild && !isCurrentlyLive && dur > 0 && nowSec >= slotStartSec && nowSec < rowEndSec;
     // isProjected: past an anchor but this slot has no confirmed time of its own
     const isProjected = postAnchor && !hasConfirmedTime;
-    return { slot, clockTime: clockTimeStr, scheduledClockTime, endTime: rowEndTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild };
+    return { slot, clockTime: clockTimeStr, scheduledClockTime, endTime: rowEndTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild, hasConfirmedTime };
   });
 
   if (clampedCutoff === rows.length) cutoffClockTime = runningTime;
@@ -330,27 +351,54 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
   const cutoffBanner = (
     <div className="flex items-center justify-between px-4 py-1.5 text-xs tabular-nums">
-      <span className="font-bold text-orange-700 tracking-wide">■ סוף תוכן</span>
+      <span className="font-bold text-orange-700 dark:text-orange-400 tracking-wide">■ סוף תוכן</span>
       <div className="flex items-center gap-4 font-semibold">
-        {cutoffClockTime && <span className="text-orange-800">{cutoffClockTime}</span>}
-        <span className="text-orange-800">{formatDurationSec(cutoffTotalSec)}</span>
+        {cutoffClockTime && <span className="text-orange-800 dark:text-orange-300">{cutoffClockTime}</span>}
+        <span className="text-orange-800 dark:text-orange-300">{formatDurationSec(cutoffTotalSec)}</span>
         {cutoffDiff !== null && cutoffDiff > 0 && (
-          <span className="text-red-600">+{formatDurationSec(cutoffDiff)} חריגה</span>
+          <span className="text-red-600 dark:text-red-400">+{formatDurationSec(cutoffDiff)} חריגה</span>
         )}
         {cutoffDiff !== null && cutoffDiff < 0 && (
-          <span className="text-green-700">{formatDurationSec(-cutoffDiff)} נותר</span>
+          <span className="text-green-700 dark:text-green-400">{formatDurationSec(-cutoffDiff)} נותר</span>
         )}
-        {cutoffDiff === 0 && <span className="text-green-700">בדיוק!</span>}
+        {cutoffDiff === 0 && <span className="text-green-700 dark:text-green-400">בדיוק!</span>}
       </div>
     </div>
   );
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-xl font-bold">{dayLabel}</h2>
-        {enDayLabel && <p className="text-sm text-muted-foreground">{enDayLabel}</p>}
+      <div className="flex items-center justify-between gap-3 print:hidden">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">{dayLabel}</h2>
+          {enDayLabel && <p className="text-sm text-muted-foreground">{enDayLabel}</p>}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => setFontScale((s) => Math.max(0.7, Math.round((s - 0.1) * 10) / 10))}
+            className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors"
+            title="הקטן טקסט"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <span className="text-xs text-muted-foreground tabular-nums w-9 text-center">{Math.round(fontScale * 100)}%</span>
+          <button
+            onClick={() => setFontScale((s) => Math.min(1.8, Math.round((s + 0.1) * 10) / 10))}
+            className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors"
+            title="הגדל טקסט"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setDarkMode((d) => !d)}
+            className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors ms-1"
+            title={darkMode ? "מצב בהיר" : "מצב כהה"}
+          >
+            {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
+      <div style={{ zoom: fontScale }}>
       <div className="overflow-auto border border-border rounded-lg shadow-sm" style={{ maxHeight: "calc(100vh - 160px)" }}>
         <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
           <Colgroup cols={VISIBLE_COLS} />
@@ -370,23 +418,23 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
             <tbody>
               {clampedStart === 0 && (
                 <tr>
-                  <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
-                    <div className="px-4 py-1.5 text-xs font-bold text-blue-700 tracking-wide text-center">▶ תחילת תוכן</div>
+                  <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100 dark:border-blue-700 dark:bg-blue-950">
+                    <div className="px-4 py-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 tracking-wide text-center">▶ תחילת תוכן</div>
                   </td>
                 </tr>
               )}
-              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild }, i) => {
+              {rows.map(({ slot, clockTime, scheduledClockTime, endTime, recordedTime, altIdx, isActive, isLive, isProjected, effectiveActualDurationSec, isChild, hasConfirmedTime }, i) => {
                 const startRow = clampedStart > 0 && clampedStart === i ? (
                   <tr key="start-line">
-                    <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100">
-                      <div className="px-4 py-1.5 text-xs font-bold text-blue-700 tracking-wide text-center">▶ תחילת תוכן</div>
+                    <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-blue-400 bg-blue-100 dark:border-blue-700 dark:bg-blue-950">
+                      <div className="px-4 py-1.5 text-xs font-bold text-blue-700 dark:text-blue-300 tracking-wide text-center">▶ תחילת תוכן</div>
                     </td>
                   </tr>
                 ) : null;
 
                 const cutoffRow = clampedCutoff === i ? (
                   <tr key="cutoff-line">
-                    <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100">
+                    <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100 dark:border-orange-700 dark:bg-orange-950">
                       {cutoffBanner}
                     </td>
                   </tr>
@@ -397,8 +445,8 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                     <React.Fragment key={slot.id}>
                       {startRow}
                       {cutoffRow}
-                      <tr className="bg-yellow-100 border-t-2 border-yellow-400">
-                        <td colSpan={VISIBLE_COLS.length} className="px-3 py-3 font-bold text-sm text-yellow-900 tracking-wide">
+                      <tr className="bg-yellow-100 dark:bg-yellow-950 border-t-2 border-yellow-400 dark:border-yellow-700">
+                        <td colSpan={VISIBLE_COLS.length} className="px-3 py-3 font-bold text-sm text-yellow-900 dark:text-yellow-200 tracking-wide">
                           חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
                         </td>
                       </tr>
@@ -410,7 +458,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                 const isPreContent = i < clampedStart;
                 const isBelowCutoff = clampedCutoff !== null && i >= clampedCutoff;
                 const rowColor = SLOT_ROW_COLORS[slot.slotType] ?? "border-s-border";
-                const altBg = isChild ? "bg-indigo-50/70" : (altIdx % 2 !== 0 ? "bg-muted" : "bg-card");
+                const altBg = isChild ? "bg-indigo-50/70 dark:bg-indigo-950/40" : (altIdx % 2 !== 0 ? "bg-muted" : "bg-card");
+                // A nested item shares its parent's time window until Companion actually reports
+                // it played — showing the inherited estimate as if it were its own time is misleading.
+                const showChildTime = !isChild || hasConfirmedTime;
 
                 return (
                   <React.Fragment key={slot.id}>
@@ -419,24 +470,24 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                     <tr
                       ref={(isActive || (isLive && isCurrentlyLive)) ? activeRowRef : undefined}
                       className={`hover:brightness-90 transition-colors ${isChild ? "border-t-0 border-s-4" : "border-t border-s-2"} ${
-                        (isLive && isCurrentlyLive) ? "bg-amber-50 border-s-amber-500" :
-                        isActive                    ? "bg-green-50 border-s-green-500" :
-                        isChild                      ? "bg-indigo-100/70 border-s-indigo-500" :
+                        (isLive && isCurrentlyLive) ? "bg-amber-50 dark:bg-amber-950/40 border-s-amber-500" :
+                        isActive                    ? "bg-green-50 dark:bg-green-950/40 border-s-green-500" :
+                        isChild                      ? "bg-indigo-100/70 dark:bg-indigo-950/40 border-s-indigo-500" :
                                                       `${rowColor} ${altBg} border-border`
                       }`}
                     >
                       {/* שעות — sticky to inline-end */}
                       <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${
-                        (isLive && isCurrentlyLive) ? "text-amber-700 bg-amber-50" :
-                        isActive                    ? "text-green-600 bg-green-50" :
-                        isChild                      ? "text-indigo-700 bg-indigo-100/70" :
+                        (isLive && isCurrentlyLive) ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40" :
+                        isActive                    ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/40" :
+                        isChild                      ? "text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950/40" :
                                                       `${altBg} text-foreground`
                       }`}>
                         <div className="flex items-center justify-end gap-1">
                           {!isManualOpen && (
                             <button
                               onClick={() => openManual(slot)}
-                              className="opacity-0 group-hover/timecell:opacity-100 transition-opacity text-muted-foreground hover:text-amber-600 shrink-0"
+                              className="opacity-0 group-hover/timecell:opacity-100 transition-opacity text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 shrink-0"
                               title="סמן כמשודר עכשיו"
                             >
                               <Clock className="h-3 w-3" />
@@ -444,10 +495,12 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           )}
                           {(isLive && isCurrentlyLive) && <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />}
                           {!(isLive && isCurrentlyLive) && isActive && <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />}
-                          <span className={isChild ? "italic text-muted-foreground" : isProjected ? "italic text-muted-foreground" : ""}>{clockTime}</span>
+                          {showChildTime && (
+                            <span className={isChild ? "italic text-muted-foreground" : isProjected ? "italic text-muted-foreground" : ""}>{clockTime}</span>
+                          )}
                         </div>
                         {(isLive && isCurrentlyLive) && scheduledClockTime && scheduledClockTime !== clockTime && (
-                          <span className="block text-[10px] font-normal text-amber-600 leading-none mt-0.5 text-right">
+                          <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400 leading-none mt-0.5 text-right">
                             מתוזמן {scheduledClockTime}
                           </span>
                         )}
@@ -495,7 +548,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         {(isLive && isCurrentlyLive) && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
                         )}
-                        {isChild && <span className="text-indigo-400 font-bold me-1">↳</span>}
+                        {isChild && <span className="text-indigo-400 dark:text-indigo-300 font-bold me-1">↳</span>}
                         {itemLabel(slot)}
                       </td>
                       {/* תוכן */}
@@ -571,7 +624,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                             const actual = formatDurationSec(lastPlaying.durationSec);
                             return (
                               <>
-                                <span className="text-amber-700">{actual}</span>
+                                <span className="text-amber-700 dark:text-amber-400">{actual}</span>
                                 {scheduledDur && scheduledDur !== actual && (
                                   <span className="block text-[10px] text-muted-foreground line-through">{scheduledDur}</span>
                                 )}
@@ -594,7 +647,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                         })()}
                       </td>
                       {/* שעת סיום */}
-                      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">{endTime}</td>
+                      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">{showChildTime ? endTime : ""}</td>
                     </tr>
                   </React.Fragment>
                 );
@@ -602,7 +655,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
               {/* Cutoff banner at end of list */}
               {clampedCutoff === rows.length && (
                 <tr>
-                  <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100">
+                  <td colSpan={VISIBLE_COLS.length} className="px-0 py-0 border-y-2 border-orange-400 bg-orange-100 dark:border-orange-700 dark:bg-orange-950">
                     {cutoffBanner}
                   </td>
                 </tr>
@@ -620,6 +673,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
             )}
           </table>
         </div>
+      </div>
     </div>
   );
 }

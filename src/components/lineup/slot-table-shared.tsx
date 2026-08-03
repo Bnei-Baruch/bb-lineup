@@ -46,7 +46,7 @@ export function TableLink({ href, label, size = "sm" }: { href: string; label: s
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className={`inline-block px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors ${size === "md" ? "text-xs" : "text-[10px]"}`}
+      className={`inline-block px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900 transition-colors ${size === "md" ? "text-xs" : "text-[10px]"}`}
     >
       {label}
     </a>
