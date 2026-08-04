@@ -66,6 +66,8 @@ export function secToHHMMSS(totalSec: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+const NARRATOR_SLOT_TYPES: SlotType[] = ["narrator_announcement", "narrator_read"];
+
 export function itemLabel(slot: SlotWithLesson): string {
   if (slot.slotType === "part_header") {
     return `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
@@ -75,13 +77,15 @@ export function itemLabel(slot: SlotWithLesson): string {
   if (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson) {
     return SLOT_TYPE_LABELS[slot.slotType as SlotType];
   }
-  if (slot.label) return slot.label;
+  // Narrator and article-reading slots always show the plain item type, not a
+  // custom label/component name (the Content column already shows the specifics).
+  if (NARRATOR_SLOT_TYPES.includes(slot.slotType as SlotType) || slot.slotType === "article_reading") {
+    return SLOT_TYPE_LABELS[slot.slotType as SlotType];
+  }
   if (slot.component?.name) return slot.component.name;
+  if (slot.label) return slot.label;
   if (slot.slotType === "transition" && slot.transitionType) {
     return `מעברון ${TRANSITION_LABELS[slot.transitionType as TransitionType] ?? slot.transitionType}`;
-  }
-  if (slot.slotType === "article_reading") {
-    return SLOT_TYPE_LABELS["article_reading"] || "קריאת מאמר";
   }
   return SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
 }
