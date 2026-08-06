@@ -6,7 +6,7 @@ import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/typ
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
-import { Clock, ZoomIn, ZoomOut, Sun, Moon } from "lucide-react";
+import { Clock, ZoomIn, ZoomOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText,
@@ -83,6 +83,17 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     setDarkMode(localStorage.getItem("dayview-dark-mode") === "1");
   }, []);
   useEffect(() => { localStorage.setItem("dayview-font-scale", String(fontScale)); }, [fontScale]);
+
+  // Native smooth-scroll buttons for horizontal scrolling — a plain mouse has no
+  // reliable way to trigger the table's horizontal scroll otherwise (no drag
+  // handle, and the OS scrollbar only appears transiently on trackpad gestures).
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  function scrollByPage(direction: -1 | 1) {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * Math.round(el.clientWidth * 0.8), behavior: "smooth" });
+  }
+
   useEffect(() => {
     localStorage.setItem("dayview-dark-mode", darkMode ? "1" : "0");
     // Applied on <html> (not a local wrapper div) so every element on the page —
@@ -375,6 +386,20 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <button
+            onClick={() => scrollByPage(1)}
+            className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors"
+            title="גלול ימינה"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => scrollByPage(-1)}
+            className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors me-1"
+            title="גלול שמאלה"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => setFontScale((s) => Math.max(0.7, Math.round((s - 0.1) * 10) / 10))}
             className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors"
             title="הקטן טקסט"
@@ -398,9 +423,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
           </button>
         </div>
       </div>
+      <div ref={scrollContainerRef} className="overflow-auto scrollbar-visible border border-border rounded-lg shadow-sm" style={{ maxHeight: "calc(100vh - 160px)" }}>
       <div style={{ zoom: fontScale }}>
-      <div className="overflow-auto border border-border rounded-lg shadow-sm" style={{ maxHeight: "calc(100vh - 160px)" }}>
-        <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
+        <table className="text-sm whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
           <Colgroup cols={VISIBLE_COLS} />
           <thead>
             <tr className="bg-muted">
@@ -500,14 +525,14 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           )}
                         </div>
                         {(isLive && isCurrentlyLive) && scheduledClockTime && scheduledClockTime !== clockTime && (
-                          <span className="block text-[10px] font-normal text-amber-600 dark:text-amber-400 leading-none mt-0.5 text-right">
+                          <span className="block text-[11px] font-normal text-amber-600 dark:text-amber-400 leading-none mt-0.5 text-right">
                             מתוזמן {scheduledClockTime}
                           </span>
                         )}
                         {isManualOpen && (
                           <div className="mt-1 flex flex-col gap-1 items-end" onClick={e => e.stopPropagation()}>
                             <div className="flex flex-col gap-0.5 items-end">
-                              <span className="text-[9px] text-muted-foreground">התחלה</span>
+                              <span className="text-[10px] text-muted-foreground">התחלה</span>
                               <input
                                 type="text"
                                 value={manualTime}
@@ -517,7 +542,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                               />
                             </div>
                             <div className="flex flex-col gap-0.5 items-end">
-                              <span className="text-[9px] text-muted-foreground">משך (אופציונלי)</span>
+                              <span className="text-[10px] text-muted-foreground">משך (אופציונלי)</span>
                               <input
                                 type="text"
                                 value={manualDuration}
@@ -529,13 +554,13 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                             <div className="flex gap-1">
                               <button
                                 onClick={() => confirmManual(slot)}
-                                className="px-2 py-0.5 text-[10px] rounded bg-amber-500 text-white font-semibold hover:bg-amber-600"
+                                className="px-2 py-0.5 text-[11px] rounded bg-amber-500 text-white font-semibold hover:bg-amber-600"
                               >
                                 אישור
                               </button>
                               <button
                                 onClick={() => setManualSlotId(null)}
-                                className="px-2 py-0.5 text-[10px] rounded border border-border text-muted-foreground hover:bg-muted"
+                                className="px-2 py-0.5 text-[11px] rounded border border-border text-muted-foreground hover:bg-muted"
                               >
                                 ביטול
                               </button>
@@ -546,41 +571,37 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {/* אייטם */}
                       <td className={`px-3 py-3 font-medium whitespace-normal leading-snug border-s-2 border-s-slate-300 ${isChild ? "ps-8" : ""}`}>
                         {(isLive && isCurrentlyLive) && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-amber-500 text-white me-1.5 align-middle">LIVE</span>
                         )}
                         {isChild && <span className="text-indigo-400 dark:text-indigo-300 font-bold me-1">↳</span>}
                         {itemLabel(slot)}
                       </td>
                       {/* תוכן */}
                       <td className="px-3 py-3 whitespace-pre-wrap leading-snug border-s-2 border-s-slate-300">
-                        {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
+                        {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-xs text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
                         {slot.lesson?.recordingDate && (
-                          <span className="block text-[10px] text-muted-foreground tabular-nums mt-0.5">
+                          <span className="block text-xs text-muted-foreground tabular-nums mt-0.5">
                             {slot.lesson.recordingDate.slice(0, 10)}
                           </span>
-                        )}
-                        {((slot.lineupLink ?? slot.component?.defaultLineupLink) || (slot.slidesLink ?? slot.component?.defaultSlidesLink)) && (
-                          <div className="flex flex-col items-start gap-1 mt-1">
-                            {(slot.lineupLink ?? slot.component?.defaultLineupLink) && (
-                              <TableLink
-                                href={(slot.lineupLink ?? slot.component?.defaultLineupLink)!}
-                                label={slot.component?.name === "הודעות לסיום" ? "הודעות קריין" : "ליינאפ"}
-                                size="md"
-                              />
-                            )}
-                            {(slot.slidesLink ?? slot.component?.defaultSlidesLink) && (
-                              <TableLink href={(slot.slidesLink ?? slot.component?.defaultSlidesLink)!} label="שקופיות" size="md" />
-                            )}
-                          </div>
                         )}
                       </td>
                       {/* הערות */}
                       <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
+                        {slot.groupLeader && <span className="block font-medium text-foreground">מנחים: {slot.groupLeader}</span>}
                         {slot.notes ?? ""}
                       </td>
                       {/* חומר לימוד */}
                       <td className="px-3 py-3 border-s-2 border-s-slate-300">
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
+                          {(slot.lineupLink ?? slot.component?.defaultLineupLink) && (
+                            <TableLink
+                              href={(slot.lineupLink ?? slot.component?.defaultLineupLink)!}
+                              label={slot.component?.name === "הודעות לסיום" ? "הודעות קריין" : "ליינאפ"}
+                            />
+                          )}
+                          {(slot.slidesLink ?? slot.component?.defaultSlidesLink) && (
+                            <TableLink href={(slot.slidesLink ?? slot.component?.defaultSlidesLink)!} label="שקופיות" />
+                          )}
                           {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
                             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
                           )}
@@ -626,7 +647,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                               <>
                                 <span className="text-amber-700 dark:text-amber-400">{actual}</span>
                                 {scheduledDur && scheduledDur !== actual && (
-                                  <span className="block text-[10px] text-muted-foreground line-through">{scheduledDur}</span>
+                                  <span className="block text-xs text-muted-foreground line-through">{scheduledDur}</span>
                                 )}
                               </>
                             );
@@ -638,7 +659,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                               <>
                                 <span className="text-muted-foreground">{actual}</span>
                                 {scheduledDur && scheduledDur !== actual && (
-                                  <span className="block text-[10px] text-muted-foreground/60 line-through">{scheduledDur}</span>
+                                  <span className="block text-xs text-muted-foreground/60 line-through">{scheduledDur}</span>
                                 )}
                               </>
                             );
@@ -663,11 +684,11 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
             </tbody>
             {totalSeconds > 0 && (
               <tfoot>
-                <tr className="bg-muted/60 border-t-2 border-border font-semibold">
-                  <td className="px-3 py-3 tabular-nums">{runningTime}</td>
-                  <td colSpan={8} className="px-3 py-3 text-muted-foreground text-[11px]">סה״כ</td>
-                  <td className="px-3 py-3 tabular-nums">{formatDurationSec(totalSeconds)}</td>
-                  <td colSpan={VISIBLE_COLS.length - 10} />
+                <tr className="font-semibold">
+                  <td className="sticky bottom-0 z-20 bg-muted px-3 py-3 tabular-nums border-t-2 border-border">{runningTime}</td>
+                  <td colSpan={8} className="sticky bottom-0 z-20 bg-muted px-3 py-3 text-muted-foreground text-xs border-t-2 border-border">סה״כ</td>
+                  <td className="sticky bottom-0 z-20 bg-muted px-3 py-3 tabular-nums border-t-2 border-border">{formatDurationSec(totalSeconds)}</td>
+                  <td colSpan={VISIBLE_COLS.length - 10} className="sticky bottom-0 z-20 bg-muted border-t-2 border-border" />
                 </tr>
               </tfoot>
             )}

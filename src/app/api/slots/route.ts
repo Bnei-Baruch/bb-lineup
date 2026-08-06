@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
+import { parseKmUid, fetchContentUnit } from "@/lib/km-client";
+
+// A lesson's cached videoDurationSec can go stale if the source video on KabbalaMedia
+// is re-cut/re-encoded after import. Re-check it against KM right when the lesson is
+// actually scheduled, so the lineup reflects the current real duration. Updates the
+// shared Lesson row (not the slot) — slotEffectiveDuration() reads it live, so every
+// slot referencing this lesson benefits, not just the one being added now.
+async function refreshLessonDuration(lessonId: string) {
+  try {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { kmPageLink: true, videoDurationSec: true },
+    });
+    const uid = lesson?.kmPageLink ? parseKmUid(lesson.kmPageLink) : null;
+    if (!uid) return;
+    const unit = await fetchContentUnit(uid);
+    const freshDurationSec = unit.duration != null ? Math.round(unit.duration) : null;
+    if (freshDurationSec != null && freshDurationSec !== lesson?.videoDurationSec) {
+      await prisma.lesson.update({ where: { id: lessonId }, data: { videoDurationSec: freshDurationSec } });
+    }
+  } catch {
+    // KM unreachable or lesson has no resolvable kmUid — keep the cached duration
+  }
+}
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -20,6 +44,8 @@ export async function POST(req: NextRequest) {
     const lesson = await prisma.lesson.findUnique({ where: { id: rest.lessonId }, select: { id: true } });
     if (!lesson) {
       delete rest.lessonId; // drop invalid reference instead of failing
+    } else {
+      await refreshLessonDuration(rest.lessonId);
     }
   }
 

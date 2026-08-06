@@ -159,28 +159,24 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
             {slot.lesson.recordingDate.slice(0, 10)}
           </span>
         )}
-        {((slot.lineupLink ?? slot.component?.defaultLineupLink) || (slot.slidesLink ?? slot.component?.defaultSlidesLink)) && (
-          <div className="flex flex-col items-start gap-1 mt-1">
-            {(slot.lineupLink ?? slot.component?.defaultLineupLink) && (
-              <TableLink
-                href={(slot.lineupLink ?? slot.component?.defaultLineupLink)!}
-                label={slot.component?.name === "הודעות לסיום" ? "הודעות קריין" : "ליינאפ"}
-                size="md"
-              />
-            )}
-            {(slot.slidesLink ?? slot.component?.defaultSlidesLink) && (
-              <TableLink href={(slot.slidesLink ?? slot.component?.defaultSlidesLink)!} label="שקופיות" size="md" />
-            )}
-          </div>
-        )}
       </td>
       {/* הערות */}
       <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
+        {slot.groupLeader && <span className="block font-medium text-foreground">מנחים: {slot.groupLeader}</span>}
         {slot.notes ?? ""}
       </td>
       {/* חומר לימוד */}
       <td className="px-3 py-3 border-s-2 border-s-slate-300">
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
+          {(slot.lineupLink ?? slot.component?.defaultLineupLink) && (
+            <TableLink
+              href={(slot.lineupLink ?? slot.component?.defaultLineupLink)!}
+              label={slot.component?.name === "הודעות לסיום" ? "הודעות קריין" : "ליינאפ"}
+            />
+          )}
+          {(slot.slidesLink ?? slot.component?.defaultSlidesLink) && (
+            <TableLink href={(slot.slidesLink ?? slot.component?.defaultSlidesLink)!} label="שקופיות" />
+          )}
           {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
           )}
@@ -286,7 +282,7 @@ export function DaySlotTable({
   });
 
   return (
-    <div className="border border-border rounded-lg shadow-sm">
+    <div className="border border-border rounded-lg shadow-sm overflow-x-scroll scrollbar-visible">
       <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
         <Colgroup />
         <thead>
