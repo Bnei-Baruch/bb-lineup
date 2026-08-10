@@ -53,6 +53,31 @@ export function TableLink({ href, label, size = "sm" }: { href: string; label: s
   );
 }
 
+const URL_SPLIT_REGEX = /(https?:\/\/\S+)/g;
+const URL_TEST_REGEX = /^https?:\/\//;
+
+/** Renders free text with any http(s) URLs turned into clickable links —
+ *  notes are often used to paste a link when there's no dedicated field for it. */
+export function linkifyText(text: string): React.ReactNode {
+  if (!text) return text;
+  return text.split(URL_SPLIT_REGEX).map((part, i) =>
+    URL_TEST_REGEX.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="text-blue-600 hover:underline break-all dark:text-blue-400"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 export function timeToSec(hhmm: string): number {
   const parts = hhmm.split(":").map(Number);
   return (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
@@ -77,10 +102,19 @@ export function itemLabel(slot: SlotWithLesson): string {
   if (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson) {
     return SLOT_TYPE_LABELS[slot.slotType as SlotType];
   }
-  // Narrator and article-reading slots always show the plain item type, not a
-  // custom label/component name (the Content column already shows the specifics).
-  if (NARRATOR_SLOT_TYPES.includes(slot.slotType as SlotType) || slot.slotType === "article_reading") {
-    return SLOT_TYPE_LABELS[slot.slotType as SlotType];
+  // Article-reading always shows the plain item type (the Content column already
+  // shows the specific article) — but a narrator slot's custom title, when set
+  // (e.g. "מנחים"), is more useful than the generic "קריין" and should win.
+  if (slot.slotType === "article_reading") {
+    return SLOT_TYPE_LABELS["article_reading"];
+  }
+  if (NARRATOR_SLOT_TYPES.includes(slot.slotType as SlotType)) {
+    return slot.label || SLOT_TYPE_LABELS[slot.slotType as SlotType];
+  }
+  // "אחר" (custom) components are a generic reusable bucket (e.g. named "שונות") —
+  // the slot's own custom title is the specific, useful part, so it should win.
+  if (slot.component?.category === "custom") {
+    return slot.label || slot.component.name;
   }
   if (slot.component?.name) return slot.component.name;
   if (slot.label) return slot.label;

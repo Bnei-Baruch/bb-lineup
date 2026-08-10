@@ -89,7 +89,7 @@ export function KeycloakProvider({ children }: { children: React.ReactNode }) {
       <AuthContext.Provider value={value}>
         <div className="flex min-h-screen items-center justify-center p-6">
           <div className="flex flex-col items-center gap-4 text-center">
-            <h1 className="text-2xl font-bold">בונה תוכנית שבועית</h1>
+            <h1 className="text-2xl font-bold">ליינאפ אירועים</h1>
             <p className="text-muted-foreground">יש להתחבר כדי להמשיך</p>
             <Button onClick={value.login}>התחברות</Button>
           </div>

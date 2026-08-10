@@ -19,7 +19,7 @@ import { slotEffectiveDuration } from "@/lib/slot-duration";
 import { GripVertical, Trash2, ChevronUp, ChevronDown, CornerDownRight, CornerUpLeft } from "lucide-react";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
-  timeToSec, secToHHMMSS, itemLabel, contentText,
+  timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
 
 interface DaySlotTableProps {
@@ -31,6 +31,7 @@ interface DaySlotTableProps {
   onDelete: (id: string) => void;
   onReorder: (newSlots: SlotWithLesson[]) => void;
   onNestToggle: (slotId: string, parentSlotId: string | null) => void;
+  onInlineEdit: (slotId: string, data: Partial<SlotWithLesson>) => void;
   onStartMoveUp: () => void;
   onStartMoveDown: () => void;
   onCutoffMoveUp: () => void;
@@ -62,7 +63,58 @@ function CutoffBannerRow({ color, label, onMoveUp, onMoveDown }: {
   );
 }
 
-function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick, onDelete, onNestToggle }: {
+/** Click-to-edit text cell — a plain textarea while editing, saved on blur.
+ *  onClick stops propagation so it doesn't also trigger the row's own click
+ *  (which opens the full SlotEditor). */
+function EditableCell({ value, onSave }: { value: string; onSave: (newValue: string) => void }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value);
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+
+  React.useEffect(() => {
+    if (editing) { ref.current?.focus(); ref.current?.select(); }
+  }, [editing]);
+
+  function startEditing(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDraft(value);
+    setEditing(true);
+  }
+
+  function commit() {
+    setEditing(false);
+    if (draft !== value) onSave(draft);
+  }
+
+  if (editing) {
+    return (
+      <textarea
+        ref={ref}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        }}
+        rows={2}
+        className="w-full resize-y rounded border border-input bg-background px-1.5 py-1 text-xs leading-snug"
+      />
+    );
+  }
+
+  return (
+    <div
+      onClick={startEditing}
+      className={`min-h-[1.5em] -m-1 rounded p-1 leading-snug transition-colors hover:bg-accent/40 ${!value ? "text-muted-foreground/40" : ""}`}
+      title="לחץ לעריכה"
+    >
+      {value ? linkifyText(value) : "—"}
+    </div>
+  );
+}
+
+function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick, onDelete, onNestToggle, onInlineEdit }: {
   slot: SlotWithLesson;
   clockTime: string;
   endTime: string;
@@ -72,6 +124,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
   onRowClick: (slot: SlotWithLesson) => void;
   onDelete: (id: string) => void;
   onNestToggle: () => void;
+  onInlineEdit: (data: Partial<SlotWithLesson>) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slot.id });
   const style: React.CSSProperties = {
@@ -153,7 +206,14 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
       </td>
       {/* תוכן */}
       <td className="px-3 py-3 whitespace-pre-wrap leading-snug border-s-2 border-s-slate-300">
-        {(() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()}
+        {slot.slotType === "article_reading" ? (
+          (() => { const { main, sub } = contentText(slot); return (<><span className="block">{main}</span>{sub && <span className="block text-[10px] text-muted-foreground mt-0.5">{sub}</span>}</>); })()
+        ) : (
+          <EditableCell
+            value={contentText(slot).main}
+            onSave={(v) => onInlineEdit({ narratorScript: v || null })}
+          />
+        )}
         {slot.lesson?.recordingDate && (
           <span className="block text-[10px] text-muted-foreground tabular-nums mt-0.5">
             {slot.lesson.recordingDate.slice(0, 10)}
@@ -163,7 +223,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
       {/* הערות */}
       <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
         {slot.groupLeader && <span className="block font-medium text-foreground">מנחים: {slot.groupLeader}</span>}
-        {slot.notes ?? ""}
+        <EditableCell value={slot.notes ?? ""} onSave={(v) => onInlineEdit({ notes: v || null })} />
       </td>
       {/* חומר לימוד */}
       <td className="px-3 py-3 border-s-2 border-s-slate-300">
@@ -236,7 +296,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
 
 export function DaySlotTable({
   slots, startTime, startIndex, cutoffIndex,
-  onRowClick, onDelete, onReorder, onNestToggle,
+  onRowClick, onDelete, onReorder, onNestToggle, onInlineEdit,
   onStartMoveUp, onStartMoveDown, onCutoffMoveUp, onCutoffMoveDown,
 }: DaySlotTableProps) {
   const sensors = useSensors(
@@ -282,61 +342,60 @@ export function DaySlotTable({
   });
 
   return (
-    <div className="border border-border rounded-lg shadow-sm overflow-x-scroll scrollbar-visible">
-      <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
-        <Colgroup />
-        <thead>
-          <tr className="bg-muted">
-            {COLS.map((c) => (
-              <th key={c.key} className={`sticky top-0 z-20 px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}>
-                <div className="font-semibold text-foreground leading-tight">{c.label}</div>
-                <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
-              </th>
+    <table className="text-xs whitespace-nowrap border-separate border-spacing-0" style={TABLE_STYLE}>
+      <Colgroup />
+      <thead>
+        <tr className="bg-muted">
+          {COLS.map((c) => (
+            <th key={c.key} className={`sticky top-0 z-20 px-3 py-3 text-start bg-muted ${c.sep ? "border-s-2 border-s-slate-300" : ""} ${c.cls}`}>
+              <div className="font-semibold text-foreground leading-tight">{c.label}</div>
+              <div className="font-normal text-muted-foreground text-xs leading-tight">{c.en}</div>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+          <tbody>
+            {clampedStart === 0 && (
+              <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
+            )}
+            {rows.map(({ slot, clockTime, endTime, isChild, altBg, prevTopLevelId }, i) => (
+              <React.Fragment key={slot.id}>
+                {i === clampedStart && clampedStart > 0 && (
+                  <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
+                )}
+                {i === clampedCutoff && (
+                  <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
+                )}
+                <SlotRow
+                  slot={slot}
+                  clockTime={clockTime}
+                  endTime={endTime}
+                  isChild={isChild}
+                  canNest={!isChild && slot.slotType !== "part_header" && prevTopLevelId !== null}
+                  altBg={altBg}
+                  onRowClick={onRowClick}
+                  onDelete={onDelete}
+                  onNestToggle={() => onNestToggle(slot.id, isChild ? null : prevTopLevelId)}
+                  onInlineEdit={(data) => onInlineEdit(slot.id, data)}
+                />
+              </React.Fragment>
             ))}
-          </tr>
-        </thead>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={slots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-            <tbody>
-              {clampedStart === 0 && (
-                <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
-              )}
-              {rows.map(({ slot, clockTime, endTime, isChild, altBg, prevTopLevelId }, i) => (
-                <React.Fragment key={slot.id}>
-                  {i === clampedStart && clampedStart > 0 && (
-                    <CutoffBannerRow color="blue" label="▶ תחילת תוכן" onMoveUp={onStartMoveUp} onMoveDown={onStartMoveDown} />
-                  )}
-                  {i === clampedCutoff && (
-                    <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
-                  )}
-                  <SlotRow
-                    slot={slot}
-                    clockTime={clockTime}
-                    endTime={endTime}
-                    isChild={isChild}
-                    canNest={!isChild && slot.slotType !== "part_header" && prevTopLevelId !== null}
-                    altBg={altBg}
-                    onRowClick={onRowClick}
-                    onDelete={onDelete}
-                    onNestToggle={() => onNestToggle(slot.id, isChild ? null : prevTopLevelId)}
-                  />
-                </React.Fragment>
-              ))}
-              {clampedCutoff === rows.length && (
-                <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
-              )}
-              {slots.length === 0 && (
-                <tr>
-                  <td colSpan={COLS.length} className="px-4 py-12 text-center text-muted-foreground">
-                    <p>אין פריטים ביום זה</p>
-                    <p className="text-xs mt-1">הוסף תוכן מהתפריט למעלה</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </SortableContext>
-        </DndContext>
-      </table>
-    </div>
+            {clampedCutoff === rows.length && (
+              <CutoffBannerRow color="orange" label="■ סוף תוכן" onMoveUp={onCutoffMoveUp} onMoveDown={onCutoffMoveDown} />
+            )}
+            {slots.length === 0 && (
+              <tr>
+                <td colSpan={COLS.length} className="px-4 py-12 text-center text-muted-foreground">
+                  <p>אין פריטים ביום זה</p>
+                  <p className="text-xs mt-1">הוסף תוכן מהתפריט למעלה</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </SortableContext>
+      </DndContext>
+    </table>
   );
 }

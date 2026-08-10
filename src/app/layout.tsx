@@ -11,7 +11,7 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "בונה תוכנית שבועית",
+  title: "ליינאפ אירועים",
   description: "מערכת לבניית תוכנית שיעורים שבועית",
 };
 

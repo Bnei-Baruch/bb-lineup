@@ -234,6 +234,18 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     }
   }
 
+  async function handleInlineEdit(slotId: string, data: Partial<SlotWithLesson>) {
+    const res = await fetch(`/api/slots/${slotId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    }
+  }
+
   function handleReorder(newSlots: SlotWithLesson[]) {
     setSlots(newSlots);
     fetch("/api/slots/reorder", {
@@ -309,7 +321,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             </Button>
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto">
+        <div className="flex-1 min-h-0 overflow-auto border border-border rounded-lg shadow-sm scrollbar-visible">
           <DaySlotTable
             slots={slots}
             startTime={startTime}
@@ -319,6 +331,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             onDelete={handleDelete}
             onReorder={handleReorder}
             onNestToggle={handleNestToggle}
+            onInlineEdit={handleInlineEdit}
             onStartMoveUp={() => updateStartIndex(Math.max(0, startIndex - 1))}
             onStartMoveDown={() => updateStartIndex(Math.min(Math.min(cutoffIndex, slots.length), startIndex + 1))}
             onCutoffMoveUp={() => updateCutoff(Math.max(Math.min(startIndex, slots.length), cutoffIndex - 1))}

@@ -7,9 +7,10 @@ import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
 import { Clock, ZoomIn, ZoomOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
+import { useAuth } from "@/components/providers/KeycloakProvider";
 import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
-  timeToSec, secToHHMMSS, itemLabel, contentText,
+  timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
 
 const HIDDEN_COLS = new Set(["subs", "workshop", "lang"]);
@@ -55,6 +56,7 @@ function isoToIsraelSec(iso: string): number {
 
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
   const router = useRouter();
+  const { isAdmin } = useAuth();
   const activeRowRef = useRef<HTMLTableRowElement | null>(null);
 
   const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
@@ -509,7 +511,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                                                       `${altBg} text-foreground`
                       }`}>
                         <div className="flex items-center justify-end gap-1">
-                          {!isManualOpen && (
+                          {isAdmin && !isManualOpen && (
                             <button
                               onClick={() => openManual(slot)}
                               className="opacity-0 group-hover/timecell:opacity-100 transition-opacity text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 shrink-0"
@@ -529,7 +531,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                             מתוזמן {scheduledClockTime}
                           </span>
                         )}
-                        {isManualOpen && (
+                        {isAdmin && isManualOpen && (
                           <div className="mt-1 flex flex-col gap-1 items-end" onClick={e => e.stopPropagation()}>
                             <div className="flex flex-col gap-0.5 items-end">
                               <span className="text-[10px] text-muted-foreground">התחלה</span>
@@ -588,7 +590,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {/* הערות */}
                       <td className="px-3 py-3 whitespace-pre-wrap leading-snug text-muted-foreground border-s-2 border-s-slate-300">
                         {slot.groupLeader && <span className="block font-medium text-foreground">מנחים: {slot.groupLeader}</span>}
-                        {slot.notes ?? ""}
+                        {slot.notes ? linkifyText(slot.notes) : ""}
                       </td>
                       {/* חומר לימוד */}
                       <td className="px-3 py-3 border-s-2 border-s-slate-300">
