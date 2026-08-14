@@ -25,7 +25,9 @@ export function parseCSV(content: string): string[][] {
 /** Fetch a Google Sheets tab as CSV and parse it into rows of cells. */
 export async function fetchSheetCsv(sheetId: string, gid: string): Promise<string[][]> {
   const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-  const res = await fetch(exportUrl);
+  // Next.js caches fetch() responses by default — without no-store, this would keep
+  // serving whatever sheet snapshot it first fetched, never picking up later edits.
+  const res = await fetch(exportUrl, { cache: "no-store" });
   if (!res.ok) throw new Error(`Failed to fetch spreadsheet: ${res.status}`);
   const content = await res.text();
   return parseCSV(content);

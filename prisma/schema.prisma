@@ -238,6 +238,8 @@ model LineupSlot {
   slidesLink             String?
   likutimLink            String?
   likutimName            String?
+  customMaterialLink     String?
+  customMaterialName     String?
 
   // Recorded lesson timecodes
   startTimecode       String?

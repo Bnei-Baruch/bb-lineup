@@ -159,7 +159,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
           // update slotOverrides so it shows without a page reload
           if (wasLive && prev) {
             const liveSlot = day.slots.find(s => {
-              const code = s.lesson?.series?.playoutCode;
+              const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
               return (code && code.toUpperCase() === prev.clipName.toUpperCase()) ||
                      s.id === prev.clipName;
             });
@@ -239,7 +239,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   }
 
   function confirmManual(slot: SlotWithLesson) {
-    const code = slot.lesson?.series?.playoutCode ?? slot.id;
+    const code = slot.lesson?.series?.playoutCode ?? slot.mediaCode ?? slot.id;
     if (!manualTime) return;
     const today = new Intl.DateTimeFormat("sv", { timeZone: "Asia/Jerusalem" }).format(new Date()); // YYYY-MM-DD
     const iso = new Date(`${today}T${manualTime}+03:00`).toISOString();
@@ -266,7 +266,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   // Precompute live slot index for matching — use lastPlaying for time correction (persists after clip ends)
   const liveSlotIndex = lastPlaying
     ? day.slots.findIndex(s => {
-        const code = s.lesson?.series?.playoutCode;
+        const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
         return (code && code.toUpperCase() === lastPlaying.clipName.toUpperCase()) ||
                s.id === lastPlaying.clipName;
       })
@@ -609,6 +609,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           )}
                           {slot.likutimLink && (
                             <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />
+                          )}
+                          {slot.customMaterialLink && (
+                            <TableLink href={slot.customMaterialLink} label={slot.customMaterialName || "קישור"} />
                           )}
                           {slot.lesson?.transcriptionLink && (
                             <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />

@@ -67,6 +67,8 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       groupLeader: s.groupLeader ?? "",
       likutimLink: s.likutimLink ?? "",
       likutimName: s.likutimName ?? "",
+      customMaterialLink: s.customMaterialLink ?? "",
+      customMaterialName: s.customMaterialName ?? "",
       contactPerson: s.contactPerson ?? "",
       holidayTag: s.holidayTag ?? "",
       partNumber: String(s.partNumber ?? ""),
@@ -125,6 +127,8 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
         groupLeader: form.groupLeader || null,
         likutimLink: form.likutimLink || null,
         likutimName: form.likutimName || null,
+        customMaterialLink: form.customMaterialLink || null,
+        customMaterialName: form.customMaterialName || null,
         contactPerson: form.contactPerson || null,
         holidayTag: form.holidayTag || null,
         partNumber: form.partNumber ? parseInt(form.partNumber) : null,
@@ -451,6 +455,24 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
                   {form.likutimName && (
                     <p className="text-xs text-muted-foreground mt-1">{form.likutimName}</p>
                   )}
+                </Field>
+
+                <Field label="חומר לימוד נוסף — קישור מותאם">
+                  <div className="flex gap-2">
+                    <Input
+                      value={form.customMaterialName}
+                      onChange={(e) => set("customMaterialName", e.target.value)}
+                      placeholder="שם התצוגה"
+                      className="w-32"
+                    />
+                    <Input
+                      value={form.customMaterialLink}
+                      onChange={(e) => set("customMaterialLink", e.target.value)}
+                      dir="ltr"
+                      placeholder="https://..."
+                      className="flex-1"
+                    />
+                  </div>
                 </Field>
 
                 <Field label="לינק ללינאפ">

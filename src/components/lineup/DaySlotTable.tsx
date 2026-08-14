@@ -241,6 +241,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
           )}
           {slot.likutimLink && <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />}
+          {slot.customMaterialLink && <TableLink href={slot.customMaterialLink} label={slot.customMaterialName || "קישור"} />}
           {slot.lesson?.transcriptionLink && <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />}
           {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
             <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />

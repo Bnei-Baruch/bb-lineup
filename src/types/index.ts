@@ -183,6 +183,8 @@ export interface SlotWithLesson {
   slidesLink: string | null;
   likutimLink: string | null;
   likutimName: string | null;
+  customMaterialLink: string | null;
+  customMaterialName: string | null;
   recordedLessonLink: string | null;
   startTimecode: string | null;
   endTimecode: string | null;

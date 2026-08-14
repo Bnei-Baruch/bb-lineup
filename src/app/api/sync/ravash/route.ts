@@ -95,8 +95,11 @@ function parseSourceId(url: string): string | null {
 function parseKmUid(url: string): string | null {
   const cu = url.match(/\/cu\/([A-Za-z0-9_-]+)/);
   if (cu) return cu[1];
+  // Anchored to ?/#/end so a collection link like ".../lessons/series/c/{id}" doesn't
+  // get misread as a content unit literally named "series" (the path segment right
+  // after "lessons/") — it correctly falls through to null instead.
   const fallback = url.match(
-    /kabbalahmedia\.info\/(?:[a-z]{2}\/)?(?:lessons|programs|events|plays|video)\/([A-Za-z0-9_-]+)/
+    /kabbalahmedia\.info\/(?:[a-z]{2}\/)?(?:lessons|programs|events|plays|video)\/([A-Za-z0-9_-]+)(?:[?#]|$)/
   );
   return fallback ? fallback[1] : null;
 }
@@ -160,7 +163,10 @@ export async function GET() {
   let csvContent: string;
   try {
     const exportUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
-    const res = await fetch(exportUrl);
+    // Next.js caches fetch() responses by default — without no-store, this route would
+    // keep serving whatever sheet snapshot it first fetched after the last deploy/restart,
+    // never picking up later edits to the spreadsheet.
+    const res = await fetch(exportUrl, { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     csvContent = await res.text();
   } catch (e) {

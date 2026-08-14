@@ -37,14 +37,21 @@ async function saveActualBroadcastToSlot(clipName: string, startAt: string, dura
       return;
     }
 
-    // Match by series.playoutCode via JOIN (case-insensitive via UPPER)
+    // Match by series.playoutCode via JOIN (case-insensitive via UPPER) — covers
+    // slots with a library lesson attached
     const matched = await prisma.$queryRaw<{ id: string }[]>`
       SELECT ls.id FROM "LineupSlot" ls
       JOIN "Lesson" l ON ls.lessonId = l.id
       JOIN "Series" s ON l.seriesId = s.id
       WHERE ls.dayId = ${dayId} AND UPPER(s.playoutCode) = UPPER(${clipName})
     `;
-    for (const slot of matched) {
+    // Match by the slot's own mediaCode — covers non-lesson segments (transitions,
+    // openers, etc.) that have no Series to carry a playoutCode
+    const matchedByMediaCode = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "LineupSlot"
+      WHERE dayId = ${dayId} AND mediaCode IS NOT NULL AND UPPER(mediaCode) = UPPER(${clipName})
+    `;
+    for (const slot of [...matched, ...matchedByMediaCode]) {
       await prisma.$executeRaw`
         UPDATE "LineupSlot"
         SET actualBroadcastAt = ${startAt}, actualDurationSec = ${durationSec ?? null}, updatedAt = ${now2}

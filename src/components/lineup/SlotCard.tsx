@@ -231,6 +231,9 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
                 ? <a href={slot.likutimLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{slot.likutimName}</a>
                 : <p>{slot.likutimName}</p>
             )}
+            {slot.customMaterialLink && (
+              <a href={slot.customMaterialLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{slot.customMaterialName || "קישור"}</a>
+            )}
             {slot.chevrutaPartners && <p>{JSON.parse(slot.chevrutaPartners).join(", ")}</p>}
             {slot.notes && <p>{slot.notes}</p>}
           </div>
