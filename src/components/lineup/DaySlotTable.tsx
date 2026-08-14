@@ -21,6 +21,7 @@ import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
+import { parseCustomLinks } from "@/lib/custom-links";
 
 interface DaySlotTableProps {
   slots: SlotWithLesson[];
@@ -241,7 +242,11 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
           )}
           {slot.likutimLink && <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />}
-          {slot.customMaterialLink && <TableLink href={slot.customMaterialLink} label={slot.customMaterialName || "קישור"} />}
+          {parseCustomLinks(slot.customLinks).map((link, i) => (
+            <div key={i} className="w-full mt-1">
+              <TableLink href={link.url} label={link.name || "קישור"} />
+            </div>
+          ))}
           {slot.lesson?.transcriptionLink && <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />}
           {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
             <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />

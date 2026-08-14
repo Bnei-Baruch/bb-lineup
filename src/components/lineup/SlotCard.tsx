@@ -8,6 +8,7 @@ import { timecodeToSeconds } from "@/lib/timecodes";
 import { Button } from "@/components/ui/button";
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/dates";
+import { parseCustomLinks } from "@/lib/custom-links";
 
 function slotDuration(slot: SlotWithLesson): number {
   if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
@@ -231,9 +232,11 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
                 ? <a href={slot.likutimLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{slot.likutimName}</a>
                 : <p>{slot.likutimName}</p>
             )}
-            {slot.customMaterialLink && (
-              <a href={slot.customMaterialLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{slot.customMaterialName || "קישור"}</a>
-            )}
+            {parseCustomLinks(slot.customLinks).map((link, i) => (
+              <p key={i}>
+                <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>{link.name || "קישור"}</a>
+              </p>
+            ))}
             {slot.chevrutaPartners && <p>{JSON.parse(slot.chevrutaPartners).join(", ")}</p>}
             {slot.notes && <p>{slot.notes}</p>}
           </div>

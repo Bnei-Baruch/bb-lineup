@@ -12,6 +12,7 @@ import {
   COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
   timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
+import { parseCustomLinks } from "@/lib/custom-links";
 
 const HIDDEN_COLS = new Set(["subs", "workshop", "lang"]);
 const VISIBLE_COLS = COLS.filter((c) => !HIDDEN_COLS.has(c.key));
@@ -610,9 +611,11 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           {slot.likutimLink && (
                             <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />
                           )}
-                          {slot.customMaterialLink && (
-                            <TableLink href={slot.customMaterialLink} label={slot.customMaterialName || "קישור"} />
-                          )}
+                          {parseCustomLinks(slot.customLinks).map((link, i) => (
+                            <div key={i} className="w-full mt-1">
+                              <TableLink href={link.url} label={link.name || "קישור"} />
+                            </div>
+                          ))}
                           {slot.lesson?.transcriptionLink && (
                             <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />
                           )}

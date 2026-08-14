@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { LessonPicker } from "./LessonPicker";
 import { SourceSearch } from "@/components/library/SourceSearch";
 import { SlotWithLesson, SlotType, SLOT_TYPE_LABELS, TRANSITION_LABELS, TransitionType, LessonSummary, COMPONENT_CATEGORIES } from "@/types";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { formatDurationSec, parseDurationToSec } from "@/lib/time";
 import { itemLabel } from "./slot-table-shared";
 import { LineupLinkPicker } from "./LineupLinkPicker";
+import { CustomLink, parseCustomLinks, stringifyCustomLinks } from "@/lib/custom-links";
 
 interface SlotEditorProps {
   slot: Partial<SlotWithLesson> & { dayId: string; slotType: SlotType };
@@ -67,8 +68,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       groupLeader: s.groupLeader ?? "",
       likutimLink: s.likutimLink ?? "",
       likutimName: s.likutimName ?? "",
-      customMaterialLink: s.customMaterialLink ?? "",
-      customMaterialName: s.customMaterialName ?? "",
+      customLinks: parseCustomLinks(s.customLinks),
       contactPerson: s.contactPerson ?? "",
       holidayTag: s.holidayTag ?? "",
       partNumber: String(s.partNumber ?? ""),
@@ -80,6 +80,21 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
 
   function set(field: string, value: string | boolean) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function addCustomLink() {
+    setForm((f) => ({ ...f, customLinks: [...f.customLinks, { name: "", url: "" }] }));
+  }
+
+  function updateCustomLink(index: number, field: keyof CustomLink, value: string) {
+    setForm((f) => ({
+      ...f,
+      customLinks: f.customLinks.map((l, i) => (i === index ? { ...l, [field]: value } : l)),
+    }));
+  }
+
+  function removeCustomLink(index: number) {
+    setForm((f) => ({ ...f, customLinks: f.customLinks.filter((_, i) => i !== index) }));
   }
 
   async function fetchLikutimName() {
@@ -127,8 +142,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
         groupLeader: form.groupLeader || null,
         likutimLink: form.likutimLink || null,
         likutimName: form.likutimName || null,
-        customMaterialLink: form.customMaterialLink || null,
-        customMaterialName: form.customMaterialName || null,
+        customLinks: stringifyCustomLinks(form.customLinks),
         contactPerson: form.contactPerson || null,
         holidayTag: form.holidayTag || null,
         partNumber: form.partNumber ? parseInt(form.partNumber) : null,
@@ -245,20 +259,6 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
             <Field label={hasNarrator ? "תוכן / טקסט קריין" : "תוכן"}>
               <Textarea rows={3} value={form.narratorScript} onChange={(e) => set("narratorScript", e.target.value)} />
             </Field>
-
-            {/* Hyperlink for narrator slots */}
-            {hasNarrator && (
-              <Field label="קישור (לינק)">
-                <Input value={form.lineupLink} onChange={(e) => set("lineupLink", e.target.value)} dir="ltr" placeholder="https://..." />
-              </Field>
-            )}
-
-            {/* Slides link for narrator slots */}
-            {hasNarrator && (
-              <Field label="קישור שקופיות">
-                <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
-              </Field>
-            )}
 
             {/* Transition type */}
             {hasTransition && (
@@ -396,13 +396,6 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
               </>
             )}
 
-            {/* Study material link (simple URL for non-article types) */}
-            {["recorded_lesson", "zohar_for_people", "conversations_on_way", "lesson_preparation"].includes(t) && (
-              <Field label="קישור חומר לימוד">
-                <Input value={form.studyMaterialLink} onChange={(e) => set("studyMaterialLink", e.target.value)} dir="ltr" />
-              </Field>
-            )}
-
             {/* Live content fields */}
             {isLiveContent && (
               <>
@@ -432,6 +425,25 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
                   )}
                   <Input value={form.studyMaterialLink} onChange={(e) => set("studyMaterialLink", e.target.value)} dir="ltr" className="text-xs h-7 mt-1" placeholder="https://..." />
                 </Field>
+              </>
+            )}
+
+            {/* Study material — available for every slot type */}
+            {t !== "part_header" && (
+              <>
+                <Field label="לינק ללינאפ">
+                  <LineupLinkPicker value={form.lineupLink} onChange={(v) => set("lineupLink", v)} />
+                </Field>
+
+                <Field label="קישור שקופיות">
+                  <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
+                </Field>
+
+                {!isArticle && !isLiveContent && (
+                  <Field label="קישור חומר לימוד">
+                    <Input value={form.studyMaterialLink} onChange={(e) => set("studyMaterialLink", e.target.value)} dir="ltr" placeholder="https://..." />
+                  </Field>
+                )}
 
                 <Field label="ליקוטים">
                   <div className="flex gap-2">
@@ -457,26 +469,39 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
                   )}
                 </Field>
 
-                <Field label="חומר לימוד נוסף — קישור מותאם">
-                  <div className="flex gap-2">
-                    <Input
-                      value={form.customMaterialName}
-                      onChange={(e) => set("customMaterialName", e.target.value)}
-                      placeholder="שם התצוגה"
-                      className="w-32"
-                    />
-                    <Input
-                      value={form.customMaterialLink}
-                      onChange={(e) => set("customMaterialLink", e.target.value)}
-                      dir="ltr"
-                      placeholder="https://..."
-                      className="flex-1"
-                    />
+                <Field label="חומר לימוד נוסף — קישורים מותאמים">
+                  <div className="flex flex-col gap-2">
+                    {form.customLinks.map((link, i) => (
+                      <div key={i} className="flex gap-2">
+                        <Input
+                          value={link.name}
+                          onChange={(e) => updateCustomLink(i, "name", e.target.value)}
+                          placeholder="שם התצוגה"
+                          className="w-32"
+                        />
+                        <Input
+                          value={link.url}
+                          onChange={(e) => updateCustomLink(i, "url", e.target.value)}
+                          dir="ltr"
+                          placeholder="https://..."
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeCustomLink(i)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" className="self-start" onClick={addCustomLink}>
+                      <Plus className="h-3 w-3 me-1" />
+                      הוסף קישור
+                    </Button>
                   </div>
-                </Field>
-
-                <Field label="לינק ללינאפ">
-                  <LineupLinkPicker value={form.lineupLink} onChange={(v) => set("lineupLink", v)} />
                 </Field>
               </>
             )}
