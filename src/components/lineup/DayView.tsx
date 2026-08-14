@@ -9,10 +9,12 @@ import { slotEffectiveDuration } from "@/lib/slot-duration";
 import { Clock, ZoomIn, ZoomOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/components/providers/KeycloakProvider";
 import {
-  COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink,
+  COLS, TABLE_STYLE, Colgroup, SLOT_ROW_COLORS, TableLink, HIGHLIGHT_COLORS, RowColorPicker,
   timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
 import { parseCustomLinks } from "@/lib/custom-links";
+
+const ROW_HIGHLIGHTS_KEY = "dayview-row-highlights";
 
 const HIDDEN_COLS = new Set(["subs", "workshop", "lang"]);
 const VISIBLE_COLS = COLS.filter((c) => !HIDDEN_COLS.has(c.key));
@@ -86,6 +88,25 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     setDarkMode(localStorage.getItem("dayview-dark-mode") === "1");
   }, []);
   useEffect(() => { localStorage.setItem("dayview-font-scale", String(fontScale)); }, [fontScale]);
+
+  // Row highlight colors — per-browser only, see HIGHLIGHT_COLORS comment.
+  const [rowHighlights, setRowHighlights] = useState<Record<string, string>>({});
+  useEffect(() => {
+    try {
+      setRowHighlights(JSON.parse(localStorage.getItem(ROW_HIGHLIGHTS_KEY) ?? "{}"));
+    } catch {
+      setRowHighlights({});
+    }
+  }, []);
+  function setRowHighlight(slotId: string, color: string | null) {
+    setRowHighlights((prev) => {
+      const next = { ...prev };
+      if (color) next[slotId] = color;
+      else delete next[slotId];
+      localStorage.setItem(ROW_HIGHLIGHTS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
 
   // Native smooth-scroll buttons for horizontal scrolling — a plain mouse has no
   // reliable way to trigger the table's horizontal scroll otherwise (no drag
@@ -490,6 +511,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                 // A nested item shares its parent's time window until Companion actually reports
                 // it played — showing the inherited estimate as if it were its own time is misleading.
                 const showChildTime = !isChild || hasConfirmedTime;
+                const highlight = rowHighlights[slot.id] ? HIGHLIGHT_COLORS[rowHighlights[slot.id]] : null;
 
                 return (
                   <React.Fragment key={slot.id}>
@@ -500,6 +522,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       className={`hover:brightness-90 transition-colors ${isChild ? "border-t-0 border-s-4" : "border-t border-s-2"} ${
                         (isLive && isCurrentlyLive) ? "bg-amber-50 dark:bg-amber-950/40 border-s-amber-500" :
                         isActive                    ? "bg-green-50 dark:bg-green-950/40 border-s-green-500" :
+                        highlight                    ? `${highlight.bg} ${isChild ? "border-s-indigo-500" : "border-border"}` :
                         isChild                      ? "bg-indigo-100/70 dark:bg-indigo-950/40 border-s-indigo-500" :
                                                       `${rowColor} ${altBg} border-border`
                       }`}
@@ -508,6 +531,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${
                         (isLive && isCurrentlyLive) ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40" :
                         isActive                    ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/40" :
+                        highlight                    ? `${highlight.bg} text-foreground` :
                         isChild                      ? "text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950/40" :
                                                       `${altBg} text-foreground`
                       }`}>
@@ -526,6 +550,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                           {showChildTime && (
                             <span className={isChild ? "italic text-muted-foreground" : isProjected ? "italic text-muted-foreground" : ""}>{clockTime}</span>
                           )}
+                          <RowColorPicker
+                            value={rowHighlights[slot.id] ?? null}
+                            onChange={(color) => setRowHighlight(slot.id, color)}
+                          />
                         </div>
                         {(isLive && isCurrentlyLive) && scheduledClockTime && scheduledClockTime !== clockTime && (
                           <span className="block text-[11px] font-normal text-amber-600 dark:text-amber-400 leading-none mt-0.5 text-right">

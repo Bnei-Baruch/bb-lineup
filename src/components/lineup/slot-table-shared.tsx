@@ -1,3 +1,5 @@
+import { useRef, useState, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
 
 export const COLS = [
@@ -27,6 +29,79 @@ export const Colgroup = ({ cols = COLS }: { cols?: readonly (typeof COLS)[number
     {cols.map(c => <col key={c.key} style={{ width: `${c.minWidth}px` }} />)}
   </colgroup>
 );
+
+// Row highlight colors — a browser-local display preference (not saved to the
+// lineup data), so a colleague viewing the same broadcast can mark rows for
+// their own screen without affecting anyone else's view.
+export const HIGHLIGHT_COLORS: Record<string, { bg: string; dot: string; label: string }> = {
+  red:    { bg: "bg-red-100 dark:bg-red-500/30",       dot: "bg-red-500",    label: "אדום" },
+  orange: { bg: "bg-orange-100 dark:bg-orange-500/30", dot: "bg-orange-500", label: "כתום" },
+  yellow: { bg: "bg-yellow-100 dark:bg-yellow-500/30", dot: "bg-yellow-500", label: "צהוב" },
+  green:  { bg: "bg-green-100 dark:bg-green-500/30",   dot: "bg-green-500",  label: "ירוק" },
+  blue:   { bg: "bg-blue-100 dark:bg-blue-500/30",     dot: "bg-blue-500",   label: "כחול" },
+  purple: { bg: "bg-purple-100 dark:bg-purple-500/30", dot: "bg-purple-500", label: "סגול" },
+  pink:   { bg: "bg-pink-100 dark:bg-pink-500/30",     dot: "bg-pink-500",   label: "ורוד" },
+  gray:   { bg: "bg-gray-200 dark:bg-gray-400/30",     dot: "bg-gray-500",   label: "אפור" },
+};
+
+export function RowColorPicker({ value, onChange }: { value: string | null; onChange: (color: string | null) => void }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  function toggle(e: MouseEvent) {
+    e.stopPropagation();
+    if (pos) { setPos(null); return; }
+    const r = btnRef.current!.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: Math.min(r.right, window.innerWidth - 96) - 92 });
+  }
+
+  return (
+    <div className="shrink-0">
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${value ? `${HIGHLIGHT_COLORS[value]?.dot} border-black/20 dark:border-white/40` : "border-foreground/40 bg-foreground/10 hover:bg-foreground/25 hover:border-foreground/70 dark:border-foreground/50 dark:bg-foreground/15 dark:hover:bg-foreground/30"}`}
+        title="סמן שורה בצבע"
+      />
+      {pos && createPortal(
+        // Portaled to document.body: the trigger sits inside a table cell
+        // that's both `sticky` (own stacking context) and a descendant of a
+        // `zoom`-scaled wrapper (the zoom controls) — either one turns a
+        // "fixed" popover positioned in place into something still trapped
+        // inside that ancestor, clipped/occluded by sibling rows. Rendering
+        // outside the whole subtree is the only way to truly escape it.
+        <>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setPos(null); }} />
+          <div
+            style={{ top: pos.top, left: pos.left }}
+            className="fixed z-50 flex flex-wrap gap-1 p-1.5 rounded-md border border-border bg-popover shadow-md w-[92px]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => { onChange(null); setPos(null); }}
+              className="h-4 w-4 rounded-full border border-border flex items-center justify-center text-[8px] leading-none text-muted-foreground hover:text-foreground"
+              title="ללא צבע"
+            >
+              ✕
+            </button>
+            {Object.entries(HIGHLIGHT_COLORS).map(([key, c]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => { onChange(key); setPos(null); }}
+                className={`h-4 w-4 rounded-full ${c.dot} ${value === key ? "ring-2 ring-offset-1 ring-foreground" : ""}`}
+                title={c.label}
+              />
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 export const SLOT_ROW_COLORS: Partial<Record<string, string>> = {
   recorded_lesson: "border-s-purple-400",
