@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { toWeekStart } from "@/lib/dates";
+import { toWeekStart, todayInIsrael } from "@/lib/dates";
 
 /** After recording playout, find the matching slot in today's lineup and persist actual broadcast data */
 async function saveActualBroadcastToSlot(clipName: string, startAt: string, durationSec?: number) {
   try {
-    const now = new Date();
-    const ws = toWeekStart(now);
+    // Use Israel's calendar day, not the server's UTC clock — a call made between
+    // local midnight and ~03:00 is still "yesterday" in UTC and would otherwise
+    // resolve to the wrong LineupDay (see todayInIsrael's doc comment).
+    const israelToday = todayInIsrael();
+    const ws = toWeekStart(israelToday);
     // SQLite stores datetimes with +00:00 suffix; use LIKE to avoid format mismatch with Z suffix
     const weekDatePrefix = ws.toISOString().slice(0, 10); // "YYYY-MM-DD"
-    const dow = now.getUTCDay();
+    const dow = israelToday.getUTCDay();
 
     const lineups = await prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Lineup" WHERE weekStart LIKE ${weekDatePrefix + "%"} LIMIT 1
