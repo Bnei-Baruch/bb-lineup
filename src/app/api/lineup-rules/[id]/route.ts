@@ -26,6 +26,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       dayTemplate: typeof body.dayTemplate === "string" ? body.dayTemplate : JSON.stringify(body.dayTemplate ?? []),
       preferredSeriesIds: typeof body.preferredSeriesIds === "string" ? body.preferredSeriesIds : (body.preferredSeriesIds ? JSON.stringify(body.preferredSeriesIds) : null),
       extraInstructions: body.extraInstructions ?? null,
+      daysOfWeek: typeof body.daysOfWeek === "string" ? body.daysOfWeek : (body.daysOfWeek ? JSON.stringify(body.daysOfWeek) : null),
     },
   });
 

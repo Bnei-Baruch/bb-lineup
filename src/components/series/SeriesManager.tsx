@@ -19,6 +19,7 @@ interface SeriesRow {
   currentLessonRef: string | null;
   currentPage: string | null;
   playoutCode: string | null;
+  consumptionMode: string;
   _count?: { lessons: number };
 }
 
@@ -108,8 +109,11 @@ export function SeriesManager({ series: initial, onChanged }: SeriesManagerProps
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-xs">{s.slug}</Badge>
+              <Badge variant="outline" className="text-xs">
+                {s.consumptionMode === "continuous" ? "רציף" : "בחירה חכמה"}
+              </Badge>
               {s._count != null && (
                 <span className="text-xs text-muted-foreground">{s._count.lessons} שיעורים</span>
               )}
@@ -172,6 +176,7 @@ function SeriesForm({
     currentLessonRef: series?.currentLessonRef ?? "",
     currentPage: series?.currentPage ?? "",
     playoutCode: series?.playoutCode ?? "",
+    consumptionMode: series?.consumptionMode ?? "pickable",
   });
 
   function set(field: string, value: string) {
@@ -190,6 +195,7 @@ function SeriesForm({
         currentLessonRef: form.currentLessonRef || null,
         currentPage: form.currentPage || null,
         playoutCode: form.playoutCode || null,
+        consumptionMode: form.consumptionMode,
       };
 
       const url = series ? `/api/series/${series.id}` : "/api/series";
@@ -243,6 +249,18 @@ function SeriesForm({
           <div className="space-y-1.5">
             <Label>עמוד נוכחי</Label>
             <Input value={form.currentPage} onChange={(e) => set("currentPage", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>שיטת בחירת תוכן</Label>
+            <select
+              value={form.consumptionMode}
+              onChange={(e) => set("consumptionMode", e.target.value)}
+              className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background"
+            >
+              <option value="pickable">בחירה חכמה - חיפוש שיעור לא-משודר שמתאים למשך הזמן שנשאר</option>
+              <option value="continuous">רציף - שיעור אחר שיעור לפי הסדר, ללא בחירה</option>
+            </select>
+            <p className="text-xs text-muted-foreground">קובע איך פריט &quot;דינמי - שיעור מסדרה&quot; בתבניות התכנון יתנהג עבור סדרה זו.</p>
           </div>
           <div className="space-y-1.5">
             <Label>קוד פלאאוט (Companion)</Label>

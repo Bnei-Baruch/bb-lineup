@@ -41,6 +41,7 @@ interface SeriesRow {
   currentLessonRef: string | null;
   currentPage: string | null;
   playoutCode: string | null;
+  consumptionMode: string;
   _count?: { lessons: number };
 }
 

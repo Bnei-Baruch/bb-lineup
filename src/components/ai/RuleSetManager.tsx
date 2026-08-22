@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2, Star } from "lucide-react";
 import { RuleSetForm } from "./RuleSetForm";
 import { formatDurationSec } from "@/lib/time";
+import { DAY_NAMES } from "@/lib/dates";
+import { TemplateItemV2 } from "@/types";
 
 interface RuleSet {
   id: string;
@@ -13,6 +15,7 @@ interface RuleSet {
   description: string | null;
   isDefault: boolean;
   broadcastStartTime: string;
+  broadcastEndTime?: string | null;
   targetDurationSec: number | null;
   hardMaxDurationSec: number | null;
   splitLongLessons: boolean;
@@ -20,12 +23,41 @@ interface RuleSet {
   dayTemplate: string;
   preferredSeriesIds: string | null;
   extraInstructions: string | null;
+  daysOfWeek: string | null;
 }
+
+interface SeriesOption { id: string; name: string; color: string | null; consumptionMode: string }
 
 interface Props {
   initialRuleSets: RuleSet[];
-  series: { id: string; name: string; color: string | null }[];
+  series: SeriesOption[];
   components: { id: string; name: string; slotType: string; category: string; defaultDurationSec: number | null }[];
+}
+
+type LegacyItem = { type: "fixed" | "lesson" | "article"; componentId?: string; slotType?: string; label?: string };
+
+function pillLabel(t: TemplateItemV2 | LegacyItem, components: Props["components"], series: SeriesOption[]): { label: string; nested: boolean } {
+  if ("type" in t) {
+    const comp = t.componentId ? components.find((c) => c.id === t.componentId) : null;
+    return { label: comp?.name ?? t.label ?? (t.type === "lesson" ? "שיעור (ישן)" : t.type === "article" ? "מאמר (ישן)" : "קבוע"), nested: false };
+  }
+  const nested = !!t.nested;
+  if (t.kind === "fixed") {
+    const comp = t.componentId ? components.find((c) => c.id === t.componentId) : null;
+    return { label: comp?.name ?? t.label ?? t.slotType, nested };
+  }
+  if (t.contentType === "live") {
+    return { label: t.label ?? "תוכן חי", nested };
+  }
+  const s = series.find((x) => x.id === t.seriesId);
+  const part = t.part === "article" ? " (מאמר)" : t.part === "video" ? " (וידאו)" : "";
+  return { label: (s?.name ?? "סדרה לא ידועה") + part, nested };
+}
+
+function pillColor(t: TemplateItemV2 | LegacyItem): string {
+  if ("type" in t) return t.type === "fixed" ? "bg-blue-50 text-blue-700" : t.type === "lesson" ? "bg-purple-50 text-purple-700" : "bg-green-50 text-green-700";
+  if (t.kind === "fixed") return "bg-blue-50 text-blue-700";
+  return t.contentType === "live" ? "bg-amber-50 text-amber-700" : "bg-purple-50 text-purple-700";
 }
 
 export function RuleSetManager({ initialRuleSets, series, components }: Props) {
@@ -81,8 +113,9 @@ export function RuleSetManager({ initialRuleSets, series, components }: Props) {
 
       <div className="space-y-3">
         {ruleSets.map((r) => {
-          const template = (() => { try { const p = JSON.parse(r.dayTemplate || "[]"); return Array.isArray(p) ? p : (p?.slots ?? []); } catch { return []; } })() as { type: string; label?: string; componentId?: string }[];
+          const template = (() => { try { const p = JSON.parse(r.dayTemplate || "[]"); return Array.isArray(p) ? p : (p?.slots ?? []); } catch { return []; } })() as (TemplateItemV2 | LegacyItem)[];
           const seriesIds = r.preferredSeriesIds ? JSON.parse(r.preferredSeriesIds) as string[] : [];
+          const daysOfWeek = r.daysOfWeek ? JSON.parse(r.daysOfWeek) as number[] : [];
           return (
             <div key={r.id} className="border border-border rounded-lg p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
@@ -126,6 +159,19 @@ export function RuleSetManager({ initialRuleSets, series, components }: Props) {
                 </div>
               </div>
 
+              {daysOfWeek.length > 0 && (
+                <div className="text-xs">
+                  <p className="text-muted-foreground mb-1">ימים</p>
+                  <div className="flex flex-wrap gap-1">
+                    {daysOfWeek.map((dow) => (
+                      <span key={dow} className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {DAY_NAMES[dow]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {seriesIds.length > 0 && (
                 <div className="text-xs">
                   <p className="text-muted-foreground mb-1">סדרות מועדפות</p>
@@ -147,11 +193,13 @@ export function RuleSetManager({ initialRuleSets, series, components }: Props) {
                   <p className="text-muted-foreground mb-1">תבנית יום ({template.length} פריטים)</p>
                   <div className="flex flex-wrap gap-1">
                     {template.map((t, i) => {
-                      const comp = t.componentId ? components.find((c) => c.id === t.componentId) : null;
-                      const lbl = comp?.name ?? t.label ?? t.type;
-                      const color = t.type === "fixed" ? "bg-blue-50 text-blue-700" : t.type === "lesson" ? "bg-purple-50 text-purple-700" : "bg-green-50 text-green-700";
+                      const { label, nested } = pillLabel(t, components, series);
+                      const color = pillColor(t);
                       return (
-                        <span key={i} className={`px-2 py-0.5 rounded text-[11px] ${color}`}>{lbl}</span>
+                        <span key={i} className={`px-2 py-0.5 rounded text-[11px] ${color}`}>
+                          {nested && <span className="me-0.5">↳</span>}
+                          {label}
+                        </span>
                       );
                     })}
                   </div>

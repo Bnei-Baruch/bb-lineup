@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function LineupRulesPage() {
   const [ruleSets, series, components] = await Promise.all([
     prisma.lineupRuleSet.findMany({ orderBy: { name: "asc" } }),
-    prisma.series.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true } }),
+    prisma.series.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true, color: true, consumptionMode: true } }),
     prisma.lineupComponent.findMany({
       orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, slotType: true, category: true, defaultDurationSec: true },
