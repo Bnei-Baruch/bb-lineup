@@ -274,6 +274,10 @@ export interface FixedTemplateItem {
   hasSubtitles?: boolean;
   hasWorkshopQuestions?: boolean;
   notes?: string;
+  /** Nested under the nearest preceding non-nested item (same convention as LineupSlot.parentSlotId
+   *  in the day editor - e.g. reading material nested under the live discussion it belongs to, so it
+   *  doesn't count as separate broadcast time). Resolved by position at apply time, not by id. */
+  nested?: boolean;
 }
 
 export interface DynamicLessonTemplateItem {
@@ -285,6 +289,8 @@ export interface DynamicLessonTemplateItem {
    *  sharing this seriesId, resolved together as one choice. Omitted for a self-contained
    *  item (a continuous-series segment, or a pickable lesson with no article step at all). */
   part?: "article" | "video";
+  /** See FixedTemplateItem.nested. */
+  nested?: boolean;
 }
 
 export interface DynamicLiveTemplateItem {
@@ -293,6 +299,14 @@ export interface DynamicLiveTemplateItem {
   slotType: SlotType;
   plannedDurationSec: number;
   label?: string;
+  /** A live session's reference doc/link is a fixed-per-weekday constant, not something that
+   *  varies week to week — but a single template can be shared across several weekdays (e.g.
+   *  "יום שני-חמישי" applies to Monday/Wednesday/Thursday), each needing a different link. Keyed
+   *  by dayOfWeek (0=Sun..6=Sat) as a string (JSON object keys are always strings); resolved at
+   *  apply time using the day actually being built. */
+  lineupLinksByDay?: Record<string, string>;
+  /** See FixedTemplateItem.nested. */
+  nested?: boolean;
 }
 
 export type TemplateItemV2 = FixedTemplateItem | DynamicLessonTemplateItem | DynamicLiveTemplateItem;

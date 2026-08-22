@@ -22,7 +22,7 @@ function isV2(item: TemplateSlot): item is TemplateItemV2 {
 type ResolvedItem =
   | { index: number; kind: "fixed"; slotType: string; durationSec: number; partNumber: number | null }
   | { index: number; kind: "legacy"; slotType: string; durationSec: number; partNumber: number | null }
-  | { index: number; kind: "live"; slotType: string; durationSec: number; label?: string }
+  | { index: number; kind: "live"; slotType: string; durationSec: number; label?: string; lineupLink: string | null }
   | { index: number; kind: "continuous"; seriesId: string; next: NextLessonResult | null }
   | { index: number; kind: "pickable"; seriesId: string; part?: "article" | "video"; candidates: PickableCandidate[]; assignedLessonId: string | null }
   | { index: number; kind: "pickable-linked"; seriesId: string; linkedIndex: number };
@@ -76,18 +76,23 @@ async function resolveAll(
     if (item.kind === "fixed") {
       const component = item.componentId ? await prisma.lineupComponent.findUnique({ where: { id: item.componentId } }) : null;
       const sec = component?.defaultDurationSec ?? item.durationSec ?? 0;
-      addSec(index, sec);
+      // Nested items share their parent's clock time rather than occupying their own (same
+      // convention as DayTimeSummary's slotDur) - they don't consume separate budget.
+      if (!item.nested) addSec(index, sec);
       resolved.push({ index, kind: "fixed", slotType: component?.slotType ?? item.slotType, durationSec: sec, partNumber: item.partNumber ?? null });
       continue;
     }
 
     if (item.contentType === "live") {
-      resolved.push({ index, kind: "live", slotType: item.slotType, durationSec: item.plannedDurationSec, label: item.label });
-      if (index < from) {
-        preContentSec += item.plannedDurationSec;
-      } else if (index < to) {
-        liveAuthoredSec += item.plannedDurationSec;
-        liveInWindow.push({ index, authoredSec: item.plannedDurationSec });
+      const lineupLink = targetDate != null ? item.lineupLinksByDay?.[String(targetDate.getUTCDay())] ?? null : null;
+      resolved.push({ index, kind: "live", slotType: item.slotType, durationSec: item.plannedDurationSec, label: item.label, lineupLink });
+      if (!item.nested) {
+        if (index < from) {
+          preContentSec += item.plannedDurationSec;
+        } else if (index < to) {
+          liveAuthoredSec += item.plannedDurationSec;
+          liveInWindow.push({ index, authoredSec: item.plannedDurationSec });
+        }
       }
       continue;
     }
@@ -107,7 +112,7 @@ async function resolveAll(
     if (series.consumptionMode === "continuous") {
       const next = await getNextLessonForSeries(prisma, item.seriesId, targetDate);
       resolved.push({ index, kind: "continuous", seriesId: item.seriesId, next });
-      if (next) {
+      if (next && !item.nested) {
         const { startSec, endSec } = lessonEffectiveRange(next.lesson);
         addSec(index, Math.max(0, endSec - Math.max(next.resumeFromSec, startSec)), "continuous");
       }
@@ -198,7 +203,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (r.kind === "fixed" || r.kind === "legacy") {
         return { index: r.index, kind: r.kind, slotType: r.slotType, durationSec: r.durationSec, partNumber: r.partNumber };
       }
-      if (r.kind === "live") return { index: r.index, kind: r.kind, slotType: r.slotType, durationSec: r.durationSec, label: r.label };
+      if (r.kind === "live") return { index: r.index, kind: r.kind, slotType: r.slotType, durationSec: r.durationSec, label: r.label, lineupLink: r.lineupLink };
       if (r.kind === "continuous") {
         if (!r.next) return { index: r.index, kind: r.kind, seriesId: r.seriesId, next: null };
         const { startSec, endSec } = lessonEffectiveRange(r.next.lesson);
@@ -261,15 +266,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const liveAdjustments = distributeSlack(liveInWindow, totalSlackSec);
 
+  // Mirrors DaySlotTable's isChild/prevTopLevelId convention: a "nested" item's slot(s) attach
+  // under the nearest preceding non-nested, non-part_header slot, resolved by position (the
+  // template has no slot ids yet) rather than by an explicit index reference.
+  let prevTopLevelSlotId: string | null = null;
+  function noteTopLevel(slotId: string, slotType: string, nested: boolean) {
+    if (!nested && slotType !== "part_header") prevTopLevelSlotId = slotId;
+  }
+
   for (const r of resolved) {
     const item = templateSlots[r.index];
+    const nested = isV2(item) ? !!item.nested : false;
 
     if (r.kind === "legacy" && !isV2(item)) {
       const isPlaceholder = item.type === "lesson" || item.type === "article";
       if (item.componentId) {
         const component = await prisma.lineupComponent.findUnique({ where: { id: item.componentId } });
         if (component) {
-          await prisma.lineupSlot.create({
+          const slot = await prisma.lineupSlot.create({
             data: {
               dayId, slotType: component.slotType, componentId: component.id,
               label: component.defaultLabel, durationSec: component.defaultDurationSec,
@@ -278,14 +292,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               mediaCode: component.defaultMediaCode, language: component.defaultLanguage,
               hasSubtitles: component.defaultHasSubtitles, hasWorkshopQuestions: component.defaultHasWorkshopQuestions,
               notes: component.defaultNotes, partNumber: component.defaultPartNumber, sortOrder,
+              parentSlotId: nested ? prevTopLevelSlotId : null,
             },
           });
+          noteTopLevel(slot.id, slot.slotType, nested);
           sortOrder++; created++;
           continue;
         }
       }
       const slotType = item.type === "article" ? "article_reading" : item.type === "lesson" ? (item.slotType ?? "recorded_lesson") : (item.slotType ?? "narrator_announcement");
-      await prisma.lineupSlot.create({
+      const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType, label: item.label ?? null,
           durationSec: isPlaceholder ? null : (item.durationSec ?? null),
@@ -295,8 +311,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           transitionType: item.transitionType ?? null, mediaCode: item.mediaCode ?? null,
           language: item.language ?? null, hasSubtitles: item.hasSubtitles ?? false,
           hasWorkshopQuestions: item.hasWorkshopQuestions ?? false, notes: item.notes ?? null, sortOrder,
+          parentSlotId: nested ? prevTopLevelSlotId : null,
         },
       });
+      noteTopLevel(slot.id, slot.slotType, nested);
       sortOrder++; created++;
       continue;
     }
@@ -305,7 +323,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (item.componentId) {
         const component = await prisma.lineupComponent.findUnique({ where: { id: item.componentId } });
         if (component) {
-          await prisma.lineupSlot.create({
+          const slot = await prisma.lineupSlot.create({
             data: {
               dayId, slotType: component.slotType, componentId: component.id,
               label: component.defaultLabel, durationSec: component.defaultDurationSec,
@@ -314,13 +332,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               mediaCode: component.defaultMediaCode, language: component.defaultLanguage,
               hasSubtitles: component.defaultHasSubtitles, hasWorkshopQuestions: component.defaultHasWorkshopQuestions,
               notes: component.defaultNotes, partNumber: component.defaultPartNumber, sortOrder,
+              parentSlotId: nested ? prevTopLevelSlotId : null,
             },
           });
+          noteTopLevel(slot.id, slot.slotType, nested);
           sortOrder++; created++;
           continue;
         }
       }
-      await prisma.lineupSlot.create({
+      const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType: item.slotType, label: item.label ?? null, durationSec: item.durationSec ?? null,
           startTimecode: item.startTimecode ?? null, endTimecode: item.endTimecode ?? null,
@@ -328,17 +348,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           transitionType: item.transitionType ?? null, mediaCode: item.mediaCode ?? null,
           language: item.language ?? null, hasSubtitles: item.hasSubtitles ?? false,
           hasWorkshopQuestions: item.hasWorkshopQuestions ?? false, notes: item.notes ?? null, sortOrder,
+          parentSlotId: nested ? prevTopLevelSlotId : null,
         },
       });
+      noteTopLevel(slot.id, slot.slotType, nested);
       sortOrder++; created++;
       continue;
     }
 
     if (r.kind === "live") {
       const durationSec = liveAdjustments.get(r.index) ?? r.durationSec;
-      await prisma.lineupSlot.create({
-        data: { dayId, slotType: r.slotType, label: r.label ?? null, durationSec: Math.round(durationSec), sortOrder },
+      const slot = await prisma.lineupSlot.create({
+        data: {
+          dayId, slotType: r.slotType, label: r.label ?? null, durationSec: Math.round(durationSec),
+          lineupLink: r.lineupLink, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+        },
       });
+      noteTopLevel(slot.id, slot.slotType, nested);
       sortOrder++; created++;
       continue;
     }
@@ -352,14 +378,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const { startSec, endSec } = lessonEffectiveRange(lesson);
       const resumeFromSec = resolutions[r.index]?.lessonId ? startSec : (next?.resumeFromSec ?? startSec);
       const needsOverride = resumeFromSec > startSec;
-      await prisma.lineupSlot.create({
+      const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType: "recorded_lesson", lessonId: lesson.id,
           startTimecode: needsOverride ? secondsToTimecode(resumeFromSec) : null,
           endTimecode: needsOverride ? secondsToTimecode(endSec) : null,
-          sortOrder,
+          sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
         },
       });
+      noteTopLevel(slot.id, slot.slotType, nested);
       sortOrder++; created++;
       continue;
     }
@@ -372,20 +399,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const lesson = await prisma.lesson.findUnique({ where: { id: chosenId } });
       if (!lesson) continue;
       if (r.part !== "video" && lesson.articleReadingSec != null) {
-        await prisma.lineupSlot.create({
+        const slot = await prisma.lineupSlot.create({
           data: {
             dayId, slotType: "article_reading", lessonId: lesson.id,
             label: lesson.articleSourceRef ?? lesson.sourceRef,
             studyMaterialSourceId: lesson.articleSourceId, studyMaterialLink: lesson.articleSourceLink,
             durationSec: lesson.articleReadingSec, sortOrder,
+            parentSlotId: nested ? prevTopLevelSlotId : null,
           },
         });
+        noteTopLevel(slot.id, slot.slotType, nested);
         sortOrder++; created++;
       }
       if (r.part !== "article") {
-        await prisma.lineupSlot.create({
-          data: { dayId, slotType: "recorded_lesson", lessonId: lesson.id, sortOrder },
+        const slot = await prisma.lineupSlot.create({
+          data: { dayId, slotType: "recorded_lesson", lessonId: lesson.id, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null },
         });
+        noteTopLevel(slot.id, slot.slotType, nested);
         sortOrder++; created++;
       }
       continue;
@@ -396,9 +426,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!chosenId) continue; // the article half hasn't been confirmed yet
       const lesson = await prisma.lesson.findUnique({ where: { id: chosenId } });
       if (!lesson) continue;
-      await prisma.lineupSlot.create({
-        data: { dayId, slotType: "recorded_lesson", lessonId: lesson.id, sortOrder },
+      const slot = await prisma.lineupSlot.create({
+        data: { dayId, slotType: "recorded_lesson", lessonId: lesson.id, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null },
       });
+      noteTopLevel(slot.id, slot.slotType, nested);
       sortOrder++; created++;
       continue;
     }

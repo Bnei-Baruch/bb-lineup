@@ -170,7 +170,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
       {/* שעות — sticky to inline-end; drag handle on the time line, delete + nest toggle on a line below */}
       <td dir="ltr" className={`px-3 py-3 text-right tabular-nums font-semibold sticky end-0 z-10 border-s border-border group/timecell ${isChild ? "text-indigo-700" : "text-foreground"} ${rowBg}`}>
         <div className="flex items-center justify-end gap-1.5">
-          <span className={isChild ? "italic text-muted-foreground" : ""}>{clockTime}</span>
+          <span>{isChild ? "" : clockTime}</span>
           <button
             {...attributes}
             {...listeners}
@@ -285,7 +285,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
         })()}
       </td>
       {/* שעת סיום */}
-      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">{endTime}</td>
+      <td className="px-3 py-3 tabular-nums text-muted-foreground border-s-2 border-s-slate-300">{isChild ? "" : endTime}</td>
       {/* כתוביות */}
       <td className="px-3 py-3 text-center border-s-2 border-s-slate-300">
         {slot.hasSubtitles && <span className="text-green-600">✓</span>}

@@ -40,8 +40,6 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
     }),
   ]);
 
-  const aiTemplates = ruleSets.map((r) => ({ id: r.id, name: r.name }));
-
   let lineup = await prisma.lineup.findUnique({
     where: { weekStart: toWeekStart(parseWeekParam(weekStart)) },
     include: weekInclude,
@@ -151,7 +149,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
       </div>
 
       <div className="pb-4">
-        <WeekGrid lineup={data} templates={aiTemplates} />
+        <WeekGrid lineup={data} />
       </div>
     </div>
   );

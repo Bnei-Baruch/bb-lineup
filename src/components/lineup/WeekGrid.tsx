@@ -50,14 +50,11 @@ function fmtHHMM(sec: number): string {
   return `${h}:${String(m).padStart(2, "0")}`;
 }
 
-interface Template { id: string; name: string }
-
 interface WeekGridProps {
   lineup: LineupWithDays;
-  templates?: Template[];
 }
 
-export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
+export function WeekGrid({ lineup }: WeekGridProps) {
   const [days, setDays] = useState<DayWithSlots[]>(lineup.days);
   const [activeSlot, setActiveSlot] = useState<SlotWithLesson | null>(null);
   // Ordered array: oldest-expanded first. Max 4 at once; opening a 5th evicts the first.
@@ -260,7 +257,6 @@ export function WeekGrid({ lineup, templates = [] }: WeekGridProps) {
               <DayColumnGroup
                 sessions={sessions}
                 weekStart={lineup.weekStart}
-                templates={templates}
                 onSlotsChange={handleSlotsChange}
                 onAddSession={handleAddSession}
                 onDeleteSession={handleDeleteSession}

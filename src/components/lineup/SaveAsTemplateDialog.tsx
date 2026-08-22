@@ -44,65 +44,96 @@ function seriesModeOf(slot: SlotWithLesson): "continuous" | "pickable" | null {
   return slot.lesson.series.consumptionMode;
 }
 
-function slotsToTemplate(slots: SlotWithLesson[]): TemplateItemV2[] {
+function slotsToTemplate(slots: SlotWithLesson[], dayOfWeek: number): TemplateItemV2[] {
   // Pickable pairs: an article_reading slot and a recorded_lesson/conversations_on_way slot
   // sharing the same lessonId are the two halves of one dynamic pickable item, wherever they sit.
   const lessonIdHasArticle = new Set(slots.filter((s) => s.slotType === "article_reading" && s.lessonId).map((s) => s.lessonId!));
   const lessonIdHasVideo = new Set(slots.filter((s) => LESSON_SLOT_TYPES.includes(s.slotType) && s.lessonId).map((s) => s.lessonId!));
 
   return slots.map((s): TemplateItemV2 => {
-    if (s.slotType === "part_header") {
-      return { kind: "fixed", slotType: "part_header", partNumber: s.partNumber ?? undefined };
-    }
+    const item = ((): TemplateItemV2 => {
+      if (s.slotType === "part_header") {
+        return { kind: "fixed", slotType: "part_header", partNumber: s.partNumber ?? undefined };
+      }
 
-    const mode = seriesModeOf(s);
+      const mode = seriesModeOf(s);
 
-    if (mode === "continuous" && LESSON_SLOT_TYPES.includes(s.slotType)) {
-      return { kind: "dynamic", contentType: "lesson", seriesId: s.lesson!.seriesId! };
-    }
+      if (mode === "continuous" && LESSON_SLOT_TYPES.includes(s.slotType)) {
+        return { kind: "dynamic", contentType: "lesson", seriesId: s.lesson!.seriesId! };
+      }
 
-    if (mode === "pickable" && (s.slotType === "article_reading" || LESSON_SLOT_TYPES.includes(s.slotType))) {
-      const isArticle = s.slotType === "article_reading";
-      const hasOtherHalf = isArticle ? lessonIdHasVideo.has(s.lessonId!) : lessonIdHasArticle.has(s.lessonId!);
+      if (mode === "pickable" && (s.slotType === "article_reading" || LESSON_SLOT_TYPES.includes(s.slotType))) {
+        const isArticle = s.slotType === "article_reading";
+        const hasOtherHalf = isArticle ? lessonIdHasVideo.has(s.lessonId!) : lessonIdHasArticle.has(s.lessonId!);
+        return {
+          kind: "dynamic", contentType: "lesson", seriesId: s.lesson!.seriesId!,
+          ...(hasOtherHalf ? { part: isArticle ? "article" : "video" } : {}),
+        };
+      }
+
+      // Live content — duration is only known once broadcast, so its current actual length
+      // becomes the new planned estimate rather than being frozen as a fixed slot. Its
+      // reference link is a fixed-per-weekday constant (not something that varies week to
+      // week), keyed here by this specific weekday - merged with other weekdays' links for
+      // this same item when saving over an existing template (see mergeLineupLinks below).
+      if (LIVE_SLOT_TYPES.has(s.slotType) && !s.lessonId) {
+        return {
+          kind: "dynamic", contentType: "live", slotType: s.slotType,
+          plannedDurationSec: getSlotDurationSec(s) ?? 0,
+          label: s.label ?? undefined,
+          ...(s.lineupLink ? { lineupLinksByDay: { [String(dayOfWeek)]: s.lineupLink } } : {}),
+        };
+      }
+
+      // Component-based slot — save only the reference, pull defaults at apply time.
+      if (s.componentId) {
+        return { kind: "fixed", componentId: s.componentId, slotType: s.slotType };
+      }
+
+      // Custom fixed slot — save full details
+      const durationSec = getSlotDurationSec(s);
+      const hasTimecodes = LESSON_SLOT_TYPES.includes(s.slotType) && s.startTimecode && s.endTimecode;
       return {
-        kind: "dynamic", contentType: "lesson", seriesId: s.lesson!.seriesId!,
-        ...(hasOtherHalf ? { part: isArticle ? "article" : "video" } : {}),
-      };
-    }
-
-    // Live content — duration is only known once broadcast, so its current actual length
-    // becomes the new planned estimate rather than being frozen as a fixed slot.
-    if (LIVE_SLOT_TYPES.has(s.slotType) && !s.lessonId) {
-      return {
-        kind: "dynamic", contentType: "live", slotType: s.slotType,
-        plannedDurationSec: getSlotDurationSec(s) ?? 0,
+        kind: "fixed",
+        slotType: s.slotType,
         label: s.label ?? undefined,
+        durationSec,
+        ...(hasTimecodes && { startTimecode: s.startTimecode!, endTimecode: s.endTimecode! }),
+        narratorScript: s.narratorScript ?? undefined,
+        transitionType: s.transitionType ?? undefined,
+        mediaCode: s.mediaCode ?? undefined,
+        language: s.language ?? undefined,
+        hasSubtitles: s.hasSubtitles ?? undefined,
+        hasWorkshopQuestions: s.hasWorkshopQuestions ?? undefined,
+        notes: s.notes ?? undefined,
       };
-    }
+    })();
 
-    // Component-based slot — save only the reference, pull defaults at apply time.
-    if (s.componentId) {
-      return { kind: "fixed", componentId: s.componentId, slotType: s.slotType };
-    }
-
-    // Custom fixed slot — save full details
-    const durationSec = getSlotDurationSec(s);
-    const hasTimecodes = LESSON_SLOT_TYPES.includes(s.slotType) && s.startTimecode && s.endTimecode;
-    return {
-      kind: "fixed",
-      slotType: s.slotType,
-      label: s.label ?? undefined,
-      durationSec,
-      ...(hasTimecodes && { startTimecode: s.startTimecode!, endTimecode: s.endTimecode! }),
-      narratorScript: s.narratorScript ?? undefined,
-      transitionType: s.transitionType ?? undefined,
-      mediaCode: s.mediaCode ?? undefined,
-      language: s.language ?? undefined,
-      hasSubtitles: s.hasSubtitles ?? undefined,
-      hasWorkshopQuestions: s.hasWorkshopQuestions ?? undefined,
-      notes: s.notes ?? undefined,
-    };
+    // Nested under the nearest preceding non-nested item (mirrors DaySlotTable's isChild/
+    // prevTopLevelId convention) - captured here so re-applying the template restores it.
+    return s.parentSlotId ? { ...item, nested: true } : item;
   });
+}
+
+/** A single save only knows this one weekday's live links. When updating an existing rule
+ *  set (shared across possibly several weekdays, e.g. "יום שני-חמישי"), merge this weekday's
+ *  entries into whatever the existing template already had for other weekdays, positionally
+ *  matching live items by index - rather than overwriting the whole map and losing them. */
+function mergeLineupLinks(newTemplate: TemplateItemV2[], existingDayTemplateJson: string): TemplateItemV2[] {
+  try {
+    const parsed = JSON.parse(existingDayTemplateJson);
+    const oldSlots: TemplateItemV2[] = Array.isArray(parsed) ? parsed : (parsed?.slots ?? []);
+    return newTemplate.map((item, i) => {
+      const old = oldSlots[i];
+      if (item.kind === "dynamic" && item.contentType === "live" && old?.kind === "dynamic" && old.contentType === "live") {
+        const mergedLinks = { ...old.lineupLinksByDay, ...item.lineupLinksByDay };
+        return Object.keys(mergedLinks).length > 0 ? { ...item, lineupLinksByDay: mergedLinks } : item;
+      }
+      return item;
+    });
+  } catch {
+    return newTemplate; // existing template unparsable - fall back to just this weekday's link
+  }
 }
 
 interface Props {
@@ -113,9 +144,10 @@ interface Props {
   cutoffIndex?: number;
   startTime?: string;
   endTime?: string;
+  dayOfWeek: number;
 }
 
-export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffIndex, startTime, endTime }: Props) {
+export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffIndex, startTime, endTime, dayOfWeek }: Props) {
   const [ruleSets, setRuleSets] = useState<RuleSet[]>([]);
   const [mode, setMode] = useState<"pick" | "new">("pick");
   const [selectedId, setSelectedId] = useState<string>("");
@@ -130,22 +162,21 @@ export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffI
     }
   }, [open]);
 
-  const template = slotsToTemplate(slots);
+  const template = slotsToTemplate(slots, dayOfWeek);
 
   async function handleSave() {
     setSaving(true);
     try {
-      const payload = {
-        dayTemplate: JSON.stringify({
-          slots: template,
-          contentStartIndex: startIndex ?? 0,
-          contentCutoffIndex: cutoffIndex ?? slots.length,
-        }),
-        broadcastStartTime: startTime || "02:40",
-        broadcastEndTime: endTime || null,
-      };
-
       if (mode === "new") {
+        const payload = {
+          dayTemplate: JSON.stringify({
+            slots: template,
+            contentStartIndex: startIndex ?? 0,
+            contentCutoffIndex: cutoffIndex ?? slots.length,
+          }),
+          broadcastStartTime: startTime || "02:40",
+          broadcastEndTime: endTime || null,
+        };
         await fetch("/api/lineup-rules", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -154,6 +185,16 @@ export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffI
       } else {
         const rs = ruleSets.find((r) => r.id === selectedId);
         if (!rs) return;
+        const mergedTemplate = mergeLineupLinks(template, rs.dayTemplate);
+        const payload = {
+          dayTemplate: JSON.stringify({
+            slots: mergedTemplate,
+            contentStartIndex: startIndex ?? 0,
+            contentCutoffIndex: cutoffIndex ?? slots.length,
+          }),
+          broadcastStartTime: startTime || "02:40",
+          broadcastEndTime: endTime || null,
+        };
         await fetch(`/api/lineup-rules/${selectedId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -202,8 +243,9 @@ export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffI
               ? ` · ${Math.floor(durSec / 60)}:${String(durSec % 60).padStart(2, "0")}`
               : "";
             return (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className={`flex items-center gap-2 ${t.nested ? "ms-4" : ""}`}>
                 <span className="text-[10px] text-muted-foreground w-4 tabular-nums">{i + 1}.</span>
+                {t.nested && <span className="text-[10px] text-muted-foreground">↳</span>}
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${color}`}>{lbl}</span>
                 {dur && <span className="text-[10px] text-muted-foreground tabular-nums">{dur}</span>}
               </div>

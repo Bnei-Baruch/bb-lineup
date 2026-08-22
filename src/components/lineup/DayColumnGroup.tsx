@@ -4,12 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { DayColumn } from "./DayColumn";
 import { DayWithSlots, SlotWithLesson } from "@/types";
 
-interface Template { id: string; name: string }
-
 interface DayColumnGroupProps {
   sessions: DayWithSlots[];
   weekStart: string;
-  templates: Template[];
   onSlotsChange: (dayId: string, slots: SlotWithLesson[]) => void;
   onAddSession: (dayOfWeek: number, lineupId: string) => void;
   onDeleteSession: (dayId: string) => void;
@@ -19,7 +16,6 @@ interface DayColumnGroupProps {
 export function DayColumnGroup({
   sessions,
   weekStart,
-  templates,
   onSlotsChange,
   onAddSession,
   onDeleteSession,
@@ -71,7 +67,6 @@ export function DayColumnGroup({
       <DayColumn
         day={activeSession}
         weekStart={weekStart}
-        templates={templates}
         onSlotsChange={onSlotsChange}
         onAddSession={
           sessions.length === 1

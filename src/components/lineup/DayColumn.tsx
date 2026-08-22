@@ -9,6 +9,7 @@ import { AddSlotMenu } from "./AddSlotMenu";
 import { SlotEditor } from "./SlotEditor";
 import { LessonPicker } from "./LessonPicker";
 import { DayTimeSummary } from "./DayTimeSummary";
+import { ApplyDayTemplateDialog } from "./ApplyDayTemplateDialog";
 import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
 import { addSecondsToTime, timecodeToSeconds } from "@/lib/timecodes";
@@ -31,8 +32,6 @@ function timeStrToSec(t: string): number {
 import Link from "next/link";
 import { Eye, LayoutTemplate, X, Trash2, Pencil, Plus, ChevronsRight, ChevronUp, ChevronDown } from "lucide-react";
 
-interface Template { id: string; name: string }
-
 interface Component {
   id: string; name: string; slotType: string; category: string;
   defaultLabel: string | null; defaultDurationSec: number | null;
@@ -45,24 +44,20 @@ interface Component {
 interface DayColumnProps {
   day: DayWithSlots;
   weekStart: string;
-  templates?: Template[];
   onSlotsChange: (dayId: string, slots: SlotWithLesson[]) => void;
   onAddSession?: () => void;
   onDeleteSession?: () => void;
   onCollapse?: () => void;
 }
 
-export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAddSession, onDeleteSession, onCollapse }: DayColumnProps) {
+export function DayColumn({ day, weekStart, onSlotsChange, onAddSession, onDeleteSession, onCollapse }: DayColumnProps) {
   const { isAdmin } = useAuth();
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `day-${day.id}` });
   const [editingSlot, setEditingSlot] = useState<(Partial<SlotWithLesson> & { dayId: string; slotType: SlotType }) | null>(null);
   const [lessonPickerOpen, setLessonPickerOpen] = useState(false);
   const [addedLabel, setAddedLabel] = useState<string | null>(null);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [templateOpen, setTemplateOpen] = useState(false);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(templates[0]?.id ?? "");
-  const [clearExisting, setClearExisting] = useState(false);
-  const [applying, setApplying] = useState(false);
+  const [applyTemplateOpen, setApplyTemplateOpen] = useState(false);
 
   const [nowSec, setNowSec] = useState<number>(getIsraelTimeSec);
   useEffect(() => {
@@ -201,28 +196,10 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
     onSlotsChange(day.id, []);
   }
 
-  async function handleApplyTemplate() {
-    if (!selectedTemplateId) return;
-    setApplying(true);
-    try {
-      const res = await fetch(`/api/lineup-rules/${selectedTemplateId}/apply-day`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayId: day.id, clearExisting }),
-      });
-      if (!res.ok) return;
-      const { contentStartIndex, contentCutoffIndex } = await res.json();
-      if (contentStartIndex != null) setStartIndex(contentStartIndex);
-      if (contentCutoffIndex != null) setCutoffIndex(contentCutoffIndex);
-      const dayRes = await fetch(`/api/days/${day.id}/slots`);
-      if (dayRes.ok) {
-        const slots = await dayRes.json();
-        onSlotsChange(day.id, slots);
-      }
-      setTemplateOpen(false);
-    } finally {
-      setApplying(false);
-    }
+  function handleTemplateApplied(newSlots: SlotWithLesson[], contentStartIndex: number | null, contentCutoffIndex: number | null) {
+    onSlotsChange(day.id, newSlots);
+    if (contentStartIndex != null) setStartIndex(contentStartIndex);
+    if (contentCutoffIndex != null) setCutoffIndex(contentCutoffIndex);
   }
 
   return (
@@ -269,7 +246,7 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
           )}
           {isAdmin && (
             <button
-              onClick={() => setTemplateOpen((v) => !v)}
+              onClick={() => setApplyTemplateOpen(true)}
               className="text-muted-foreground hover:text-foreground transition-colors"
               title="החל תבנית"
             >
@@ -303,52 +280,6 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
           </Link>
         </div>
       </div>
-
-      {/* Template picker (inline) */}
-      {templateOpen && (
-        <div className="px-3 py-2 bg-background border-b border-border space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-foreground">החל תבנית</span>
-            <button onClick={() => setTemplateOpen(false)} className="text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          {templates.length === 0 ? (
-            <p className="text-muted-foreground text-xs">
-              אין תבניות.{" "}
-              <a href="/settings/week-templates" className="underline hover:text-foreground">צור תבנית</a>
-            </p>
-          ) : (
-            <>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => setSelectedTemplateId(e.target.value)}
-                className="w-full border border-input rounded px-2 py-1 bg-background text-xs"
-              >
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="checkbox"
-                  checked={clearExisting}
-                  onChange={(e) => setClearExisting(e.target.checked)}
-                  className="h-3 w-3"
-                />
-                נקה קיימים
-              </label>
-              <button
-                onClick={handleApplyTemplate}
-                disabled={applying || !selectedTemplateId}
-                className="w-full rounded bg-primary text-primary-foreground text-xs py-1 font-medium disabled:opacity-50"
-              >
-                {applying ? "מחיל..." : "החל"}
-              </button>
-            </>
-          )}
-        </div>
-      )}
 
       {/* Slots */}
       <div ref={setDropRef} className={`flex-1 p-2 space-y-2 min-h-[80px] overflow-y-auto transition-colors ${isOver ? "bg-primary/5" : ""}`}>
@@ -461,6 +392,12 @@ export function DayColumn({ day, weekStart, templates = [], onSlotsChange, onAdd
         open={lessonPickerOpen}
         onClose={() => setLessonPickerOpen(false)}
         onSelect={handleAddLesson}
+      />
+      <ApplyDayTemplateDialog
+        open={applyTemplateOpen}
+        onClose={() => setApplyTemplateOpen(false)}
+        dayId={day.id}
+        onApplied={handleTemplateApplied}
       />
 
       {/* Fixed corner toast — visible regardless of scroll position */}

@@ -400,6 +400,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         cutoffIndex={cutoffIndex}
         startTime={startTime}
         endTime={endTime || undefined}
+        dayOfWeek={initialDay.dayOfWeek}
       />
 
       {/* Apply AI template dialog */}
