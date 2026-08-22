@@ -33,7 +33,8 @@ async function resolveAll(
   broadcastEndTime: string | null,
   contentStartIndex: number | null,
   contentCutoffIndex: number | null,
-  targetDate: Date | null
+  targetDate: Date | null,
+  dayId: string
 ): Promise<{ resolved: ResolvedItem[]; remainingForPickableSec: number | null; liveInWindow: { index: number; authoredSec: number }[] }> {
   const resolved: ResolvedItem[] = [];
   // Matches DayTimeSummary exactly: pre-content time reduces the window, content-window time is
@@ -110,7 +111,7 @@ async function resolveAll(
     if (!series) continue;
 
     if (series.consumptionMode === "continuous") {
-      const next = await getNextLessonForSeries(prisma, item.seriesId, targetDate);
+      const next = await getNextLessonForSeries(prisma, item.seriesId, targetDate, dayId);
       resolved.push({ index, kind: "continuous", seriesId: item.seriesId, next });
       if (next && !item.nested) {
         const { startSec, endSec } = lessonEffectiveRange(next.lesson);
@@ -122,7 +123,7 @@ async function resolveAll(
     // pickable - defer ranking until the remaining budget is known (self-contained item, or the
     // "article" half of a split pair; either way this is where the real search happens). But an
     // explicit date assignment (checked regardless of series mode) still wins over ranking.
-    const assignedLesson = targetDate ? await findLessonAssignedForDate(prisma, item.seriesId, targetDate) : null;
+    const assignedLesson = targetDate ? await findLessonAssignedForDate(prisma, item.seriesId, targetDate, dayId) : null;
     pendingPickable.push({ index, item });
     resolved.push({ index, kind: "pickable", seriesId: item.seriesId, part: item.part, candidates: [], assignedLessonId: assignedLesson?.id ?? null });
     if (item.part === "article") articleIndexBySeriesId.set(item.seriesId, index);
@@ -136,7 +137,7 @@ async function resolveAll(
     const entry = resolved.find((r) => r.index === index);
     if (!entry || entry.kind !== "pickable") continue;
     const candidates = remainingForPickableSec != null
-      ? await getBestFitCandidates(prisma, item.seriesId, remainingForPickableSec)
+      ? await getBestFitCandidates(prisma, item.seriesId, remainingForPickableSec, 5, dayId)
       : [];
     if (entry.assignedLessonId) {
       const alreadyIncluded = candidates.some((c) => c.lesson.id === entry.assignedLessonId);
@@ -194,7 +195,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { resolved, remainingForPickableSec, liveInWindow } = await resolveAll(
-    templateSlots, broadcastStartTime, broadcastEndTime, templateStartIndex, templateCutoffIndex, targetDate
+    templateSlots, broadcastStartTime, broadcastEndTime, templateStartIndex, templateCutoffIndex, targetDate, dayId
   );
 
   if (dryRun) {

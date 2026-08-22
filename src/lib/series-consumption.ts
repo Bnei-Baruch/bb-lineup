@@ -26,15 +26,18 @@ export interface NextLessonResult {
 export async function findLessonAssignedForDate(
   prisma: PrismaClient,
   seriesId: string,
-  date: Date
+  date: Date,
+  excludeDayId?: string | null
 ): Promise<Lesson | null> {
   const targetTime = date.getTime();
   const candidates = await prisma.lesson.findMany({ where: { seriesId, approvalStatus: { not: "used" }, broadcastDate: date } });
   const lesson = candidates.find((l) => l.broadcastDate?.getTime() === targetTime) ?? null;
   if (!lesson) return null;
 
+  // Exclude the day being (re-)resolved itself - its own existing slots are about to be replaced,
+  // not real consumption history, so they must not make an assigned lesson look already-aired.
   const slots = await prisma.lineupSlot.findMany({
-    where: { lessonId: lesson.id },
+    where: { lessonId: lesson.id, ...(excludeDayId ? { dayId: { not: excludeDayId } } : {}) },
     select: { startTimecode: true, endTimecode: true },
   });
   const { startSec, endSec } = lessonEffectiveRange(lesson);
@@ -62,7 +65,8 @@ export async function findLessonAssignedForDate(
 export async function getNextLessonForSeries(
   prisma: PrismaClient,
   seriesId: string,
-  targetDate?: Date | null
+  targetDate?: Date | null,
+  excludeDayId?: string | null
 ): Promise<NextLessonResult | null> {
   const unsorted = await prisma.lesson.findMany({
     where: { seriesId, approvalStatus: { not: "used" } },
@@ -80,7 +84,7 @@ export async function getNextLessonForSeries(
 
   const lessonIds = lessons.map((l) => l.id);
   const slots = await prisma.lineupSlot.findMany({
-    where: { lessonId: { in: lessonIds } },
+    where: { lessonId: { in: lessonIds }, ...(excludeDayId ? { dayId: { not: excludeDayId } } : {}) },
     select: { lessonId: true, startTimecode: true, endTimecode: true },
   });
 
@@ -106,7 +110,7 @@ export async function getNextLessonForSeries(
   }
 
   if (targetDate != null) {
-    const assigned = await findLessonAssignedForDate(prisma, seriesId, targetDate);
+    const assigned = await findLessonAssignedForDate(prisma, seriesId, targetDate, excludeDayId);
     if (assigned) {
       const result = await resultFor(assigned);
       if (result) return result;
@@ -133,7 +137,8 @@ export async function getBestFitCandidates(
   prisma: PrismaClient,
   seriesId: string,
   remainingSec: number,
-  limit = 5
+  limit = 5,
+  excludeDayId?: string | null
 ): Promise<PickableCandidate[]> {
   const lessons = await prisma.lesson.findMany({
     where: { seriesId, approvalStatus: "approved", videoDurationSec: { not: null } },
@@ -142,7 +147,7 @@ export async function getBestFitCandidates(
 
   const lessonIds = lessons.map((l) => l.id);
   const usedSlots = await prisma.lineupSlot.findMany({
-    where: { lessonId: { in: lessonIds } },
+    where: { lessonId: { in: lessonIds }, ...(excludeDayId ? { dayId: { not: excludeDayId } } : {}) },
     select: { lessonId: true },
     distinct: ["lessonId"],
   });
