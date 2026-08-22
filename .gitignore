@@ -43,3 +43,6 @@ prisma/*.db
 prisma/*.db-shm
 prisma/*.db-wal
 DEPLOY.md
+
+# db backups — never commit full DB dumps
+/backups/
