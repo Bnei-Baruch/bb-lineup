@@ -19,6 +19,7 @@ model Series {
   currentLessonRef   String?
   currentPage        String?
   playoutCode        String?  // e.g. "RAV", "RABASH" — matches Companion clip identifier
+  consumptionMode    String   @default("pickable") // "continuous" (strict in-order, e.g. TES) | "pickable" (best duration fit, e.g. Rabash)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -33,6 +34,7 @@ model PlayoutNowPlaying {
   clipName      String
   actualStartAt String   // ISO-8601 datetime
   durationSec   Int?
+  matchedSlotId String?  // slot resolved at play-start; reused at stop so start/stop always agree
   updatedAt     DateTime @updatedAt
 }
 
@@ -65,9 +67,10 @@ model LineupRuleSet {
   hardMaxDurationSec  Int?
   splitLongLessons    Boolean  @default(true)
   maxLessonDurationSec Int?
-  dayTemplate         String   // JSON: [{type:"fixed"|"lesson"|"article", componentId?, slotType?, label?}]
+  dayTemplate         String   // JSON: [{type:"fixed"|"lesson"|"article", componentId?, slotType?, label?}] (v1) or [{kind:"fixed"|"dynamic", ...}] (v2)
   preferredSeriesIds  String?  // JSON: string[]
   extraInstructions   String?
+  daysOfWeek          String?  // JSON int[] 0-6 (0=Sun..6=Sat); which day(s) this rule set applies to, for apply-week
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

@@ -5,28 +5,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
+import { SlotWithLesson, LESSON_SLOT_TYPES, TemplateItemV2 } from "@/types";
 import { timecodeToSeconds } from "@/lib/timecodes";
 
-interface TemplateSlot {
-  type: "fixed" | "lesson" | "article";
-  // component-based (pull defaults from component at apply time)
-  componentId?: string;
-  slotType?: string;
-  // custom slot full details
-  label?: string;
-  durationSec?: number;
-  startTimecode?: string;
-  endTimecode?: string;
-  partNumber?: number;
-  narratorScript?: string;
-  transitionType?: string;
-  mediaCode?: string;
-  language?: string;
-  hasSubtitles?: boolean;
-  hasWorkshopQuestions?: boolean;
-  notes?: string;
-}
+// Real facilitated-discussion slot types whose duration is genuinely unpredictable until
+// broadcast - mirrors the same list the original template migration used (src/types' consumers).
+const LIVE_SLOT_TYPES = new Set([
+  "study_between_friends", "building_spiritual_society", "management",
+  "conversations_on_way", "holiday_study", "chevruta", "group_study",
+]);
 
 interface RuleSet {
   id: string;
@@ -47,38 +34,66 @@ function getSlotDurationSec(slot: SlotWithLesson): number | undefined {
   return slot.durationSec ?? undefined;
 }
 
-function slotsToTemplate(slots: SlotWithLesson[]): TemplateSlot[] {
-  return slots.map((s) => {
-    const durationSec = getSlotDurationSec(s);
-    const hasTimecodes = LESSON_SLOT_TYPES.includes(s.slotType) && s.startTimecode && s.endTimecode;
+/** A slot backed by a lesson from a series with a real consumption mode ("continuous"/"pickable")
+ *  came from the dynamic matcher (or should be treated as if it did) - saving it as a frozen
+ *  snapshot would silently downgrade the rule set back to the old placeholder-only v1 shape and
+ *  lose the matching behavior entirely. Detected by lessonId + the lesson's own series, not by
+ *  any flag on the slot itself (none exists), so this is a best-effort inference. */
+function seriesModeOf(slot: SlotWithLesson): "continuous" | "pickable" | null {
+  if (!slot.lessonId || !slot.lesson?.seriesId || !slot.lesson.series) return null;
+  return slot.lesson.series.consumptionMode;
+}
 
+function slotsToTemplate(slots: SlotWithLesson[]): TemplateItemV2[] {
+  // Pickable pairs: an article_reading slot and a recorded_lesson/conversations_on_way slot
+  // sharing the same lessonId are the two halves of one dynamic pickable item, wherever they sit.
+  const lessonIdHasArticle = new Set(slots.filter((s) => s.slotType === "article_reading" && s.lessonId).map((s) => s.lessonId!));
+  const lessonIdHasVideo = new Set(slots.filter((s) => LESSON_SLOT_TYPES.includes(s.slotType) && s.lessonId).map((s) => s.lessonId!));
+
+  return slots.map((s): TemplateItemV2 => {
     if (s.slotType === "part_header") {
-      return { type: "fixed" as const, slotType: "part_header", partNumber: s.partNumber ?? undefined };
+      return { kind: "fixed", slotType: "part_header", partNumber: s.partNumber ?? undefined };
     }
-    // Component-based slot — save only the reference, pull defaults at apply time.
-    // Checked before the article/lesson special cases below so a component-linked
-    // article_reading slot (e.g. a narrator "read the article" component) keeps its
-    // component reference instead of being flattened into a bare placeholder.
-    if (s.componentId) {
-      return { type: "fixed" as const, componentId: s.componentId, slotType: s.slotType };
+
+    const mode = seriesModeOf(s);
+
+    if (mode === "continuous" && LESSON_SLOT_TYPES.includes(s.slotType)) {
+      return { kind: "dynamic", contentType: "lesson", seriesId: s.lesson!.seriesId! };
     }
-    if (s.slotType === "article_reading") {
-      return { type: "article" as const, durationSec };
-    }
-    if (LESSON_SLOT_TYPES.includes(s.slotType)) {
+
+    if (mode === "pickable" && (s.slotType === "article_reading" || LESSON_SLOT_TYPES.includes(s.slotType))) {
+      const isArticle = s.slotType === "article_reading";
+      const hasOtherHalf = isArticle ? lessonIdHasVideo.has(s.lessonId!) : lessonIdHasArticle.has(s.lessonId!);
       return {
-        type: "lesson" as const,
-        slotType: s.slotType,
-        durationSec,
-        ...(hasTimecodes && { startTimecode: s.startTimecode!, endTimecode: s.endTimecode! }),
+        kind: "dynamic", contentType: "lesson", seriesId: s.lesson!.seriesId!,
+        ...(hasOtherHalf ? { part: isArticle ? "article" : "video" } : {}),
       };
     }
-    // Custom slot — save full details
+
+    // Live content — duration is only known once broadcast, so its current actual length
+    // becomes the new planned estimate rather than being frozen as a fixed slot.
+    if (LIVE_SLOT_TYPES.has(s.slotType) && !s.lessonId) {
+      return {
+        kind: "dynamic", contentType: "live", slotType: s.slotType,
+        plannedDurationSec: getSlotDurationSec(s) ?? 0,
+        label: s.label ?? undefined,
+      };
+    }
+
+    // Component-based slot — save only the reference, pull defaults at apply time.
+    if (s.componentId) {
+      return { kind: "fixed", componentId: s.componentId, slotType: s.slotType };
+    }
+
+    // Custom fixed slot — save full details
+    const durationSec = getSlotDurationSec(s);
+    const hasTimecodes = LESSON_SLOT_TYPES.includes(s.slotType) && s.startTimecode && s.endTimecode;
     return {
-      type: "fixed" as const,
+      kind: "fixed",
       slotType: s.slotType,
       label: s.label ?? undefined,
       durationSec,
+      ...(hasTimecodes && { startTimecode: s.startTimecode!, endTimecode: s.endTimecode! }),
       narratorScript: s.narratorScript ?? undefined,
       transitionType: s.transitionType ?? undefined,
       mediaCode: s.mediaCode ?? undefined,
@@ -175,14 +190,16 @@ export function SaveAsTemplateDialog({ open, onClose, slots, startIndex, cutoffI
           <div className="space-y-1 max-h-48 overflow-y-auto">
           {template.map((t, i) => {
             const color =
-              t.type === "fixed" ? "bg-blue-100 text-blue-700" :
-              t.type === "lesson" ? "bg-purple-100 text-purple-700" :
-              "bg-green-100 text-green-700";
+              t.kind === "fixed" ? "bg-blue-100 text-blue-700" :
+              t.contentType === "live" ? "bg-amber-100 text-amber-700" :
+              "bg-purple-100 text-purple-700";
             const lbl =
-              t.type === "fixed" ? (t.label ?? t.slotType ?? "קבוע") :
-              t.type === "lesson" ? "שיעור מוקלט" : "קריאת מאמר";
-            const dur = t.durationSec
-              ? ` · ${Math.floor(t.durationSec / 60)}:${String(t.durationSec % 60).padStart(2, "0")}`
+              t.kind === "fixed" ? (t.label ?? t.slotType ?? "קבוע") :
+              t.contentType === "live" ? `תוכן חי דינמי${t.label ? " · " + t.label : ""}` :
+              `שיעור דינמי${t.part ? " (" + (t.part === "article" ? "מאמר" : "וידאו") + ")" : ""}`;
+            const durSec = t.kind === "fixed" ? t.durationSec : t.contentType === "live" ? t.plannedDurationSec : undefined;
+            const dur = durSec
+              ? ` · ${Math.floor(durSec / 60)}:${String(durSec % 60).padStart(2, "0")}`
               : "";
             return (
               <div key={i} className="flex items-center gap-2">

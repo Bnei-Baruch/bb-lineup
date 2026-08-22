@@ -4,6 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DayWithSlots, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
+import { isoToIsraelSec } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
 import { Clock, ZoomIn, ZoomOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
@@ -43,18 +44,12 @@ interface NowPlaying {
   actualStartAt: string; // ISO-8601 — Playdeck clip start (may be old/stale)
   updatedAt: string;     // ISO-8601 — when Companion sent the POST (always current)
   durationSec?: number;
-}
-
-function isoToIsraelSec(iso: string): number {
-  const d = new Date(iso);
-  const parts = new Intl.DateTimeFormat("he", {
-    timeZone: "Asia/Jerusalem",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-  }).formatToParts(d);
-  const h = parseInt(parts.find(p => p.type === "hour")?.value ?? "0");
-  const m = parseInt(parts.find(p => p.type === "minute")?.value ?? "0");
-  const s = parseInt(parts.find(p => p.type === "second")?.value ?? "0");
-  return h * 3600 + m * 60 + s;
+  // The exact slot the server resolved this clip to (see /api/playout/current).
+  // A clip's code (playoutCode/mediaCode) can be shared by slots in other
+  // sessions/days airing the same series at a different time — matching by
+  // code alone would flag one of THIS page's own same-code rows as live even
+  // when the real live slot is on a different session's page entirely.
+  matchedSlotId?: string | null;
 }
 
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
@@ -180,11 +175,13 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
           // Clip just stopped — fetch the actual played duration from the slot and
           // update slotOverrides so it shows without a page reload
           if (wasLive && prev) {
-            const liveSlot = day.slots.find(s => {
-              const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
-              return (code && code.toUpperCase() === prev.clipName.toUpperCase()) ||
-                     s.id === prev.clipName;
-            });
+            const liveSlot = prev.matchedSlotId
+              ? day.slots.find(s => s.id === prev.matchedSlotId)
+              : day.slots.find(s => {
+                  const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
+                  return (code && code.toUpperCase() === prev.clipName.toUpperCase()) ||
+                         s.id === prev.clipName;
+                });
             if (liveSlot) {
               fetch(`/api/slots/${liveSlot.id}/actuals`)
                 .then(r => r.ok ? r.json() : null)
@@ -285,15 +282,48 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     }).catch(console.error);
   }
 
-  // Precompute live slot index for matching — use lastPlaying for time correction (persists after clip ends)
+  // Precompute live slot index for matching — use lastPlaying for time correction (persists after clip ends).
+  // Prefer the server-resolved matchedSlotId (exact slot, disambiguated across sessions/days that
+  // share the same playoutCode). Only fall back to code-matching for older PlayoutNowPlaying rows
+  // that predate that field.
   const liveSlotIndex = lastPlaying
-    ? day.slots.findIndex(s => {
-        const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
-        return (code && code.toUpperCase() === lastPlaying.clipName.toUpperCase()) ||
-               s.id === lastPlaying.clipName;
-      })
+    ? (lastPlaying.matchedSlotId
+        ? day.slots.findIndex(s => s.id === lastPlaying.matchedSlotId)
+        : day.slots.findIndex(s => {
+            const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
+            return (code && code.toUpperCase() === lastPlaying.clipName.toUpperCase()) ||
+                   s.id === lastPlaying.clipName;
+          }))
     : -1;
   const liveStartSec = lastPlaying ? isoToIsraelSec(lastPlaying.actualStartAt) : null;
+
+  // Determine the confirmed actual start time for a slot (independent of clock accumulation):
+  // - live slot: use lastPlaying.actualStartAt (most current, from Companion)
+  // - other slots: use actualBroadcastAt (persisted or locally overridden from manual trigger)
+  function getActualStartSec(slot: SlotWithLesson, i: number): number | null {
+    const isLiveI = i === liveSlotIndex;
+    const effectiveActualBroadcastAt = slotOverrides.get(slot.id)?.actualBroadcastAt ?? slot.actualBroadcastAt;
+    return isLiveI && liveStartSec !== null
+      ? liveStartSec
+      : (effectiveActualBroadcastAt ? isoToIsraelSec(effectiveActualBroadcastAt) : null);
+  }
+
+  // Untracked rows (no Companion/manual confirmation of their own — e.g. workshop/timer
+  // segments) otherwise always render their full static planned duration, even once a
+  // later row's confirmed actual start proves they really ended sooner. Precompute, for
+  // each row, the nearest later row's confirmed start, so untracked rows can be clamped
+  // to it below instead of overlapping/overrunning into what we know really happened next.
+  const nextAnchorSec: (number | null)[] = new Array(day.slots.length).fill(null);
+  {
+    let nearest: number | null = null;
+    for (let i = day.slots.length - 1; i >= 0; i--) {
+      nextAnchorSec[i] = nearest;
+      if (!day.slots[i].parentSlotId) {
+        const anchor = getActualStartSec(day.slots[i], i);
+        if (anchor !== null) nearest = anchor;
+      }
+    }
+  }
 
   let runningSec = timeToSec(startTime);
   let postAnchor = false; // true once we've passed any slot with a confirmed actual time
@@ -307,16 +337,11 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     const effectiveActualBroadcastAt = override?.actualBroadcastAt ?? slot.actualBroadcastAt;
     const effectiveActualDurationSec = override?.actualDurationSec ?? slot.actualDurationSec;
 
-    // Determine the actual start time for this slot:
-    // - live slot: use lastPlaying.actualStartAt (most current, from Companion)
-    // - other slots: use actualBroadcastAt (persisted or locally overridden from manual trigger)
-    const actualStartSec = isLive && liveStartSec !== null
-      ? liveStartSec
-      : (effectiveActualBroadcastAt ? isoToIsraelSec(effectiveActualBroadcastAt) : null);
+    const actualStartSec = getActualStartSec(slot, i);
     const hasConfirmedTime = actualStartSec !== null;
 
     // Duration priority: live Companion data > manual override / persisted actual > timecode/scheduled
-    const dur = (isLive && lastPlaying?.durationSec)
+    let dur = (isLive && lastPlaying?.durationSec)
       ? lastPlaying.durationSec
       : (effectiveActualDurationSec ?? slotEffectiveDuration(slot));
 
@@ -341,6 +366,14 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
       }
       slotStartSec = runningSec;
       clockTimeStr = runningTime;
+
+      // This row has no confirmed time of its own — if a later row already proves
+      // (via its own confirmed start) that things moved on sooner than planned, don't
+      // let this row's static/theoretical duration run past that real event.
+      const anchor = nextAnchorSec[i];
+      if (!hasConfirmedTime && anchor !== null && anchor > slotStartSec) {
+        dur = Math.min(dur, anchor - slotStartSec);
+      }
     }
 
     const rowEndSec = slotStartSec + dur;

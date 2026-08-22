@@ -31,6 +31,18 @@ function parseRowDate(raw: string): Date | null {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+/** "תאריך שידור" cells often drop the year after the first few rows (e.g. "17.8" instead of
+ *  "17.8.2026"), assuming the reader infers it from the rows above. Carries forward the most
+ *  recently seen explicit year (via the shared `state`) and applies it to a bare D.M value. */
+function resolveBroadcastDateStr(raw: string, state: { lastYear: number | null }): string {
+  const trimmed = raw.trim();
+  const full = trimmed.match(/^(\d{1,2})[-.](\d{1,2})[-.](\d{4})$/);
+  if (full) { state.lastYear = parseInt(full[3]); return trimmed; }
+  const short = trimmed.match(/^(\d{1,2})[-.](\d{1,2})$/);
+  if (short && state.lastYear != null) return `${short[1]}.${short[2]}.${state.lastYear}`;
+  return trimmed;
+}
+
 function slugify(name: string): string {
   const slug = name
     .replace(/[^א-תa-zA-Z0-9]+/g, "-")
@@ -154,6 +166,7 @@ export async function POST(req: NextRequest) {
   const pending: PendingRow[] = [];
   let currentSeriesName: string | null = null;
   let noPartsSkipped = 0;
+  const broadcastYearState = { lastYear: null as number | null };
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
@@ -198,7 +211,8 @@ export async function POST(req: NextRequest) {
 
     const parts = filledParts.map(({ part, content }) => {
       const range = parsePartTimeRange(content);
-      const broadcastDate = part.dateColIdx != null ? (row[part.dateColIdx]?.trim() || null) : null;
+      const rawBroadcastDate = part.dateColIdx != null ? (row[part.dateColIdx]?.trim() || null) : null;
+      const broadcastDate = rawBroadcastDate ? resolveBroadcastDateStr(rawBroadcastDate, broadcastYearState) : null;
       return {
         partNumber: part.partNumber,
         broadcastDate,

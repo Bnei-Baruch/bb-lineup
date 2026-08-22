@@ -24,6 +24,19 @@ export function currentWeekParam(): string {
   return weekStartParam(new Date());
 }
 
+/** Convert an ISO-8601 timestamp to seconds-since-midnight in Asia/Jerusalem */
+export function isoToIsraelSec(iso: string): number {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat("he", {
+    timeZone: "Asia/Jerusalem",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(d);
+  const h = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const s = parseInt(parts.find((p) => p.type === "second")?.value ?? "0");
+  return h * 3600 + m * 60 + s;
+}
+
 /** Today's date in Asia/Jerusalem, as a UTC-midnight Date (avoids off-by-one near midnight on UTC servers) */
 export function todayInIsrael(): Date {
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jerusalem" }).formatToParts(new Date());
@@ -47,4 +60,14 @@ export function dayDate(weekStart: Date, dayOfWeek: number): Date {
   const d = new Date(weekStart);
   d.setUTCDate(d.getUTCDate() + dayOfWeek);
   return d;
+}
+
+/** Hebrew/English part-of-day label derived from a session's "HH:MM[:SS]" broadcast start time */
+export function timeOfDayLabel(time: string | null | undefined): { he: string; en: string } {
+  const hour = time ? parseInt(time.split(":")[0], 10) : NaN;
+  if (isNaN(hour)) return { he: "שיעור", en: "Lesson" };
+  if (hour < 12) return { he: "בוקר", en: "Morning" };
+  if (hour < 17) return { he: "צהריים", en: "Afternoon" };
+  if (hour < 21) return { he: "ערב", en: "Evening" };
+  return { he: "לילה", en: "Night" };
 }

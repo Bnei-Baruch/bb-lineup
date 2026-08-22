@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
+import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate, timeOfDayLabel } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
 import { SessionTabs } from "@/components/lineup/SessionTabs";
@@ -137,7 +137,7 @@ export default async function DayViewPage({
   }
 
   const date = dayDate(ws, dow);
-  const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
+  const dayLabel = `ליינאפ שיעור ${timeOfDayLabel(dayData.broadcastStartTime).he} — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,

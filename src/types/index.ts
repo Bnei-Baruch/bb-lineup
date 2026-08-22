@@ -153,7 +153,7 @@ export interface LessonSummary {
   approvalStatus: string;
   tags: string | null;
   seriesId: string | null;
-  series: { playoutCode: string | null } | null;
+  series: { playoutCode: string | null; consumptionMode: ConsumptionMode } | null;
   kmPageLink: string | null;
   videoLink: string | null;
   articleSourceLink: string | null;
@@ -225,6 +225,8 @@ export interface LineupWithDays {
   days: DayWithSlots[];
 }
 
+export type ConsumptionMode = "continuous" | "pickable";
+
 export interface SeriesSummary {
   id: string;
   name: string;
@@ -233,6 +235,7 @@ export interface SeriesSummary {
   currentArticleRef: string | null;
   currentLessonRef: string | null;
   currentPage: string | null;
+  consumptionMode: ConsumptionMode;
 }
 
 export interface ComponentSummary {
@@ -247,3 +250,49 @@ export interface ComponentSummary {
   defaultTransitionType: string | null;
   defaultMediaCode: string | null;
 }
+
+// ─── LineupRuleSet.dayTemplate item shape (v2) ────────────────────────────────
+// A "fixed" item has a known duration, authored directly (mirrors the fields a real
+// LineupSlot would have). A "dynamic" item's duration is resolved at apply time:
+// - contentType "lesson": which series feeds it, and how (continuous vs pickable),
+//   comes from that Series' consumptionMode — never duplicated onto the item itself.
+// - contentType "live": duration is only known once broadcast, so an authored estimate
+//   is required since nothing else can supply one.
+export interface FixedTemplateItem {
+  kind: "fixed";
+  slotType: SlotType;
+  componentId?: string;
+  label?: string;
+  durationSec?: number;
+  narratorScript?: string;
+  startTimecode?: string;
+  endTimecode?: string;
+  partNumber?: number;
+  transitionType?: string;
+  mediaCode?: string;
+  language?: string;
+  hasSubtitles?: boolean;
+  hasWorkshopQuestions?: boolean;
+  notes?: string;
+}
+
+export interface DynamicLessonTemplateItem {
+  kind: "dynamic";
+  contentType: "lesson";
+  seriesId: string;
+  /** When a pickable series' article and video steps sit at different template positions
+   *  (e.g. a workshop discussing the article sits between them), each becomes its own item
+   *  sharing this seriesId, resolved together as one choice. Omitted for a self-contained
+   *  item (a continuous-series segment, or a pickable lesson with no article step at all). */
+  part?: "article" | "video";
+}
+
+export interface DynamicLiveTemplateItem {
+  kind: "dynamic";
+  contentType: "live";
+  slotType: SlotType;
+  plannedDurationSec: number;
+  label?: string;
+}
+
+export type TemplateItemV2 = FixedTemplateItem | DynamicLessonTemplateItem | DynamicLiveTemplateItem;

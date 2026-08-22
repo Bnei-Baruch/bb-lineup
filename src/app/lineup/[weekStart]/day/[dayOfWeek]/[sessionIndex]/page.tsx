@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
+import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate, timeOfDayLabel } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
 import { DayView } from "@/components/lineup/DayView";
 import { SessionTabs } from "@/components/lineup/SessionTabs";
@@ -145,8 +145,9 @@ export default async function DayViewPage({
   const enSessionSuffix = sessionIdx > 0
     ? ` / ${sessionLabel ?? `Lesson ${sessionIdx + 1}`}`
     : "";
-  const dayLabel = `ליינאפ שיעור בוקר — ${DAY_NAMES[dow]}, ${formatDate(date)}${sessionSuffix}`;
-  const enDayLabel = `Morning Lesson Lineup — ${EN_DAY_NAMES[dow]}, ${formatDate(date)}${enSessionSuffix}`;
+  const timeOfDay = timeOfDayLabel(dayData.broadcastStartTime);
+  const dayLabel = `ליינאפ שיעור ${timeOfDay.he} — ${DAY_NAMES[dow]}, ${formatDate(date)}${sessionSuffix}`;
+  const enDayLabel = `${timeOfDay.en} Lesson Lineup — ${EN_DAY_NAMES[dow]}, ${formatDate(date)}${enSessionSuffix}`;
 
   const serialized: DayWithSlots = JSON.parse(JSON.stringify({
     ...dayData,
