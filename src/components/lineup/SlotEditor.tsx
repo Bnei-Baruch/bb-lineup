@@ -436,7 +436,20 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
                 </Field>
 
                 <Field label="קישור שקופיות">
-                  <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." />
+                  <div className="flex gap-1.5">
+                    <Input value={form.slidesLink} onChange={(e) => set("slidesLink", e.target.value)} dir="ltr" placeholder="https://..." className="flex-1" />
+                    {form.slidesLink && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => set("slidesLink", "")}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </Field>
 
                 {!isArticle && !isLiveContent && (

@@ -657,14 +657,14 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {/* חומר לימוד */}
                       <td className="px-3 py-3 border-s-2 border-s-slate-300">
                         <div className="flex flex-col gap-1.5">
-                          {(slot.lineupLink ?? slot.component?.defaultLineupLink) && (
+                          {slot.lineupLink && (
                             <TableLink
-                              href={(slot.lineupLink ?? slot.component?.defaultLineupLink)!}
+                              href={slot.lineupLink}
                               label={slot.component?.name === "הודעות לסיום" ? "הודעות קריין" : "ליינאפ"}
                             />
                           )}
-                          {(slot.slidesLink ?? slot.component?.defaultSlidesLink) && (
-                            <TableLink href={(slot.slidesLink ?? slot.component?.defaultSlidesLink)!} label="שקופיות" />
+                          {slot.slidesLink && (
+                            <TableLink href={slot.slidesLink} label="שקופיות" />
                           )}
                           {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
                             <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />

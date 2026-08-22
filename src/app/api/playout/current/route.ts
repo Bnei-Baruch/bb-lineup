@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { toWeekStart, isoToIsraelSec } from "@/lib/dates";
+import { toWeekStart, isoToIsraelSec, todayInIsrael } from "@/lib/dates";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
 import { SlotType } from "@/types";
 
@@ -90,11 +90,14 @@ async function saveActualBroadcastToSlot(
       return knownSlotId;
     }
 
-    const now = new Date();
-    const ws = toWeekStart(now);
+    // Use Israel's calendar day, not the server's UTC clock — a call made between
+    // local midnight and ~03:00 is still "yesterday" in UTC and would otherwise
+    // resolve to the wrong LineupDay (see todayInIsrael's doc comment).
+    const israelToday = todayInIsrael();
+    const ws = toWeekStart(israelToday);
     // SQLite stores datetimes with +00:00 suffix; use LIKE to avoid format mismatch with Z suffix
     const weekDatePrefix = ws.toISOString().slice(0, 10); // "YYYY-MM-DD"
-    const dow = now.getUTCDay();
+    const dow = israelToday.getUTCDay();
 
     const lineups = await prisma.$queryRaw<{ id: string }[]>`
       SELECT id FROM "Lineup" WHERE weekStart LIKE ${weekDatePrefix + "%"} LIMIT 1
