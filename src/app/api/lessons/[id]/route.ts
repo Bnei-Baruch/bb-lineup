@@ -32,6 +32,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   delete body.id;
 
+  // A bare "YYYY-MM-DD" (e.g. from a native date input) isn't a full ISO-8601 DateTime, which
+  // this Prisma client version requires - convert before it ever reaches the query engine.
+  if (typeof body.broadcastDate === "string") {
+    body.broadcastDate = body.broadcastDate ? new Date(body.broadcastDate) : null;
+  }
+
   // Extract book page fields — handled via ArticleSource, not Lesson
   const bookVolume: number | null = body.articleBookVolume ?? null;
   const bookPage: number | null = body.articleBookPage ?? null;
