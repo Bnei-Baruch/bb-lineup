@@ -148,6 +148,16 @@ export function LibraryClient({ lessons: initial, series, currentSlotIds, pastSl
     );
   }
 
+  async function handleInlineUpdate(id: string, patch: { approvalStatus?: string; broadcastDate?: string | null }) {
+    const res = await fetch(`/api/lessons/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) return;
+    setLessons((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }
+
   async function handleBulkDelete(ids: string[]) {
     if (!confirm(`למחוק ${ids.length} שיעורים?`)) return;
     const res = await fetch("/api/lessons/bulk-delete", {
@@ -218,6 +228,7 @@ export function LibraryClient({ lessons: initial, series, currentSlotIds, pastSl
           onBulkDelete={handleBulkDelete}
           onBulkStatusChange={handleBulkStatusChange}
           onBulkAssignSeries={handleBulkAssignSeries}
+          onInlineUpdate={handleInlineUpdate}
         />
       )}
 

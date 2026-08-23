@@ -38,7 +38,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   delete body.articleBookVolume;
   delete body.articleBookPage;
 
-  // Extract timecode fields — written via raw SQL to avoid Prisma client cache issues
+  // Extract timecode fields — written via raw SQL to avoid Prisma client cache issues. Only
+  // touched when actually present in the request, so a partial update (e.g. inline-editing one
+  // unrelated field) can't silently wipe out an existing cut.
+  const hasTimecodeFields = "startTimecode" in body || "endTimecode" in body;
   const startTimecode: string | null = body.startTimecode || null;
   const endTimecode: string | null = body.endTimecode || null;
   delete body.startTimecode;
@@ -70,9 +73,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   // Write timecode fields via raw SQL (Prisma client may not yet include these columns)
-  await prisma.$executeRaw`
-    UPDATE "Lesson" SET "startTimecode" = ${startTimecode}, "endTimecode" = ${endTimecode} WHERE id = ${id}
-  `;
+  if (hasTimecodeFields) {
+    await prisma.$executeRaw`
+      UPDATE "Lesson" SET "startTimecode" = ${startTimecode}, "endTimecode" = ${endTimecode} WHERE id = ${id}
+    `;
+  }
 
   // Upsert book page into ArticleSource if we have a source ID
   const sourceId = lesson.articleSourceId;
@@ -95,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
   }
 
-  return NextResponse.json({ ...lesson, startTimecode, endTimecode });
+  return NextResponse.json(hasTimecodeFields ? { ...lesson, startTimecode, endTimecode } : lesson);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { StatusBadge } from "./StatusBadge";
+import { StatusBadge, STATUS_CONFIG } from "./StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
@@ -30,6 +30,57 @@ interface LessonRow {
   articleSource: { bookSeries: string | null; bookVolume: number | null; bookPage: number | null } | null;
 }
 
+/** Video length actually aired - the cut range if one's set, otherwise the full recording. */
+function effectiveVideoSec(l: LessonRow): number {
+  if (l.startTimecode && l.endTimecode) {
+    const cut = timecodeToSeconds(l.endTimecode) - timecodeToSeconds(l.startTimecode);
+    if (cut > 0) return cut;
+  }
+  return l.videoDurationSec ?? 0;
+}
+
+const INLINE_STATUS_OPTIONS = ["pending", "approved", "used"];
+
+function StatusSelect({ status, onChange }: { status: string; onChange: (v: string) => void }) {
+  const cfg = STATUS_CONFIG[status];
+  return (
+    <select
+      value={status}
+      onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className={`text-xs rounded-full border px-2 py-1 bg-background cursor-pointer ${cfg?.className ?? ""}`}
+    >
+      {INLINE_STATUS_OPTIONS.map((s) => (
+        <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+      ))}
+    </select>
+  );
+}
+
+/** "YYYY-MM-DDT..." (or any Date-parsable string) -> "YYYY-MM-DD" for a native date input. */
+function toDateInputValue(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+function BroadcastDateInput({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  return (
+    <input
+      type="date"
+      dir="ltr"
+      defaultValue={toDateInputValue(value)}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => {
+        const next = e.target.value || null;
+        if (next !== (toDateInputValue(value) || null)) onChange(next);
+      }}
+      className="text-xs border border-input rounded px-1.5 py-1 bg-background tabular-nums"
+    />
+  );
+}
+
 interface LessonTableProps {
   lessons: LessonRow[];
   seriesList: { id: string; name: string }[];
@@ -40,9 +91,10 @@ interface LessonTableProps {
   onBulkDelete: (ids: string[]) => void;
   onBulkStatusChange: (ids: string[], status: string) => void;
   onBulkAssignSeries: (ids: string[], seriesId: string | null) => void;
+  onInlineUpdate: (id: string, patch: { approvalStatus?: string; broadcastDate?: string | null }) => void;
 }
 
-export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, onDelete, onDuplicate, onBulkDelete, onBulkStatusChange, onBulkAssignSeries }: LessonTableProps) {
+export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, onDelete, onDuplicate, onBulkDelete, onBulkStatusChange, onBulkAssignSeries, onInlineUpdate }: LessonTableProps) {
   const currentSet = useMemo(() => new Set(currentSlotIds), [currentSlotIds]);
   const pastSet = useMemo(() => new Set(pastSlotIds), [pastSlotIds]);
 
@@ -63,7 +115,7 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
   const [bulkSeriesId, setBulkSeriesId] = useState("");
 
   // Sorting
-  type SortKey = "series" | "recordingDate" | "broadcastDate" | "duration" | "status";
+  type SortKey = "series" | "recordingDate" | "broadcastDate" | "duration" | "total" | "status";
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDesc, setSortDesc] = useState(true);
 
@@ -114,6 +166,9 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
         } else if (sortKey === "duration") {
           aVal = (a.videoDurationSec ?? 0) + (a.articleReadingSec ?? 0);
           bVal = (b.videoDurationSec ?? 0) + (b.articleReadingSec ?? 0);
+        } else if (sortKey === "total") {
+          aVal = effectiveVideoSec(a) + (a.articleReadingSec ?? 0);
+          bVal = effectiveVideoSec(b) + (b.articleReadingSec ?? 0);
         } else if (sortKey === "status") {
           const statusOrder = { pending: 0, approved: 1, used: 2 };
           aVal = statusOrder[a.approvalStatus as keyof typeof statusOrder] ?? 3;
@@ -315,7 +370,6 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                 סדרה {sortKey === "series" && (sortDesc ? "↓" : "↑")}
               </th>
               <th className="px-4 py-2 text-start font-medium">קישורים</th>
-              <th className="px-4 py-2 text-start font-medium">קריין</th>
               <th className="px-4 py-2 text-start font-medium cursor-pointer hover:bg-muted-foreground/10 select-none" onClick={() => toggleSort("recordingDate")}>
                 הקלטה {sortKey === "recordingDate" && (sortDesc ? "↓" : "↑")}
               </th>
@@ -324,6 +378,9 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
               </th>
               <th className="px-4 py-2 text-start font-medium cursor-pointer hover:bg-muted-foreground/10 select-none" onClick={() => toggleSort("duration")}>
                 משך {sortKey === "duration" && (sortDesc ? "↓" : "↑")}
+              </th>
+              <th className="px-4 py-2 text-start font-medium cursor-pointer hover:bg-muted-foreground/10 select-none" onClick={() => toggleSort("total")}>
+                סה״כ {sortKey === "total" && (sortDesc ? "↓" : "↑")}
               </th>
               <th className="px-4 py-2 text-start font-medium cursor-pointer hover:bg-muted-foreground/10 select-none" onClick={() => toggleSort("status")}>
                 סטטוס {sortKey === "status" && (sortDesc ? "↓" : "↑")}
@@ -411,9 +468,13 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3">{l.narratorName ?? "—"}</td>
                 <td className="px-4 py-3 tabular-nums">{l.recordingDate ? formatDate(l.recordingDate) : "—"}</td>
-                <td className="px-4 py-3 tabular-nums">{l.broadcastDate ? formatDate(l.broadcastDate) : "—"}</td>
+                <td className="px-4 py-3 tabular-nums">
+                  <BroadcastDateInput
+                    value={l.broadcastDate}
+                    onChange={(v) => onInlineUpdate(l.id, { broadcastDate: v })}
+                  />
+                </td>
                 <td className="px-4 py-3 tabular-nums">
                   <div className="flex flex-col gap-0.5">
                     {l.videoDurationSec ? (() => {
@@ -437,9 +498,17 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                     {!l.videoDurationSec && !l.articleReadingSec && "—"}
                   </div>
                 </td>
+                <td className="px-4 py-3 tabular-nums">
+                  {l.videoDurationSec || l.articleReadingSec
+                    ? formatDurationSec(effectiveVideoSec(l) + (l.articleReadingSec ?? 0))
+                    : "—"}
+                </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-wrap gap-1">
-                    <StatusBadge status={l.approvalStatus} />
+                  <div className="flex flex-wrap items-center gap-1">
+                    <StatusSelect
+                      status={l.approvalStatus}
+                      onChange={(v) => onInlineUpdate(l.id, { approvalStatus: v })}
+                    />
                     {currentSet.has(l.id) && <StatusBadge status="scheduled" />}
                     {pastSet.has(l.id) && l.approvalStatus !== "used" && !currentSet.has(l.id) && (
                       <StatusBadge status="broadcast" />
