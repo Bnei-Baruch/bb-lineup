@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   DragStartEvent,
   DragOverlay,
   PointerSensor,
@@ -15,8 +16,10 @@ import {
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
 import { DayColumnGroup } from "./DayColumnGroup";
 import { SlotCard } from "./SlotCard";
+import { CompactWeekView } from "./CompactWeekView";
 import { LineupWithDays, DayWithSlots, SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, dayDate, parseWeekParam, formatDate } from "@/lib/dates";
+import { LayoutList, Rows3 } from "lucide-react";
 
 function timeToSec(hhmm: string): number {
   const p = hhmm.split(":").map(Number);
@@ -59,6 +62,7 @@ export function WeekGrid({ lineup }: WeekGridProps) {
   const [activeSlot, setActiveSlot] = useState<SlotWithLesson | null>(null);
   // Ordered array: oldest-expanded first. Max 4 at once; opening a 5th evicts the first.
   const [expandedDays, setExpandedDays] = useState<number[]>([0]);
+  const [viewMode, setViewMode] = useState<"detailed" | "compact">("detailed");
 
   const dayGroups = useMemo(() => {
     const map = new Map<number, DayWithSlots[]>();
@@ -111,74 +115,83 @@ export function WeekGrid({ lineup }: WeekGridProps) {
     setActiveSlot(slot);
   }
 
-  function handleDragEnd(event: DragEndEvent) {
-    setActiveSlot(null);
+  // Moves the dragged slot into the hovered day/position live, so cross-day drags
+  // show a landing preview the same way same-day sortable reordering already does.
+  function handleDragOver(event: DragOverEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
 
     const activeId = active.id as string;
     const overId = over.id as string;
+    if (activeId === overId) return;
 
-    const activeDay = days.find((d) => d.slots.some((s) => s.id === activeId));
-    if (!activeDay) return;
+    setDays((prev) => {
+      const activeDay = prev.find((d) => d.slots.some((s) => s.id === activeId));
+      if (!activeDay) return prev;
 
-    const overDayById = overId.startsWith("day-") ? days.find(d => d.id === overId.slice(4)) : null;
-    const overDay = overDayById ?? days.find((d) => d.slots.some((s) => s.id === overId));
-    if (!overDay) return;
+      const overDayById = overId.startsWith("day-") ? prev.find((d) => d.id === overId.slice(4)) : null;
+      const overDay = overDayById ?? prev.find((d) => d.slots.some((s) => s.id === overId));
+      if (!overDay || activeDay.id === overDay.id) return prev;
 
-    if (activeDay.id === overDay.id && !overDayById) {
-      const oldIndex = activeDay.slots.findIndex((s) => s.id === activeId);
-      const newIndex = activeDay.slots.findIndex((s) => s.id === overId);
-      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const slot = activeDay.slots.find((s) => s.id === activeId);
+      if (!slot) return prev;
 
-      const newSlots = arrayMove(activeDay.slots, oldIndex, newIndex);
-      setDays(prev => prev.map(d => d.id === activeDay.id ? { ...d, slots: newSlots } : d));
+      const sourceSlots = activeDay.slots.filter((s) => s.id !== activeId);
+      const overIndex = overDayById ? overDay.slots.length : overDay.slots.findIndex((s) => s.id === overId);
+      const targetSlots: SlotWithLesson[] = [
+        ...overDay.slots.slice(0, overIndex),
+        slot,
+        ...overDay.slots.slice(overIndex),
+      ];
 
-      fetch("/api/slots/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayId: activeDay.id, orderedIds: newSlots.map(s => s.id) }),
-      }).catch(() => setDays(days));
-    } else {
-      const slot = activeDay.slots.find(s => s.id === activeId)!;
-      const sourceSlots = activeDay.slots.filter(s => s.id !== activeId);
-
-      let targetSlots: SlotWithLesson[];
-      if (overDayById) {
-        targetSlots = [...overDay.slots, slot];
-      } else {
-        const overIndex = overDay.slots.findIndex(s => s.id === overId);
-        targetSlots = [
-          ...overDay.slots.slice(0, overIndex),
-          slot,
-          ...overDay.slots.slice(overIndex),
-        ];
-      }
-
-      setDays(prev => prev.map(d => {
+      return prev.map((d) => {
         if (d.id === activeDay.id) return { ...d, slots: sourceSlots };
         if (d.id === overDay.id) return { ...d, slots: targetSlots };
         return d;
-      }));
+      });
+    });
+  }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    const activeId = active.id as string;
+    const originalDayId = activeSlot?.dayId ?? null;
+    setActiveSlot(null);
+    if (!over) return;
+
+    const overId = over.id as string;
+    const currentDay = days.find((d) => d.slots.some((s) => s.id === activeId));
+    if (!currentDay) return;
+
+    const movedAcrossDays = originalDayId !== null && originalDayId !== currentDay.id;
+
+    let finalSlots = currentDay.slots;
+    const oldIndex = currentDay.slots.findIndex((s) => s.id === activeId);
+    const newIndex = overId.startsWith("day-") ? -1 : currentDay.slots.findIndex((s) => s.id === overId);
+    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+      finalSlots = arrayMove(currentDay.slots, oldIndex, newIndex);
+      setDays((prev) => prev.map((d) => (d.id === currentDay.id ? { ...d, slots: finalSlots } : d)));
+    }
+
+    if (!movedAcrossDays && oldIndex === newIndex) return;
+
+    const persistReorder = (dayId: string, orderedIds: string[]) =>
+      fetch("/api/slots/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayId, orderedIds }),
+      });
+
+    persistReorder(currentDay.id, finalSlots.map((s) => s.id));
+
+    if (movedAcrossDays) {
       fetch(`/api/slots/${activeId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayId: overDay.id }),
-      }).then(() =>
-        Promise.all([
-          fetch("/api/slots/reorder", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dayId: activeDay.id, orderedIds: sourceSlots.map(s => s.id) }),
-          }),
-          fetch("/api/slots/reorder", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ dayId: overDay.id, orderedIds: targetSlots.map(s => s.id) }),
-          }),
-        ])
-      );
+        body: JSON.stringify({ dayId: currentDay.id }),
+      });
+      const originalDay = days.find((d) => d.id === originalDayId);
+      if (originalDay) persistReorder(originalDay.id, originalDay.slots.map((s) => s.id));
     }
   }
 
@@ -188,8 +201,31 @@ export function WeekGrid({ lineup }: WeekGridProps) {
 
   const weekStart = parseWeekParam(lineup.weekStart);
 
+  const viewToggle = (
+    <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-card">
+      <button
+        onClick={() => setViewMode("detailed")}
+        title="תצוגה מפורטת"
+        className={`p-1.5 rounded transition-colors ${viewMode === "detailed" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <Rows3 className="h-4 w-4" />
+      </button>
+      <button
+        onClick={() => setViewMode("compact")}
+        title="תצוגת שבוע מלא"
+        className={`p-1.5 rounded transition-colors ${viewMode === "compact" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <LayoutList className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <div className="flex justify-end">{viewToggle}</div>
+      {viewMode === "compact" ? (
+        <CompactWeekView dayGroups={dayGroups} weekStart={lineup.weekStart} />
+      ) : (
       <div className="flex gap-2 items-stretch" style={{ minHeight: "calc(100vh - 160px)" }}>
         {Array.from({ length: 7 }, (_, dow) => {
           const sessions = dayGroups.get(dow) ?? [];
@@ -266,8 +302,19 @@ export function WeekGrid({ lineup }: WeekGridProps) {
           );
         })}
       </div>
+      )}
       <DragOverlay>
-        {activeSlot ? <SlotCard slot={activeSlot} onEdit={() => {}} onDelete={() => {}} /> : null}
+        {activeSlot ? (
+          viewMode === "compact" ? (
+            <div className="rounded border-s-4 border px-1.5 py-1.5 text-xs shadow-md bg-card border-border">
+              <div className="font-semibold truncate leading-tight">
+                {activeSlot.label || activeSlot.component?.name || activeSlot.slotType}
+              </div>
+            </div>
+          ) : (
+            <SlotCard slot={activeSlot} onEdit={() => {}} onDelete={() => {}} />
+          )
+        ) : null}
       </DragOverlay>
     </DndContext>
   );
