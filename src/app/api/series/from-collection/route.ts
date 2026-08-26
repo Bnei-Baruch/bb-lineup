@@ -11,7 +11,7 @@ function hebrewVideoDuration(files: { language: string; type: string; duration?:
 }
 
 export async function POST(req: NextRequest) {
-  const { url, color, sortOrder } = await req.json();
+  const { url, color, sortOrder, skipTranscription } = await req.json();
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
 
   const uid = parseCollectionUid(url);
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         const durationSec = hebrewVideoDuration(files);
         const source = extractSourceLink(full.sources);
         const sourceResult = source ? await lookupSourceById(source.id) : null;
-        const hasDocx = findDocxFileId(files) !== null;
+        const hasDocx = !skipTranscription && findDocxFileId(files) !== null;
         return {
           unit,
           videoDurationSec: durationSec != null ? Math.round(durationSec) : null,

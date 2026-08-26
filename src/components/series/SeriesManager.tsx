@@ -283,6 +283,7 @@ function SeriesForm({
 function CollectionImport({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [url, setUrl] = useState("");
   const [color, setColor] = useState("");
+  const [skipTranscription, setSkipTranscription] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ imported: number; total: number; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -296,7 +297,7 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
       const res = await fetch("/api/series/from-collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), color: color || null }),
+        body: JSON.stringify({ url: url.trim(), color: color || null, skipTranscription }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -335,6 +336,10 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
             <Label>צבע (אופציונלי)</Label>
             <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="purple" dir="ltr" />
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={skipTranscription} onChange={(e) => setSkipTranscription(e.target.checked)} />
+            לא לייבא קישור תמלול מקבלה מדיה
+          </label>
           {error && <p className="text-sm text-destructive">{error}</p>}
           {result && (
             <div className="rounded-md bg-green-500/10 border border-green-500/30 p-3 text-sm space-y-1">
