@@ -65,6 +65,9 @@ export async function GET(req: NextRequest) {
         videoLink: true,
         articleSourceLink: true,
         transcriptionLink: true,
+        transcriptionLinkEn: true,
+        transcriptionLinkRu: true,
+        transcriptionLinkEs: true,
         broadcastDate: true,
         createdAt: true,
         parts: {
