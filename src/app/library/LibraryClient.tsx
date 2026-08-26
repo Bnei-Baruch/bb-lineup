@@ -62,6 +62,13 @@ export function LibraryClient({ lessons: initial, series, currentSlotIds, pastSl
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("lessons");
   const [lessons, setLessons] = useState(initial);
+
+  // `initial` only seeds state on mount — router.refresh() (e.g. after a series import closes)
+  // re-renders this client component with a fresh `lessons` prop, but useState ignores prop
+  // changes after mount, so without this the lessons tab stays stale until a full page reload.
+  useEffect(() => {
+    setLessons(initial);
+  }, [initial]);
   const [importOpen, setImportOpen] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importYear, setImportYear] = useState(String(new Date().getFullYear()));
