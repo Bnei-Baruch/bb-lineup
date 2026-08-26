@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import Link from "next/link";
 import { StatusBadge, STATUS_CONFIG } from "./StatusBadge";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,17 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/lib/button-variants";
 import { formatDate } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
-import { Pencil, Trash2, Copy, Filter, X, Video, BookOpen, FileText } from "lucide-react";
+import { Pencil, Trash2, Copy, Filter, X, Video, BookOpen, FileText, ChevronDown, ChevronLeft } from "lucide-react";
 import { timecodeToSeconds } from "@/lib/timecodes";
+
+interface LessonPartRow {
+  id: string;
+  partNumber: number;
+  startTimecode: string | null;
+  endTimecode: string | null;
+  broadcastDate: string | null;
+  notes: string | null;
+}
 
 interface LessonRow {
   id: string;
@@ -26,12 +35,27 @@ interface LessonRow {
   kmPageLink: string | null;
   articleSourceLink: string | null;
   transcriptionLink: string | null;
+  transcriptionLinkEn: string | null;
+  transcriptionLinkRu: string | null;
+  transcriptionLinkEs: string | null;
   series: { id: string; name: string; color: string | null } | null;
   articleSource: { bookSeries: string | null; bookVolume: number | null; bookPage: number | null } | null;
+  parts?: LessonPartRow[];
 }
 
-/** Video length actually aired - the cut range if one's set, otherwise the full recording. */
+/** Cut duration of one timecode range, or 0 if not set/invalid. */
+function cutSecOf(start: string | null, end: string | null): number {
+  if (!start || !end) return 0;
+  const cut = timecodeToSeconds(end) - timecodeToSeconds(start);
+  return cut > 0 ? cut : 0;
+}
+
+/** Video length actually aired - sum of part cuts if the lesson has parts, otherwise the
+ *  whole-lesson cut range if one's set, otherwise the full recording. */
 function effectiveVideoSec(l: LessonRow): number {
+  if (l.parts && l.parts.length > 0) {
+    return l.parts.reduce((sum, p) => sum + cutSecOf(p.startTimecode, p.endTimecode), 0);
+  }
   if (l.startTimecode && l.endTimecode) {
     const cut = timecodeToSeconds(l.endTimecode) - timecodeToSeconds(l.startTimecode);
     if (cut > 0) return cut;
@@ -113,6 +137,12 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState("approved");
   const [bulkSeriesId, setBulkSeriesId] = useState("");
+
+  // Multi-part lessons are expanded by default; track exceptions the user collapsed instead.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  function toggleExpanded(id: string) {
+    setCollapsed((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }
 
   // Sorting
   type SortKey = "series" | "recordingDate" | "broadcastDate" | "duration" | "total" | "status";
@@ -395,8 +425,8 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
               </tr>
             )}
             {filtered.map((l) => (
+              <Fragment key={l.id}>
               <tr
-                key={l.id}
                 className={`border-t border-border transition-colors ${selected.has(l.id) ? "bg-primary/5" : "hover:bg-accent/30"}`}
               >
                 <td className="px-3 py-3">
@@ -408,9 +438,26 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                   />
                 </td>
                 <td className="px-4 py-3 max-w-md">
-                  <Link href={`/library/${l.id}`} className="hover:underline">
-                    {l.sourceRef ?? "—"}
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    {l.parts && l.parts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(l.id)}
+                        className="text-muted-foreground hover:text-foreground shrink-0"
+                        title={collapsed.has(l.id) ? "הצג חלקים" : "כווץ חלקים"}
+                      >
+                        {collapsed.has(l.id) ? <ChevronLeft className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    )}
+                    <Link href={`/library/${l.id}`} className="hover:underline">
+                      {l.sourceRef ?? "—"}
+                    </Link>
+                    {l.parts && l.parts.length > 0 && (
+                      <span className="text-[10px] shrink-0 px-1.5 py-0.5 rounded-full border border-border text-muted-foreground">
+                        {l.parts.length} חלקים
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   {l.series ? (
@@ -459,21 +506,43 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                       );
                     })()}
                     {l.transcriptionLink && (
-                      <a href={l.transcriptionLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="תמלול">
+                      <a href={l.transcriptionLink} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground" title="תמלול (עברית)">
                         <FileText className="h-4 w-4" />
                       </a>
                     )}
-                    {!l.kmPageLink && !l.articleSourceLink && !l.transcriptionLink && (
+                    {([
+                      ["EN", l.transcriptionLinkEn, "תמלול (אנגלית)"],
+                      ["RU", l.transcriptionLinkRu, "תמלול (רוסית)"],
+                      ["ES", l.transcriptionLinkEs, "תמלול (ספרדית)"],
+                    ] as const).map(([code, link, title]) =>
+                      link ? (
+                        <a
+                          key={code}
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={title}
+                          className="text-[10px] font-mono text-muted-foreground hover:text-foreground border border-border rounded px-1"
+                        >
+                          {code}
+                        </a>
+                      ) : null
+                    )}
+                    {!l.kmPageLink && !l.articleSourceLink && !l.transcriptionLink && !l.transcriptionLinkEn && !l.transcriptionLinkRu && !l.transcriptionLinkEs && (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </div>
                 </td>
                 <td className="px-4 py-3 tabular-nums">{l.recordingDate ? formatDate(l.recordingDate) : "—"}</td>
                 <td className="px-4 py-3 tabular-nums">
-                  <BroadcastDateInput
-                    value={l.broadcastDate}
-                    onChange={(v) => onInlineUpdate(l.id, { broadcastDate: v })}
-                  />
+                  {l.parts && l.parts.length > 0 ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : (
+                    <BroadcastDateInput
+                      value={l.broadcastDate}
+                      onChange={(v) => onInlineUpdate(l.id, { broadcastDate: v })}
+                    />
+                  )}
                 </td>
                 <td className="px-4 py-3 tabular-nums">
                   <div className="flex flex-col gap-0.5">
@@ -539,6 +608,36 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                   </div>
                 </td>
               </tr>
+              {!collapsed.has(l.id) && l.parts && l.parts.map((p) => {
+                const cut = cutSecOf(p.startTimecode, p.endTimecode);
+                return (
+                  <tr key={p.id} className="border-t border-border bg-muted/20 text-muted-foreground">
+                    <td></td>
+                    <td className="px-4 py-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-foreground shrink-0">↳ חלק {p.partNumber}</span>
+                        {(p.startTimecode || p.endTimecode) && (
+                          <span className="text-xs font-mono text-muted-foreground shrink-0" dir="ltr">{p.startTimecode ?? "—"}–{p.endTimecode ?? "—"}</span>
+                        )}
+                        {p.notes && <span className="text-xs truncate">{p.notes}</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-1.5">—</td>
+                    <td className="px-4 py-1.5">—</td>
+                    <td className="px-4 py-1.5">—</td>
+                    <td className="px-4 py-1.5 tabular-nums text-xs">{p.broadcastDate ? formatDate(p.broadcastDate) : "—"}</td>
+                    <td className="px-4 py-1.5 tabular-nums text-xs">
+                      {cut > 0 ? (
+                        <span className="flex items-center gap-1"><Video className="h-3 w-3" />{formatDurationSec(cut)}</span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-4 py-1.5 tabular-nums text-xs">{cut > 0 ? formatDurationSec(cut) : "—"}</td>
+                    <td className="px-4 py-1.5">—</td>
+                    <td className="px-4 py-1.5"></td>
+                  </tr>
+                );
+              })}
+              </Fragment>
             ))}
           </tbody>
         </table>

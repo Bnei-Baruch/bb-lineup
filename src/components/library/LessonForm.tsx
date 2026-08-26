@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SourceSearch } from "./SourceSearch";
-import { Loader2, Link as LinkIcon, BookOpen, RefreshCw } from "lucide-react";
+import { LessonPartsMarker, type PartDraft } from "./LessonPartsMarker";
+import { Loader2, Link as LinkIcon, BookOpen, RefreshCw, Scissors } from "lucide-react";
 import { formatDurationSec, parseDurationToSec } from "@/lib/time";
 
 
@@ -33,6 +34,17 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
 
   const articleSource = lesson?.articleSource as Record<string, unknown> | null | undefined;
 
+  const initialParts = (lesson?.parts as Record<string, unknown>[] | undefined) ?? [];
+  const [parts, setParts] = useState<PartDraft[]>(
+    initialParts.map((p) => ({
+      partNumber: p.partNumber as number,
+      startTimecode: (p.startTimecode as string) ?? "",
+      endTimecode: (p.endTimecode as string) ?? "",
+      broadcastDate: p.broadcastDate ? new Date(p.broadcastDate as string).toISOString().slice(0, 10) : "",
+      notes: (p.notes as string) ?? "",
+    }))
+  );
+
   const [form, setForm] = useState({
     approvalStatus: (lesson?.approvalStatus as string) ?? "pending",
     broadcastDate: lesson?.broadcastDate
@@ -48,6 +60,9 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
     videoLink: (lesson?.videoLink as string) ?? "",
     narratorName: (lesson?.narratorName as string) ?? "",
     transcriptionLink: (lesson?.transcriptionLink as string) ?? "",
+    transcriptionLinkEn: (lesson?.transcriptionLinkEn as string) ?? "",
+    transcriptionLinkRu: (lesson?.transcriptionLinkRu as string) ?? "",
+    transcriptionLinkEs: (lesson?.transcriptionLinkEs as string) ?? "",
     articleSourceRef: (lesson?.articleSourceRef as string) ?? "",
     articleSourceId: (lesson?.articleSourceId as string) ?? "",
     articleSourceLink: (lesson?.articleSourceLink as string) ?? "",
@@ -152,6 +167,9 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
       startTimecode: form.startTimecode || null,
       endTimecode: form.endTimecode || null,
       transcriptionLink: form.transcriptionLink || null,
+      transcriptionLinkEn: form.transcriptionLinkEn || null,
+      transcriptionLinkRu: form.transcriptionLinkRu || null,
+      transcriptionLinkEs: form.transcriptionLinkEs || null,
       articleSourceRef: form.articleSourceRef || null,
       articleSourceId: form.articleSourceId || null,
       articleSourceLink: form.articleSourceLink || null,
@@ -162,6 +180,15 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
       closingStatement: form.closingStatement || null,
       tags: form.tags || null,
       seriesId: form.seriesId || null,
+      parts: parts
+        .filter((p) => p.startTimecode || p.endTimecode || p.broadcastDate || p.notes)
+        .map((p) => ({
+          partNumber: p.partNumber,
+          startTimecode: p.startTimecode || null,
+          endTimecode: p.endTimecode || null,
+          broadcastDate: p.broadcastDate || null,
+          notes: p.notes || null,
+        })),
     };
 
     setSubmitError(null);
@@ -183,7 +210,8 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 max-w-2xl">
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="max-w-2xl space-y-8">
       {/* Status + Series */}
       <div className="flex gap-4">
         <div className="space-y-2">
@@ -274,12 +302,42 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
           <Label>קישור וידאו</Label>
           <Input value={form.videoLink} onChange={(e) => set("videoLink", e.target.value)} dir="ltr" />
         </div>
-        <div className="space-y-2">
-          <Label>קישור תמליל</Label>
-          <Input value={form.transcriptionLink} onChange={(e) => set("transcriptionLink", e.target.value)} dir="ltr" />
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>קישור תמליל (עברית)</Label>
+            <Input value={form.transcriptionLink} onChange={(e) => set("transcriptionLink", e.target.value)} dir="ltr" />
+          </div>
+          <div className="space-y-2">
+            <Label>קישור תמליל (אנגלית)</Label>
+            <Input value={form.transcriptionLinkEn} onChange={(e) => set("transcriptionLinkEn", e.target.value)} dir="ltr" />
+          </div>
+          <div className="space-y-2">
+            <Label>קישור תמליל (רוסית)</Label>
+            <Input value={form.transcriptionLinkRu} onChange={(e) => set("transcriptionLinkRu", e.target.value)} dir="ltr" />
+          </div>
+          <div className="space-y-2">
+            <Label>קישור תמליל (ספרדית)</Label>
+            <Input value={form.transcriptionLinkEs} onChange={(e) => set("transcriptionLinkEs", e.target.value)} dir="ltr" />
+          </div>
         </div>
       </fieldset>
+      </div>
 
+      {/* Parts section */}
+      <fieldset className="border border-border rounded-lg p-4 space-y-4">
+        <legend className="px-2 text-sm font-semibold flex items-center gap-2">
+          <Scissors className="h-4 w-4" /> חלוקה לחלקים
+        </legend>
+        <LessonPartsMarker
+          videoLink={form.videoLink || null}
+          durationSec={form.videoDuration ? parseDurationToSec(form.videoDuration) : null}
+          transcriptionLink={form.transcriptionLink || null}
+          parts={parts}
+          onChange={setParts}
+        />
+      </fieldset>
+
+      <div className="max-w-2xl space-y-8">
       {/* Article reading section */}
       <fieldset className="border border-border rounded-lg p-4 space-y-4">
         <legend className="px-2 text-sm font-semibold flex items-center gap-2">
@@ -376,6 +434,7 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
           ביטול
         </Button>
         {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+      </div>
       </div>
     </form>
   );

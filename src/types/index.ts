@@ -160,6 +160,17 @@ export interface LessonSummary {
   transcriptionLink: string | null;
   startTimecode: string | null;
   endTimecode: string | null;
+  /** Only populated by Library routes — scheduling-side lesson lookups don't select this. */
+  parts?: LessonPartSummary[];
+}
+
+export interface LessonPartSummary {
+  id: string;
+  partNumber: number;
+  startTimecode: string | null;
+  endTimecode: string | null;
+  broadcastDate: string | null;
+  notes: string | null;
 }
 
 export interface SlotWithLesson {

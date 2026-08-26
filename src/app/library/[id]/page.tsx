@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function EditLessonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [lesson, seriesList, timecodeRows] = await Promise.all([
-    prisma.lesson.findUnique({ where: { id }, include: { articleSource: true } }),
+    prisma.lesson.findUnique({ where: { id }, include: { articleSource: true, parts: { orderBy: { partNumber: "asc" } } } }),
     prisma.series.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     prisma.$queryRaw<{ startTimecode: string | null; endTimecode: string | null }[]>`
       SELECT startTimecode, endTimecode FROM "Lesson" WHERE id = ${id}

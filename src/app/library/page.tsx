@@ -21,8 +21,15 @@ export default async function LibraryPage() {
         kmPageLink: true,
         articleSourceLink: true,
         transcriptionLink: true,
+        transcriptionLinkEn: true,
+        transcriptionLinkRu: true,
+        transcriptionLinkEs: true,
         series: { select: { id: true, name: true, color: true } },
         articleSource: { select: { bookSeries: true, bookVolume: true, bookPage: true } },
+        parts: {
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, notes: true },
+          orderBy: { partNumber: "asc" },
+        },
       },
     }),
     prisma.series.findMany({

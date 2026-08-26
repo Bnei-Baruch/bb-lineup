@@ -73,7 +73,11 @@ export function extractVideoLink(files: KmFile[]): string | null {
   const hd = heVideos.find((f) => f.video_size === "HD");
   const chosen = hd ?? heVideos[0];
   if (!chosen) return null;
-  return `${KM_BASE}/cdn/${chosen.id}`;
+  // Not `${KM_BASE}/cdn/{id}` (the www frontend domain) — that redirect responds with
+  // Cross-Origin-Resource-Policy: same-origin, which browsers block when this URL is
+  // loaded as a <video> subresource from another origin. The cdn subdomain redirects to
+  // the same file without that header.
+  return `https://cdn.kabbalahmedia.info/${chosen.id}`;
 }
 
 /** Find the narrator name from a Hebrew video filename (e.g. heb_o_norav_... → "norav") */

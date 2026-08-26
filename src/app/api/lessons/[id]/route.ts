@@ -21,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const lesson = await prisma.lesson.findUnique({
     where: { id },
-    include: { articleSource: true },
+    include: { articleSource: true, parts: { orderBy: { partNumber: "asc" } } },
   });
   if (!lesson) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(lesson);
@@ -53,6 +53,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   delete body.startTimecode;
   delete body.endTimecode;
 
+  // Parts are a nested relation, not a plain Lesson column. Only touched when the key is
+  // present, so a partial update (e.g. inline-editing broadcastDate/status) can't wipe them.
+  const hasParts = "parts" in body;
+  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; notes?: string | null }[] | undefined = body.parts;
+  delete body.parts;
+
   // Re-calculate article reading if source link changed
   if (body.articleSourceLink) {
     const existing = await prisma.lesson.findUnique({ where: { id }, select: { articleSourceLink: true } });
@@ -72,7 +78,24 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
   let lesson;
   try {
-    lesson = await prisma.lesson.update({ where: { id }, data: body });
+    if (hasParts) {
+      const [, updated] = await prisma.$transaction([
+        prisma.lessonPart.deleteMany({ where: { lessonId: id } }),
+        prisma.lesson.update({
+          where: { id },
+          data: {
+            ...body,
+            parts: parts && parts.length > 0
+              ? { create: parts.map((p) => ({ ...p, broadcastDate: p.broadcastDate ? new Date(p.broadcastDate) : null })) }
+              : undefined,
+          },
+          include: { parts: { orderBy: { partNumber: "asc" } } },
+        }),
+      ]);
+      lesson = updated;
+    } else {
+      lesson = await prisma.lesson.update({ where: { id }, data: body });
+    }
   } catch (err) {
     console.error("lesson update error:", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });

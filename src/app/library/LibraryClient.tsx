@@ -27,8 +27,12 @@ interface LessonRow {
   kmPageLink: string | null;
   articleSourceLink: string | null;
   transcriptionLink: string | null;
+  transcriptionLinkEn: string | null;
+  transcriptionLinkRu: string | null;
+  transcriptionLinkEs: string | null;
   series: { id: string; name: string; color: string | null } | null;
   articleSource: { bookSeries: string | null; bookVolume: number | null; bookPage: number | null } | null;
+  parts: { id: string; partNumber: number; startTimecode: string | null; endTimecode: string | null; broadcastDate: Date | string | null; notes: string | null }[];
 }
 
 interface SeriesRow {
@@ -177,6 +181,10 @@ export function LibraryClient({ lessons: initial, series, currentSlotIds, pastSl
     ...l,
     recordingDate: l.recordingDate ? (typeof l.recordingDate === "string" ? l.recordingDate : (l.recordingDate as Date).toISOString()) : null,
     series: l.series ?? null,
+    parts: (l.parts ?? []).map((p) => ({
+      ...p,
+      broadcastDate: p.broadcastDate ? (typeof p.broadcastDate === "string" ? p.broadcastDate : (p.broadcastDate as Date).toISOString()) : null,
+    })),
   }));
 
   const seriesList = series.map((s) => ({ id: s.id, name: s.name }));

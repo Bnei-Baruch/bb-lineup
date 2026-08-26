@@ -67,6 +67,10 @@ export async function GET(req: NextRequest) {
         transcriptionLink: true,
         broadcastDate: true,
         createdAt: true,
+        parts: {
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, notes: true },
+          orderBy: { partNumber: "asc" },
+        },
       },
     }),
     prisma.lesson.count({ where }),
@@ -94,6 +98,9 @@ export async function POST(req: NextRequest) {
   // Strip fields that belong to ArticleSource, not Lesson
   delete body.articleBookVolume;
   delete body.articleBookPage;
+  // Parts are a nested relation, not a plain Lesson column
+  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; notes?: string | null }[] | undefined = body.parts;
+  delete body.parts;
   try {
     // Auto-calculate article reading duration
     if (body.articleSourceLink && !body.articleReadingSec) {
@@ -107,7 +114,15 @@ export async function POST(req: NextRequest) {
         }
       }
     }
-    const lesson = await prisma.lesson.create({ data: body });
+    const lesson = await prisma.lesson.create({
+      data: {
+        ...body,
+        ...(parts && parts.length > 0
+          ? { parts: { create: parts.map((p) => ({ ...p, broadcastDate: p.broadcastDate ? new Date(p.broadcastDate) : null })) } }
+          : {}),
+      },
+      include: { parts: { orderBy: { partNumber: "asc" } } },
+    });
     return NextResponse.json(lesson, { status: 201 });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
