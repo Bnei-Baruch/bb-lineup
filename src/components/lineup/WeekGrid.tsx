@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -14,12 +14,14 @@ import {
   closestCenter,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
+import { useAuth } from "@/components/providers/KeycloakProvider";
 import { DayColumnGroup } from "./DayColumnGroup";
 import { SlotCard } from "./SlotCard";
 import { CompactWeekView } from "./CompactWeekView";
 import { LineupWithDays, DayWithSlots, SlotWithLesson, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, dayDate, parseWeekParam, formatDate } from "@/lib/dates";
-import { LayoutList, Rows3 } from "lucide-react";
+import { UndoAction, persistReorder, buildSlotsUndo } from "@/lib/slot-undo";
+import { LayoutList, Rows3, Undo2 } from "lucide-react";
 
 function timeToSec(hhmm: string): number {
   const p = hhmm.split(":").map(Number);
@@ -58,11 +60,15 @@ interface WeekGridProps {
 }
 
 export function WeekGrid({ lineup }: WeekGridProps) {
+  const { isAdmin } = useAuth();
   const [days, setDays] = useState<DayWithSlots[]>(lineup.days);
   const [activeSlot, setActiveSlot] = useState<SlotWithLesson | null>(null);
   // Ordered array: oldest-expanded first. Max 4 at once; opening a 5th evicts the first.
   const [expandedDays, setExpandedDays] = useState<number[]>([0]);
   const [viewMode, setViewMode] = useState<"detailed" | "compact">("detailed");
+  // Single-level undo, scoped to this browser session — the last mutation only.
+  const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
+  const dragSnapshotRef = useRef<DayWithSlots[] | null>(null);
 
   const dayGroups = useMemo(() => {
     const map = new Map<number, DayWithSlots[]>();
@@ -113,6 +119,7 @@ export function WeekGrid({ lineup }: WeekGridProps) {
     const id = event.active.id as string;
     const slot = days.flatMap(d => d.slots).find(s => s.id === id) ?? null;
     setActiveSlot(slot);
+    dragSnapshotRef.current = days;
   }
 
   // Moves the dragged slot into the hovered day/position live, so cross-day drags
@@ -175,13 +182,6 @@ export function WeekGrid({ lineup }: WeekGridProps) {
 
     if (!movedAcrossDays && oldIndex === newIndex) return;
 
-    const persistReorder = (dayId: string, orderedIds: string[]) =>
-      fetch("/api/slots/reorder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayId, orderedIds }),
-      });
-
     persistReorder(currentDay.id, finalSlots.map((s) => s.id));
 
     if (movedAcrossDays) {
@@ -193,11 +193,37 @@ export function WeekGrid({ lineup }: WeekGridProps) {
       const originalDay = days.find((d) => d.id === originalDayId);
       if (originalDay) persistReorder(originalDay.id, originalDay.slots.map((s) => s.id));
     }
+
+    const before = dragSnapshotRef.current;
+    if (before) {
+      const beforeCurrentDay = before.find((d) => d.id === currentDay.id);
+      const beforeOriginalDay = movedAcrossDays && originalDayId ? before.find((d) => d.id === originalDayId) : null;
+      setUndoAction({
+        label: movedAcrossDays ? "הפריט הועבר ליום אחר" : "סדר הפריטים השתנה",
+        perform: () => {
+          setDays(before);
+          if (beforeCurrentDay) persistReorder(currentDay.id, beforeCurrentDay.slots.map((s) => s.id));
+          if (movedAcrossDays && originalDayId) {
+            fetch(`/api/slots/${activeId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ dayId: originalDayId }),
+            });
+            if (beforeOriginalDay) persistReorder(originalDayId, beforeOriginalDay.slots.map((s) => s.id));
+          }
+        },
+      });
+    }
   }
 
   const handleSlotsChange = useCallback((dayId: string, slots: SlotWithLesson[]) => {
+    const oldSlots = days.find((d) => d.id === dayId)?.slots ?? [];
+    const undo = buildSlotsUndo(dayId, oldSlots, slots, (updater) =>
+      setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, slots: updater(d.slots) } : d)))
+    );
+    if (undo) setUndoAction(undo);
     setDays((prev) => prev.map((d) => (d.id === dayId ? { ...d, slots } : d)));
-  }, []);
+  }, [days]);
 
   const weekStart = parseWeekParam(lineup.weekStart);
 
@@ -222,7 +248,25 @@ export function WeekGrid({ lineup }: WeekGridProps) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-      <div className="flex justify-end">{viewToggle}</div>
+      <div className="flex justify-end items-center gap-2">
+        {isAdmin && (
+          <button
+            onClick={() => {
+              if (!undoAction) return;
+              undoAction.perform();
+              setUndoAction(null);
+            }}
+            disabled={!undoAction}
+            title={undoAction ? `בטל: ${undoAction.label}` : "אין פעולה לביטול"}
+            className={`p-2 rounded-md border border-border bg-card transition-colors ${
+              undoAction ? "text-foreground hover:bg-muted" : "text-muted-foreground/40 cursor-not-allowed"
+            }`}
+          >
+            <Undo2 className="h-4 w-4" />
+          </button>
+        )}
+        {viewToggle}
+      </div>
       {viewMode === "compact" ? (
         <CompactWeekView dayGroups={dayGroups} weekStart={lineup.weekStart} />
       ) : (

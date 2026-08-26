@@ -10,7 +10,8 @@ import { DayTimeSummary } from "./DayTimeSummary";
 import { SaveAsTemplateDialog } from "./SaveAsTemplateDialog";
 import { ApplyDayTemplateDialog } from "./ApplyDayTemplateDialog";
 import { DayWithSlots, SlotWithLesson, SlotType } from "@/types";
-import { Wand2, Trash2, Plus, LayoutTemplate } from "lucide-react";
+import { UndoAction, buildSlotsUndo } from "@/lib/slot-undo";
+import { Wand2, Trash2, Plus, LayoutTemplate, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -96,7 +97,16 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [applyTemplateOpen, setApplyTemplateOpen] = useState(false);
 
+  // Single-level undo, scoped to this browser session — the last mutation only.
+  const [undoAction, setUndoAction] = useState<UndoAction | null>(null);
+
+  function registerUndo(oldSlots: SlotWithLesson[], newSlots: SlotWithLesson[]) {
+    const undo = buildSlotsUndo(initialDay.id, oldSlots, newSlots, setSlots);
+    if (undo) setUndoAction(undo);
+  }
+
   function handleTemplateApplied(newSlots: SlotWithLesson[], contentStartIndex: number | null, contentCutoffIndex: number | null) {
+    registerUndo(slots, newSlots);
     setSlots(newSlots);
     if (contentStartIndex != null) setStartIndex(contentStartIndex);
     if (contentCutoffIndex != null) setCutoffIndex(contentCutoffIndex);
@@ -146,6 +156,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     if (res.ok) {
       const slot = await res.json();
       const newSlots = insertSlotBeforeCutoff(slots, slot, cutoffIndex);
+      registerUndo(slots, newSlots);
       setSlots(newSlots);
       updateCutoff(cutoffIndex + 1);
       reorderSlots(newSlots);
@@ -163,6 +174,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     if (res.ok) {
       const slot = await res.json();
       const newSlots = insertSlotBeforeCutoff(slots, slot, cutoffIndex);
+      registerUndo(slots, newSlots);
       setSlots(newSlots);
       updateCutoff(cutoffIndex + 1);
       reorderSlots(newSlots);
@@ -183,6 +195,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
       });
       const slot = await res.json();
       const newSlots = insertSlotBeforeCutoff(slots, slot, cutoffIndex);
+      registerUndo(slots, newSlots);
       setSlots(newSlots);
       updateCutoff(cutoffIndex + 1);
       reorderSlots(newSlots);
@@ -194,7 +207,9 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         body: JSON.stringify(data),
       });
       const updated = await res.json();
-      setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      const newSlots = slots.map((s) => (s.id === updated.id ? updated : s));
+      registerUndo(slots, newSlots);
+      setSlots(newSlots);
       router.refresh();
     }
   }
@@ -202,6 +217,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   async function handleClearDay() {
     if (!confirm("למחוק את כל הפריטים ביום זה?")) return;
     await fetch(`/api/days/${initialDay.id}/slots`, { method: "DELETE" });
+    registerUndo(slots, []);
     setSlots([]);
     router.refresh();
   }
@@ -209,12 +225,12 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
   async function handleDelete(id: string) {
     if (!confirm("למחוק פריט זה?")) return;
     await fetch(`/api/slots/${id}`, { method: "DELETE" });
-    setSlots((prev) => {
-      const idx = prev.findIndex((s) => s.id === id);
-      if (idx !== -1 && idx < startIndex) updateStartIndex(Math.max(0, startIndex - 1));
-      if (idx !== -1 && idx < cutoffIndex) updateCutoff(Math.max(0, cutoffIndex - 1));
-      return prev.filter((s) => s.id !== id);
-    });
+    const idx = slots.findIndex((s) => s.id === id);
+    if (idx !== -1 && idx < startIndex) updateStartIndex(Math.max(0, startIndex - 1));
+    if (idx !== -1 && idx < cutoffIndex) updateCutoff(Math.max(0, cutoffIndex - 1));
+    const newSlots = slots.filter((s) => s.id !== id);
+    registerUndo(slots, newSlots);
+    setSlots(newSlots);
     router.refresh();
   }
 
@@ -230,7 +246,9 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     });
     if (res.ok) {
       const updated = await res.json();
-      setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      const newSlots = slots.map((s) => (s.id === updated.id ? updated : s));
+      registerUndo(slots, newSlots);
+      setSlots(newSlots);
     }
   }
 
@@ -242,11 +260,14 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     });
     if (res.ok) {
       const updated = await res.json();
-      setSlots((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      const newSlots = slots.map((s) => (s.id === updated.id ? updated : s));
+      registerUndo(slots, newSlots);
+      setSlots(newSlots);
     }
   }
 
   function handleReorder(newSlots: SlotWithLesson[]) {
+    registerUndo(slots, newSlots);
     setSlots(newSlots);
     fetch("/api/slots/reorder", {
       method: "POST",
@@ -281,6 +302,21 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
             />
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => {
+                if (!undoAction) return;
+                undoAction.perform();
+                setUndoAction(null);
+              }}
+              disabled={!undoAction}
+              title={undoAction ? `בטל: ${undoAction.label}` : "אין פעולה לביטול"}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              בטל
+            </Button>
             <Button
               variant="outline"
               size="sm"
