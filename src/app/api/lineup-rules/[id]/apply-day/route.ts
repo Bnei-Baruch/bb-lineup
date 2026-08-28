@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Lesson, LessonPart } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { computeRemainingForPickableSec, distributeSlack } from "@/lib/day-budget";
 import { getNextLessonForSeries, getBestFitCandidates, findLessonAssignedForDate, NextLessonResult, PickableCandidate } from "@/lib/series-consumption";
@@ -24,7 +25,7 @@ type ResolvedItem =
   | { index: number; kind: "legacy"; slotType: string; durationSec: number; partNumber: number | null }
   | { index: number; kind: "live"; slotType: string; durationSec: number; label?: string; lineupLink: string | null }
   | { index: number; kind: "continuous"; seriesId: string; next: NextLessonResult | null }
-  | { index: number; kind: "pickable"; seriesId: string; part?: "article" | "video"; candidates: PickableCandidate[]; assignedLessonId: string | null }
+  | { index: number; kind: "pickable"; seriesId: string; part?: "article" | "video"; candidates: PickableCandidate[]; assignedLessonId: string | null; assignedPartId: string | null }
   | { index: number; kind: "pickable-linked"; seriesId: string; linkedIndex: number };
 
 async function resolveAll(
@@ -114,8 +115,7 @@ async function resolveAll(
       const next = await getNextLessonForSeries(prisma, item.seriesId, targetDate, dayId);
       resolved.push({ index, kind: "continuous", seriesId: item.seriesId, next });
       if (next && !item.nested) {
-        const { startSec, endSec } = lessonEffectiveRange(next.lesson);
-        addSec(index, Math.max(0, endSec - Math.max(next.resumeFromSec, startSec)), "continuous");
+        addSec(index, Math.max(0, next.endSec - next.resumeFromSec), "continuous");
       }
       continue;
     }
@@ -123,9 +123,9 @@ async function resolveAll(
     // pickable - defer ranking until the remaining budget is known (self-contained item, or the
     // "article" half of a split pair; either way this is where the real search happens). But an
     // explicit date assignment (checked regardless of series mode) still wins over ranking.
-    const assignedLesson = targetDate ? await findLessonAssignedForDate(prisma, item.seriesId, targetDate, dayId) : null;
+    const assigned = targetDate ? await findLessonAssignedForDate(prisma, item.seriesId, targetDate, dayId) : null;
     pendingPickable.push({ index, item });
-    resolved.push({ index, kind: "pickable", seriesId: item.seriesId, part: item.part, candidates: [], assignedLessonId: assignedLesson?.id ?? null });
+    resolved.push({ index, kind: "pickable", seriesId: item.seriesId, part: item.part, candidates: [], assignedLessonId: assigned?.lesson.id ?? null, assignedPartId: assigned?.part?.id ?? null });
     if (item.part === "article") articleIndexBySeriesId.set(item.seriesId, index);
   }
 
@@ -140,16 +140,21 @@ async function resolveAll(
       ? await getBestFitCandidates(prisma, item.seriesId, remainingForPickableSec, 5, dayId)
       : [];
     if (entry.assignedLessonId) {
-      const alreadyIncluded = candidates.some((c) => c.lesson.id === entry.assignedLessonId);
+      const matches = (c: PickableCandidate) => c.lesson.id === entry.assignedLessonId && (c.part?.id ?? null) === entry.assignedPartId;
+      const alreadyIncluded = candidates.some(matches);
       if (!alreadyIncluded) {
         const assignedLesson = await prisma.lesson.findUnique({ where: { id: entry.assignedLessonId } });
         if (assignedLesson) {
-          const totalSec = (assignedLesson.videoDurationSec ?? 0) + (assignedLesson.articleReadingSec ?? 0);
-          candidates.unshift({ lesson: assignedLesson, totalSec, diffSec: totalSec - (remainingForPickableSec ?? 0) });
+          const assignedPart = entry.assignedPartId ? await prisma.lessonPart.findUnique({ where: { id: entry.assignedPartId } }) : null;
+          const range = assignedPart && assignedPart.startTimecode && assignedPart.endTimecode
+            ? timecodeToSeconds(assignedPart.endTimecode) - timecodeToSeconds(assignedPart.startTimecode)
+            : null;
+          const totalSec = (range ?? assignedLesson.videoDurationSec ?? 0) + (assignedPart ? 0 : (assignedLesson.articleReadingSec ?? 0));
+          candidates.unshift({ lesson: assignedLesson, part: assignedPart, totalSec, diffSec: totalSec - (remainingForPickableSec ?? 0) });
         }
       } else {
         // Bubble the assigned one to the front even if the ranking already found it further down.
-        candidates.sort((a, b) => (a.lesson.id === entry.assignedLessonId ? -1 : b.lesson.id === entry.assignedLessonId ? 1 : 0));
+        candidates.sort((a, b) => (matches(a) ? -1 : matches(b) ? 1 : 0));
       }
     }
     entry.candidates = candidates;
@@ -207,14 +212,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (r.kind === "live") return { index: r.index, kind: r.kind, slotType: r.slotType, durationSec: r.durationSec, label: r.label, lineupLink: r.lineupLink };
       if (r.kind === "continuous") {
         if (!r.next) return { index: r.index, kind: r.kind, seriesId: r.seriesId, next: null };
-        const { startSec, endSec } = lessonEffectiveRange(r.next.lesson);
+        const startSec = r.next.part ? r.next.resumeFromSec : lessonEffectiveRange(r.next.lesson).startSec;
         return {
           index: r.index, kind: r.kind, seriesId: r.seriesId,
           next: {
             lessonId: r.next.lesson.id, sourceRef: r.next.lesson.sourceRef,
+            partNumber: r.next.part?.partNumber ?? null,
             recordingDate: r.next.lesson.recordingDate?.toISOString().slice(0, 10) ?? null,
             resumeFromSec: r.next.resumeFromSec, alreadyReadArticle: r.next.alreadyReadArticle,
-            startSec, endSec, partDurationSec: Math.max(0, endSec - Math.max(r.next.resumeFromSec, startSec)),
+            startSec, endSec: r.next.endSec, partDurationSec: Math.max(0, r.next.endSec - r.next.resumeFromSec),
           },
         };
       }
@@ -223,9 +229,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       // pickable
       return {
-        index: r.index, kind: r.kind, seriesId: r.seriesId, part: r.part, assignedLessonId: r.assignedLessonId,
+        index: r.index, kind: r.kind, seriesId: r.seriesId, part: r.part, assignedLessonId: r.assignedLessonId, assignedPartId: r.assignedPartId,
         candidates: r.candidates.map((c) => ({
-          lessonId: c.lesson.id, sourceRef: c.lesson.sourceRef,
+          lessonId: c.lesson.id, partId: c.part?.id ?? null, partNumber: c.part?.partNumber ?? null, sourceRef: c.lesson.sourceRef,
           videoDurationSec: c.lesson.videoDurationSec, articleReadingSec: c.lesson.articleReadingSec,
           recordingDate: c.lesson.recordingDate?.toISOString().slice(0, 10) ?? null,
           totalSec: c.totalSec, diffSec: c.diffSec,
@@ -259,9 +265,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (r.kind !== "pickable") continue;
       const chosenId = resolutions[r.index]?.lessonId;
       if (!chosenId) continue;
-      const lesson = await prisma.lesson.findUnique({ where: { id: chosenId }, select: { videoDurationSec: true, articleReadingSec: true } });
-      if (!lesson) continue;
-      const totalSec = (lesson.videoDurationSec ?? 0) + (lesson.articleReadingSec ?? 0);
+      const chosenPartId: string | null = resolutions[r.index]?.lessonPartId ?? null;
+      // Reuse the already part-aware totalSec computed for this exact choice during resolveAll
+      // (a part's cut, not the whole lesson) rather than re-deriving from raw lesson fields.
+      const matchedCandidate = r.candidates.find((c) => c.lesson.id === chosenId && (c.part?.id ?? null) === chosenPartId);
+      let totalSec: number;
+      if (matchedCandidate) {
+        totalSec = matchedCandidate.totalSec;
+      } else {
+        const lesson = await prisma.lesson.findUnique({ where: { id: chosenId }, select: { videoDurationSec: true, articleReadingSec: true } });
+        if (!lesson) continue;
+        totalSec = (lesson.videoDurationSec ?? 0) + (lesson.articleReadingSec ?? 0);
+      }
       totalSlackSec += remainingForPickableSec - totalSec;
     }
   }
@@ -372,16 +387,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (r.kind === "continuous") {
       const next = r.next;
-      const chosenId = resolutions[r.index]?.lessonId ?? next?.lesson.id;
+      const overrideLessonId: string | undefined = resolutions[r.index]?.lessonId;
+      const overridePartId: string | null = resolutions[r.index]?.lessonPartId ?? null;
+      const chosenId = overrideLessonId ?? next?.lesson.id;
       if (!chosenId) continue; // series exhausted, no override given - nothing to schedule
-      const lesson = next && next.lesson.id === chosenId ? next.lesson : await prisma.lesson.findUnique({ where: { id: chosenId } });
-      if (!lesson) continue;
-      const { startSec, endSec } = lessonEffectiveRange(lesson);
-      const resumeFromSec = resolutions[r.index]?.lessonId ? startSec : (next?.resumeFromSec ?? startSec);
-      const needsOverride = resumeFromSec > startSec;
+
+      let lesson: Lesson;
+      let part: LessonPart | null;
+      let resumeFromSec: number;
+      let endSec: number;
+      if (overrideLessonId) {
+        // Human override: re-resolve fresh (rather than trust `next`, computed before this
+        // specific override was known) so a part-aware range is used when the override targets
+        // a specific part.
+        const overridden = await prisma.lesson.findUnique({ where: { id: overrideLessonId }, include: { parts: true } });
+        if (!overridden) continue;
+        lesson = overridden;
+        part = overridePartId ? (overridden.parts.find((p) => p.id === overridePartId) ?? null) : null;
+        if (part && part.startTimecode && part.endTimecode) {
+          resumeFromSec = timecodeToSeconds(part.startTimecode);
+          endSec = timecodeToSeconds(part.endTimecode);
+        } else {
+          ({ startSec: resumeFromSec, endSec } = lessonEffectiveRange(overridden));
+        }
+      } else if (next) {
+        lesson = next.lesson;
+        part = next.part;
+        resumeFromSec = next.resumeFromSec;
+        endSec = next.endSec;
+      } else {
+        continue;
+      }
+
+      const { startSec: lessonStart } = lessonEffectiveRange(lesson);
+      // A part always needs its own explicit timecodes on the slot — falling back to the
+      // lesson's own (unset, for a multi-part lesson) fields would wrongly span the whole video.
+      const needsOverride = part != null || resumeFromSec > lessonStart;
       const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType: "recorded_lesson", lessonId: lesson.id,
+          lessonPartId: part?.id ?? null,
           startTimecode: needsOverride ? secondsToTimecode(resumeFromSec) : null,
           endTimecode: needsOverride ? secondsToTimecode(endSec) : null,
           sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
@@ -397,9 +442,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // half is a separate `pickable-linked` item (below) that reuses this same choice.
       const chosenId = resolutions[r.index]?.lessonId;
       if (!chosenId) continue; // human hasn't confirmed a candidate yet
+      const chosenPartId: string | null = resolutions[r.index]?.lessonPartId ?? null;
       const lesson = await prisma.lesson.findUnique({ where: { id: chosenId } });
       if (!lesson) continue;
-      if (r.part !== "video" && lesson.articleReadingSec != null) {
+      const part = chosenPartId ? await prisma.lessonPart.findUnique({ where: { id: chosenPartId } }) : null;
+
+      // The article is shared across a multi-part lesson's parts and only read once, alongside
+      // whichever part airs first — not repeated for every later part of the same lesson.
+      const articleAlreadyCovered = part
+        ? (await prisma.lineupSlot.count({ where: { lessonId: lesson.id, lessonPartId: { not: part.id } } })) > 0
+        : false;
+
+      if (r.part !== "video" && lesson.articleReadingSec != null && !articleAlreadyCovered) {
         const slot = await prisma.lineupSlot.create({
           data: {
             dayId, slotType: "article_reading", lessonId: lesson.id,
@@ -413,8 +467,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         sortOrder++; created++;
       }
       if (r.part !== "article") {
+        const range = part && part.startTimecode && part.endTimecode
+          ? { startSec: timecodeToSeconds(part.startTimecode), endSec: timecodeToSeconds(part.endTimecode) }
+          : null;
         const slot = await prisma.lineupSlot.create({
-          data: { dayId, slotType: "recorded_lesson", lessonId: lesson.id, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null },
+          data: {
+            dayId, slotType: "recorded_lesson", lessonId: lesson.id, lessonPartId: part?.id ?? null,
+            startTimecode: range ? secondsToTimecode(range.startSec) : null,
+            endTimecode: range ? secondsToTimecode(range.endSec) : null,
+            sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+          },
         });
         noteTopLevel(slot.id, slot.slotType, nested);
         sortOrder++; created++;
@@ -425,10 +487,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (r.kind === "pickable-linked") {
       const chosenId = resolutions[r.linkedIndex]?.lessonId;
       if (!chosenId) continue; // the article half hasn't been confirmed yet
+      const chosenPartId: string | null = resolutions[r.linkedIndex]?.lessonPartId ?? null;
       const lesson = await prisma.lesson.findUnique({ where: { id: chosenId } });
       if (!lesson) continue;
+      const part = chosenPartId ? await prisma.lessonPart.findUnique({ where: { id: chosenPartId } }) : null;
+      const range = part && part.startTimecode && part.endTimecode
+        ? { startSec: timecodeToSeconds(part.startTimecode), endSec: timecodeToSeconds(part.endTimecode) }
+        : null;
       const slot = await prisma.lineupSlot.create({
-        data: { dayId, slotType: "recorded_lesson", lessonId: lesson.id, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null },
+        data: {
+          dayId, slotType: "recorded_lesson", lessonId: lesson.id, lessonPartId: part?.id ?? null,
+          startTimecode: range ? secondsToTimecode(range.startSec) : null,
+          endTimecode: range ? secondsToTimecode(range.endSec) : null,
+          sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+        },
       });
       noteTopLevel(slot.id, slot.slotType, nested);
       sortOrder++; created++;
