@@ -151,6 +151,11 @@ model Lesson {
   narratorName      String?
   startTimecode     String?
   endTimecode       String?
+  // Position within the KabbalaMedia collection this lesson was imported from
+  // (their "name_in_collection") — a reliable sequence signal for a continuous series,
+  // unlike recordingDate/broadcastDate which can be missing or duplicated across lessons.
+  // Only comparable to other lessons imported from the same collection.
+  collectionOrder   Int?
 
   articleSourceRef  String?
   articleSourceId   String?

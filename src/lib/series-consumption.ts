@@ -12,6 +12,17 @@ function lessonEffectiveRange(lesson: Lesson): { startSec: number; endSec: numbe
   return { startSec: 0, endSec: lesson.videoDurationSec ?? 0 };
 }
 
+/** Ranks a lesson for "continuous" sequencing. collectionOrder (the lesson's position within
+ *  the KabbalaMedia collection it was imported from) is a more reliable sequence signal than
+ *  dates when present — recordingDate/broadcastDate can be missing or duplicated across many
+ *  lessons (e.g. a placeholder date), which silently breaks pure date sorting. collectionOrder
+ *  values are always small integers, so they naturally sort before any real date's millisecond
+ *  timestamp without needing an explicit offset — but they're only meaningfully comparable to
+ *  other lessons imported from the *same* collection. */
+function lessonOrderKey(lesson: Lesson): number {
+  return lesson.collectionOrder ?? lesson.broadcastDate?.getTime() ?? lesson.recordingDate?.getTime() ?? Infinity;
+}
+
 function partRange(part: LessonPart): { startSec: number; endSec: number } | null {
   if (!part.startTimecode || !part.endTimecode) return null;
   const startSec = timecodeToSeconds(part.startTimecode);
@@ -141,7 +152,7 @@ export async function getNextLessonForSeries(
         candidates.push({
           lesson,
           part,
-          sortKey: part.broadcastDate?.getTime() ?? lesson.broadcastDate?.getTime() ?? lesson.recordingDate?.getTime() ?? Infinity,
+          sortKey: part.broadcastDate?.getTime() ?? lessonOrderKey(lesson),
           tieBreakTC: part.startTimecode ?? "",
         });
       }
@@ -149,7 +160,7 @@ export async function getNextLessonForSeries(
       candidates.push({
         lesson,
         part: null,
-        sortKey: lesson.broadcastDate?.getTime() ?? lesson.recordingDate?.getTime() ?? Infinity,
+        sortKey: lessonOrderKey(lesson),
         tieBreakTC: lesson.startTimecode ?? "",
       });
     }

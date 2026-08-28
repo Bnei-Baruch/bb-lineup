@@ -78,21 +78,25 @@ export async function POST(req: NextRequest) {
   );
 
   await prisma.lesson.createMany({
-    data: results.map(({ unit, videoDurationSec, videoLink, narratorName, articleSourceId, articleSourceRef, articleSourceLink, transcriptionLink }) => ({
-      kmUid: unit.id,
-      kmPageLink: `${KM_BASE}/he/lessons/cu/${unit.id}`,
-      sourceRef: unit.name,
-      recordingDate: unit.film_date ? new Date(unit.film_date) : null,
-      videoDurationSec,
-      videoLink,
-      narratorName,
-      articleSourceId,
-      articleSourceRef,
-      articleSourceLink,
-      transcriptionLink,
-      seriesId: series.id,
-      approvalStatus: "pending",
-    })),
+    data: results.map(({ unit, videoDurationSec, videoLink, narratorName, articleSourceId, articleSourceRef, articleSourceLink, transcriptionLink }) => {
+      const parsedOrder = unit.name_in_collection != null ? parseInt(unit.name_in_collection, 10) : NaN;
+      return {
+        kmUid: unit.id,
+        kmPageLink: `${KM_BASE}/he/lessons/cu/${unit.id}`,
+        sourceRef: unit.name,
+        recordingDate: unit.film_date ? new Date(unit.film_date) : null,
+        collectionOrder: Number.isFinite(parsedOrder) ? parsedOrder : null,
+        videoDurationSec,
+        videoLink,
+        narratorName,
+        articleSourceId,
+        articleSourceRef,
+        articleSourceLink,
+        transcriptionLink,
+        seriesId: series.id,
+        approvalStatus: "pending",
+      };
+    }),
   });
 
   return NextResponse.json({ series, imported: results.length, total: units.length }, { status: 201 });
