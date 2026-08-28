@@ -211,6 +211,31 @@ export async function getNextLessonForSeries(
     }
   }
 
+  // Resume priority: once a multi-part lesson has begun airing, its next unaired part takes
+  // priority over jumping to a different lesson — the parts of one lesson are meant to be
+  // watched in order, back to back, regardless of how the wider series would otherwise sort
+  // (e.g. other lessons with earlier or missing dates shouldn't cut in line mid-lesson).
+  const seenLessonIds = new Set<string>();
+  for (const c of candidates) {
+    if (seenLessonIds.has(c.lesson.id)) continue;
+    seenLessonIds.add(c.lesson.id);
+    if (c.lesson.parts.length === 0) continue;
+    let anyPartUsed = false;
+    for (const part of c.lesson.parts) {
+      if (await isPartUsed(prisma, part.id, excludeDayId)) { anyPartUsed = true; break; }
+    }
+    if (!anyPartUsed) continue;
+    for (const part of c.lesson.parts) {
+      const range = partRange(part);
+      if (!range) continue;
+      if (await isPartUsed(prisma, part.id, excludeDayId)) continue;
+      const alreadyReadArticle =
+        (await prisma.lineupSlot.count({ where: { lessonId: c.lesson.id, slotType: "article_reading" } })) > 0;
+      return { lesson: c.lesson, part, resumeFromSec: range.startSec, endSec: range.endSec, alreadyReadArticle };
+    }
+    // All parts of this in-progress lesson are used after all - nothing left to resume here.
+  }
+
   for (const c of candidates) {
     const result = await resultFor(c);
     if (result) return result;
