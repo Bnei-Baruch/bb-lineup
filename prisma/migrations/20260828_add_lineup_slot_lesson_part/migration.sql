@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "LineupSlot" ADD COLUMN "lessonPartId" TEXT REFERENCES "LessonPart" ("id") ON DELETE SET NULL ON UPDATE CASCADE;

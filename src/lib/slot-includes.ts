@@ -49,6 +49,16 @@ export const slotWithLessonInclude = {
       endTimecode: true,
     },
   },
+  lessonPart: {
+    select: {
+      id: true,
+      partNumber: true,
+      startTimecode: true,
+      endTimecode: true,
+      broadcastDate: true,
+      notes: true,
+    },
+  },
   component: {
     select: {
       id: true,

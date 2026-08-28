@@ -191,6 +191,8 @@ model LessonPart {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  lineupSlots   LineupSlot[]
+
   @@unique([lessonId, partNumber])
 }
 
@@ -242,7 +244,12 @@ model LineupSlot {
   lessonId            String?
   lesson              Lesson?          @relation(fields: [lessonId], references: [id])
 
-  // Part grouping
+  // Which LessonPart of the lesson above is scheduled here, if the lesson is split into parts —
+  // unrelated to partNumber below (day-structure "part_header" divider rows, a different concept).
+  lessonPartId        String?
+  lessonPart          LessonPart?      @relation(fields: [lessonPartId], references: [id], onDelete: SetNull)
+
+  // Part grouping (day-structure divider rows — see "part_header" slots)
   partNumber          Int?
 
   // Narrator / script

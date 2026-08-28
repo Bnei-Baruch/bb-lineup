@@ -218,7 +218,8 @@ export function contentText(slot: SlotWithLesson): { main: string; sub: string }
   if (slot.narratorScript) return { main: slot.narratorScript, sub: "" };
   if (slot.lesson?.sourceRef) {
     const src = slot.studyMaterialSource;
-    return { main: slot.lesson.sourceRef, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
+    const main = slot.lessonPart ? `${slot.lesson.sourceRef} - חלק ${slot.lessonPart.partNumber}` : slot.lesson.sourceRef;
+    return { main, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
   }
   if (slot.mediaCode) return { main: slot.mediaCode, sub: "" };
   return { main: "", sub: "" };

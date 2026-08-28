@@ -49,6 +49,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  if (rest.lessonPartId) {
+    const lessonPart = await prisma.lessonPart.findUnique({ where: { id: rest.lessonPartId }, select: { id: true } });
+    if (!lessonPart) delete rest.lessonPartId; // drop invalid reference instead of failing
+  }
+
   if (rest.componentId) {
     const component = await prisma.lineupComponent.findUnique({ where: { id: rest.componentId }, select: { id: true } });
     if (!component) {

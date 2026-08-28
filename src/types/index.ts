@@ -182,6 +182,8 @@ export interface SlotWithLesson {
   durationSec: number | null;
   lessonId: string | null;
   lesson: LessonSummary | null;
+  lessonPartId: string | null;
+  lessonPart: LessonPartSummary | null;
   partNumber: number | null;
   narratorScript: string | null;
   transitionType: string | null;

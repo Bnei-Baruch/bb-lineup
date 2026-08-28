@@ -73,6 +73,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       holidayTag: s.holidayTag ?? "",
       partNumber: String(s.partNumber ?? ""),
       lessonId: s.lessonId ?? null,
+      lessonPartId: s.lessonPartId ?? null,
       transcriptionLink: s.lesson?.transcriptionLink ?? "",
       parentSlotId: s.parentSlotId ?? "",
     };
@@ -136,6 +137,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
         hasWorkshopQuestions: form.hasWorkshopQuestions,
         language: form.language || null,
         lessonId: form.lessonId ?? null,
+        lessonPartId: form.lessonPartId ?? null,
         chevrutaPartners: form.chevrutaPartners
           ? JSON.stringify(form.chevrutaPartners.split(",").map((s: string) => s.trim()).filter(Boolean))
           : null,
@@ -607,16 +609,17 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       <LessonPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onSelect={(l) => {
+        onSelect={(l, part) => {
           setLesson(l);
           setForm((f) => ({
             ...f,
             lessonId: l.id,
-            label: f.label || l.sourceRef || "",
+            lessonPartId: part?.id ?? null,
+            label: f.label || (part ? `${l.sourceRef ?? ""} - חלק ${part.partNumber}` : l.sourceRef) || "",
             recordedLessonLink: f.recordedLessonLink || l.kmPageLink || "",
             studyMaterialLink: f.studyMaterialLink || l.articleSourceLink || "",
-            startTimecode: f.startTimecode || "00:00:00",
-            endTimecode: f.endTimecode || "",
+            startTimecode: part?.startTimecode || f.startTimecode || "00:00:00",
+            endTimecode: part?.endTimecode || f.endTimecode || "",
             transcriptionLink: f.transcriptionLink || l.transcriptionLink || "",
           }));
         }}

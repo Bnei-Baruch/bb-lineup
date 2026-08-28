@@ -10,7 +10,7 @@ import { SlotEditor } from "./SlotEditor";
 import { LessonPicker } from "./LessonPicker";
 import { DayTimeSummary } from "./DayTimeSummary";
 import { ApplyDayTemplateDialog } from "./ApplyDayTemplateDialog";
-import { DayWithSlots, LessonSummary, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
+import { DayWithSlots, LessonSummary, LessonPartSummary, SlotWithLesson, SlotType, LESSON_SLOT_TYPES } from "@/types";
 import { DAY_NAMES, formatDate, dayDate, parseWeekParam } from "@/lib/dates";
 import { addSecondsToTime, timecodeToSeconds } from "@/lib/timecodes";
 
@@ -137,7 +137,7 @@ export function DayColumn({ day, weekStart, onSlotsChange, onAddSession, onDelet
     }
   }
 
-  async function handleAddLesson(lesson: LessonSummary) {
+  async function handleAddLesson(lesson: LessonSummary, part?: LessonPartSummary) {
     setLessonPickerOpen(false);
     const maxSlot = day.slots.length > 0 ? Math.max(...day.slots.map((s) => s.sortOrder ?? 0)) : -1;
     const res = await fetch("/api/slots", {
@@ -147,13 +147,16 @@ export function DayColumn({ day, weekStart, onSlotsChange, onAddSession, onDelet
         dayId: day.id,
         slotType: "recorded_lesson",
         lessonId: lesson.id,
+        lessonPartId: part?.id ?? null,
+        startTimecode: part?.startTimecode ?? null,
+        endTimecode: part?.endTimecode ?? null,
         sortOrder: maxSlot + 1,
       }),
     });
     if (res.ok) {
       const slot = await res.json();
       onSlotsChange(day.id, [...day.slots, slot]);
-      flashAdded(lesson.sourceRef ?? "שיעור");
+      flashAdded(part ? `${lesson.sourceRef ?? "שיעור"} - חלק ${part.partNumber}` : (lesson.sourceRef ?? "שיעור"));
     }
   }
 
