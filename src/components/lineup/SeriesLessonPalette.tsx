@@ -4,6 +4,16 @@ import { useState } from "react";
 import { ChevronDown, ChevronLeft, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDurationSec } from "@/lib/time";
+import { timecodeToSeconds } from "@/lib/timecodes";
+
+interface LessonPart {
+  id: string;
+  partNumber: number;
+  startTimecode: string | null;
+  endTimecode: string | null;
+  broadcastDate: string | null;
+  notes: string | null;
+}
 
 interface LessonRow {
   id: string;
@@ -12,6 +22,7 @@ interface LessonRow {
   videoDurationSec: number | null;
   narratorName: string | null;
   approvalStatus: string;
+  parts: LessonPart[];
 }
 
 interface SeriesRow {
@@ -23,15 +34,24 @@ interface SeriesRow {
 
 interface SeriesLessonPaletteProps {
   series: SeriesRow[];
-  onAdd: (lessonId: string, durationSec: number | null, label?: string) => void;
+  onAdd: (lessonId: string, durationSec: number | null, label?: string, part?: LessonPart) => void;
 }
 
 export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps) {
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const [openLessonIds, setOpenLessonIds] = useState<Set<string>>(new Set());
   const [q, setQ] = useState("");
 
   function toggle(id: string) {
     setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
+
+  function toggleLesson(id: string) {
+    setOpenLessonIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
@@ -88,30 +108,68 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
                 {filtered.length === 0 && (
                   <p className="text-xs text-muted-foreground px-2 py-2">אין שיעורים</p>
                 )}
-                {filtered.map((l) => (
-                  <button
-                    key={l.id}
-                    onClick={() => onAdd(l.id, l.videoDurationSec ?? null, l.sourceRef ?? undefined)}
-                    className={cn(
-                      "w-full flex items-start gap-1.5 px-2 py-1.5 text-start text-xs hover:bg-accent/40 transition-colors group",
-                      l.approvalStatus === "approved" && "opacity-60"
-                    )}
-                    title={l.sourceRef ?? undefined}
-                  >
-                    <Plus className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground group-hover:text-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate leading-tight">{l.sourceRef ?? "—"}</div>
-                      <div className="text-muted-foreground flex gap-1.5 mt-0.5">
-                        {l.recordingDate && (
-                          <span>{l.recordingDate.slice(0, 10)}</span>
+                {filtered.map((l) => {
+                  const hasParts = l.parts && l.parts.length > 0;
+                  const lessonOpen = openLessonIds.has(l.id) || !!query;
+                  return (
+                    <div key={l.id}>
+                      <button
+                        onClick={() => hasParts ? toggleLesson(l.id) : onAdd(l.id, l.videoDurationSec ?? null, l.sourceRef ?? undefined)}
+                        className={cn(
+                          "w-full flex items-start gap-1.5 px-2 py-1.5 text-start text-xs hover:bg-accent/40 transition-colors group",
+                          l.approvalStatus === "approved" && "opacity-60"
                         )}
-                        {l.videoDurationSec && (
-                          <span>{formatDurationSec(l.videoDurationSec)}</span>
+                        title={l.sourceRef ?? undefined}
+                      >
+                        {hasParts ? (
+                          lessonOpen
+                            ? <ChevronDown className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground" />
+                            : <ChevronLeft className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground" />
+                        ) : (
+                          <Plus className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground group-hover:text-foreground" />
                         )}
-                      </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate leading-tight">{l.sourceRef ?? "—"}</div>
+                          <div className="text-muted-foreground flex gap-1.5 mt-0.5">
+                            {l.recordingDate && (
+                              <span>{l.recordingDate.slice(0, 10)}</span>
+                            )}
+                            {l.videoDurationSec && (
+                              <span>{formatDurationSec(l.videoDurationSec)}</span>
+                            )}
+                            {hasParts && <span className="text-primary font-medium">{l.parts.length} חלקים</span>}
+                          </div>
+                        </div>
+                      </button>
+
+                      {hasParts && lessonOpen && (
+                        <div className="ps-4 divide-y divide-border border-s border-border ms-2">
+                          {l.parts.map((p) => {
+                            const cutSec = p.startTimecode && p.endTimecode
+                              ? timecodeToSeconds(p.endTimecode) - timecodeToSeconds(p.startTimecode)
+                              : null;
+                            return (
+                              <button
+                                key={p.id}
+                                onClick={() => onAdd(l.id, cutSec && cutSec > 0 ? cutSec : null, `${l.sourceRef ?? ""} - חלק ${p.partNumber}`, p)}
+                                className="w-full flex items-start gap-1.5 px-2 py-1.5 text-start text-xs hover:bg-accent/40 transition-colors group"
+                              >
+                                <Plus className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground group-hover:text-foreground" />
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate leading-tight">חלק {p.partNumber}</div>
+                                  <div className="text-muted-foreground flex gap-1.5 mt-0.5">
+                                    {p.broadcastDate && <span>{p.broadcastDate.slice(0, 10)}</span>}
+                                    {cutSec != null && cutSec > 0 && <span>{formatDurationSec(cutSec)}</span>}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

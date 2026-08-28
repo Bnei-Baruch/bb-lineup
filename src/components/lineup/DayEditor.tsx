@@ -23,6 +23,15 @@ interface PaletteComponent {
   defaultDurationSec: number | null;
 }
 
+interface SeriesLessonPart {
+  id: string;
+  partNumber: number;
+  startTimecode: string | null;
+  endTimecode: string | null;
+  broadcastDate: string | null;
+  notes: string | null;
+}
+
 interface SeriesLessonRow {
   id: string;
   sourceRef: string | null;
@@ -30,6 +39,7 @@ interface SeriesLessonRow {
   videoDurationSec: number | null;
   narratorName: string | null;
   approvalStatus: string;
+  parts: SeriesLessonPart[];
 }
 
 interface SeriesRow {
@@ -142,7 +152,7 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
     }).catch(() => {});
   }
 
-  async function handleAddFromLesson(lessonId: string, durationSec: number | null, label?: string) {
+  async function handleAddFromLesson(lessonId: string, durationSec: number | null, label?: string, part?: SeriesLessonPart) {
     const res = await fetch("/api/slots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -150,6 +160,9 @@ export function DayEditor({ day: initialDay, components, series }: DayEditorProp
         dayId: initialDay.id,
         slotType: "recorded_lesson",
         lessonId,
+        lessonPartId: part?.id ?? null,
+        startTimecode: part?.startTimecode ?? null,
+        endTimecode: part?.endTimecode ?? null,
         durationSec: durationSec ?? undefined,
       }),
     });
