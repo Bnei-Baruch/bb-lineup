@@ -67,11 +67,19 @@ export function extractSourceLink(sources: string[] | undefined): { id: string; 
   return { id, url: `${KM_BASE}/sources/${id}` };
 }
 
-/** Find the Hebrew video file (prefer HD), return its URL */
+/** Find the Hebrew mp4 video file, if any — browsers can't play the .wmv files some legacy
+ *  content units have as their only "he" video, so mp4 is required for anything we embed. */
+export function findHebrewMp4(files: KmFile[]): KmFile | null {
+  const heVideos = files.filter((f) => f.language === "he" && f.type === "video");
+  return heVideos.find((f) => f.mimetype === "video/mp4") ?? null;
+}
+
+/** Find the Hebrew video file (prefer mp4, then HD), return its URL */
 export function extractVideoLink(files: KmFile[]): string | null {
   const heVideos = files.filter((f) => f.language === "he" && f.type === "video");
-  const hd = heVideos.find((f) => f.video_size === "HD");
-  const chosen = hd ?? heVideos[0];
+  const mp4s = heVideos.filter((f) => f.mimetype === "video/mp4");
+  const hd = mp4s.find((f) => f.video_size === "HD");
+  const chosen = hd ?? mp4s[0] ?? heVideos[0];
   if (!chosen) return null;
   // Not `${KM_BASE}/cdn/{id}` (the www frontend domain) — that redirect responds with
   // Cross-Origin-Resource-Policy: same-origin, which browsers block when this URL is

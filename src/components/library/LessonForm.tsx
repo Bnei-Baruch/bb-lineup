@@ -259,12 +259,20 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
               onBlur={handleKmLinkBlur}
               placeholder="https://kabbalahmedia.info/lessons/..."
               dir="ltr"
+              disabled={kmLoading}
             />
             {kmLoading && (
-              <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              <Loader2 className="absolute end-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
             )}
           </div>
-          <p className="text-xs text-muted-foreground">הדבק קישור לשיעור — הפרטים יתמלאו אוטומטית</p>
+          {kmLoading ? (
+            <p className="flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 rounded-md px-2 py-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+              טוען פרטים מקבלה מדיה... זה עשוי לקחת כמה שניות
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">הדבק קישור לשיעור — הפרטים יתמלאו אוטומטית</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
