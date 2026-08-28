@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
 import { parseKmUid, fetchContentUnit } from "@/lib/km-client";
+import { syncBroadcastDateOnPlacement } from "@/lib/broadcast-date";
 
 // A lesson's cached videoDurationSec can go stale if the source video on KabbalaMedia
 // is re-cut/re-encoded after import. Re-check it against KM right when the lesson is
@@ -72,6 +73,8 @@ export async function POST(req: NextRequest) {
     data: { dayId, slotType, sortOrder, ...rest },
     include: slotWithLessonInclude,
   });
+
+  await syncBroadcastDateOnPlacement(dayId, slot.lessonId, slot.lessonPartId);
 
   const [enriched] = await withLessonTimecodes(prisma, [slot]);
   return NextResponse.json(enriched, { status: 201 });

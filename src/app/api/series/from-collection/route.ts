@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseCollectionUid, fetchCollection, fetchContentUnit, extractVideoLink, extractNarrator, extractSourceLink, lookupSourceById, findDocxFileId } from "@/lib/km-client";
+import { parseCollectionUid, fetchCollection, fetchContentUnit, extractVideoLink, extractNarrator, extractSourceLink, lookupSourceById, findDocxFileId, resolveVideoDurationSec } from "@/lib/km-client";
 
 const KM_BASE = "https://kabbalahmedia.info";
-
-/** Get duration in seconds from the Hebrew video file of a content unit */
-function hebrewVideoDuration(files: { language: string; type: string; duration?: number }[]): number | null {
-  const heVideo = files.find((f) => f.language === "he" && f.type === "video");
-  return heVideo?.duration ?? null;
-}
 
 export async function POST(req: NextRequest) {
   const { url, color, sortOrder, skipTranscription } = await req.json();
@@ -54,13 +48,13 @@ export async function POST(req: NextRequest) {
       try {
         const full = await fetchContentUnit(unit.id);
         const files = full.files ?? [];
-        const durationSec = hebrewVideoDuration(files);
+        const durationSec = await resolveVideoDurationSec(files);
         const source = extractSourceLink(full.sources);
         const sourceResult = source ? await lookupSourceById(source.id) : null;
         const hasDocx = !skipTranscription && findDocxFileId(files) !== null;
         return {
           unit,
-          videoDurationSec: durationSec != null ? Math.round(durationSec) : null,
+          videoDurationSec: durationSec,
           videoLink: extractVideoLink(files),
           narratorName: extractNarrator(files),
           articleSourceId: source?.id ?? null,

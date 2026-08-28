@@ -1,4 +1,8 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
 const KM_BASE = "https://kabbalahmedia.info";
+const execFileAsync = promisify(execFile);
 
 export interface KmFile {
   id: string;
@@ -86,6 +90,36 @@ export function extractVideoLink(files: KmFile[]): string | null {
   // loaded as a <video> subresource from another origin. The cdn subdomain redirects to
   // the same file without that header.
   return `https://cdn.kabbalahmedia.info/${chosen.id}`;
+}
+
+/** Reads just the container metadata (via HTTP range requests, not a full download) to get the
+ *  real duration when KM's own catalog value is missing or obviously wrong. Always probes the
+ *  mp4 specifically — other formats (e.g. legacy .wmv) aren't guaranteed to even be seekable
+ *  the same way, and mp4 is the only one we ever actually play back. */
+export async function probeMp4DurationSec(url: string): Promise<number | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "ffprobe",
+      ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", url],
+      { timeout: 20000 }
+    );
+    const sec = parseFloat(stdout.trim());
+    return Number.isFinite(sec) && sec > 1 ? Math.round(sec) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolve the real Hebrew video duration for a content unit's files: prefer KM's catalog
+ *  value, but treat a missing or bogus (≤1s, a known KM legacy-content bug) value as absent
+ *  and fall back to probing the mp4 file itself. */
+export async function resolveVideoDurationSec(files: KmFile[]): Promise<number | null> {
+  const heMp4 = findHebrewMp4(files);
+  const heVideo = heMp4 ?? files.find((f) => f.language === "he" && f.type === "video");
+  const catalogDuration = heVideo?.duration != null && heVideo.duration > 1 ? heVideo.duration : null;
+  if (catalogDuration != null) return Math.round(catalogDuration);
+  if (heMp4) return probeMp4DurationSec(`https://cdn.kabbalahmedia.info/${heMp4.id}`);
+  return null;
 }
 
 /** Find the narrator name from a Hebrew video filename (e.g. heb_o_norav_... → "norav") */
