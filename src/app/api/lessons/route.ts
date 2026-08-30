@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         broadcastDate: true,
         createdAt: true,
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, notes: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true },
           orderBy: { partNumber: "asc" },
         },
       },
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   delete body.articleBookVolume;
   delete body.articleBookPage;
   // Parts are a nested relation, not a plain Lesson column
-  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; notes?: string | null }[] | undefined = body.parts;
+  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; openingStatement?: string | null; closingStatement?: string | null; notes?: string | null }[] | undefined = body.parts;
   delete body.parts;
   try {
     // Auto-calculate article reading duration

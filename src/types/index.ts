@@ -170,6 +170,8 @@ export interface LessonPartSummary {
   startTimecode: string | null;
   endTimecode: string | null;
   broadcastDate: string | null;
+  openingStatement: string | null;
+  closingStatement: string | null;
   notes: string | null;
 }
 

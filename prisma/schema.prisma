@@ -192,6 +192,8 @@ model LessonPart {
   startTimecode String?
   endTimecode   String?
   broadcastDate DateTime?
+  openingStatement String?
+  closingStatement String?
   notes         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

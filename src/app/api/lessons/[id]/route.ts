@@ -56,7 +56,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   // Parts are a nested relation, not a plain Lesson column. Only touched when the key is
   // present, so a partial update (e.g. inline-editing broadcastDate/status) can't wipe them.
   const hasParts = "parts" in body;
-  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; notes?: string | null }[] | undefined = body.parts;
+  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; openingStatement?: string | null; closingStatement?: string | null; notes?: string | null }[] | undefined = body.parts;
   delete body.parts;
 
   // Re-calculate article reading if source link changed

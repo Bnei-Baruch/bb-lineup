@@ -11,6 +11,8 @@ export interface PartDraft {
   startTimecode: string;
   endTimecode: string;
   broadcastDate: string;
+  openingStatement: string;
+  closingStatement: string;
   notes: string;
 }
 
@@ -67,7 +69,7 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
 
   function addPartFromPlayhead() {
     const start = videoRef.current ? secondsToTimecode(Math.floor(videoRef.current.currentTime)) : "";
-    onChange([...parts, { partNumber: nextPartNumber(parts), startTimecode: start, endTimecode: "", broadcastDate: "", notes: "" }]);
+    onChange([...parts, { partNumber: nextPartNumber(parts), startTimecode: start, endTimecode: "", broadcastDate: "", openingStatement: "", closingStatement: "", notes: "" }]);
   }
 
   function markIn(index: number) {
@@ -209,40 +211,58 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
 
       <div className="space-y-2">
         {parts.map((p, i) => (
-          <div key={i} className="flex flex-wrap items-end gap-2 border border-border rounded-md p-2 bg-muted/20">
-            <div className={`w-2 self-stretch rounded-sm ${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}`} />
-            <span className="text-xs font-medium w-14 shrink-0">חלק {p.partNumber}</span>
+          <div key={i} className="border border-border rounded-md p-2 bg-muted/20 space-y-1.5">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className={`w-2 self-stretch rounded-sm ${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}`} />
+              <span className="text-xs font-medium w-14 shrink-0">חלק {p.partNumber}</span>
 
-            {videoLink && (
-              <Button type="button" variant="ghost" size="icon" title="נגן מכאן" onClick={() => seekTo(timecodeToSeconds(p.startTimecode || "0"))}>
-                <Play className="h-3.5 w-3.5" />
+              {videoLink && (
+                <Button type="button" variant="ghost" size="icon" title="נגן מכאן" onClick={() => seekTo(timecodeToSeconds(p.startTimecode || "0"))}>
+                  <Play className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
+              <div className="flex items-center gap-1">
+                <Input value={p.startTimecode} onChange={(e) => updatePart(i, { startTimecode: e.target.value })} placeholder="IN" className="h-8 w-24 text-xs" dir="ltr" />
+                {videoLink && (
+                  <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => markIn(i)}>
+                    <Scissors className="h-3 w-3" /> סמן התחלה
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <Input value={p.endTimecode} onChange={(e) => updatePart(i, { endTimecode: e.target.value })} placeholder="OUT" className="h-8 w-24 text-xs" dir="ltr" />
+                {videoLink && (
+                  <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => markOut(i)}>
+                    <Scissors className="h-3 w-3" /> סמן סיום
+                  </Button>
+                )}
+              </div>
+
+              <Input type="date" value={p.broadcastDate} onChange={(e) => updatePart(i, { broadcastDate: e.target.value })} className="h-8 w-36 text-xs" dir="ltr" />
+              <Input value={p.notes} onChange={(e) => updatePart(i, { notes: e.target.value })} placeholder="הערות" className="h-8 flex-1 min-w-24 text-xs" dir="rtl" />
+
+              <Button type="button" variant="ghost" size="icon" onClick={() => removePart(i)} className="text-destructive hover:text-destructive shrink-0">
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
-            )}
-
-            <div className="flex items-center gap-1">
-              <Input value={p.startTimecode} onChange={(e) => updatePart(i, { startTimecode: e.target.value })} placeholder="IN" className="h-8 w-24 text-xs" dir="ltr" />
-              {videoLink && (
-                <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => markIn(i)}>
-                  <Scissors className="h-3 w-3" /> סמן התחלה
-                </Button>
-              )}
             </div>
-
-            <div className="flex items-center gap-1">
-              <Input value={p.endTimecode} onChange={(e) => updatePart(i, { endTimecode: e.target.value })} placeholder="OUT" className="h-8 w-24 text-xs" dir="ltr" />
-              {videoLink && (
-                <Button type="button" variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => markOut(i)}>
-                  <Scissors className="h-3 w-3" /> סמן סיום
-                </Button>
-              )}
+            <div className="flex flex-wrap items-center gap-2 ps-4">
+              <Input
+                value={p.openingStatement}
+                onChange={(e) => updatePart(i, { openingStatement: e.target.value })}
+                placeholder="דבר המתחיל"
+                className="h-8 flex-1 min-w-32 text-xs"
+                dir="rtl"
+              />
+              <Input
+                value={p.closingStatement}
+                onChange={(e) => updatePart(i, { closingStatement: e.target.value })}
+                placeholder="דברי סיום"
+                className="h-8 flex-1 min-w-32 text-xs"
+                dir="rtl"
+              />
             </div>
-
-            <Input type="date" value={p.broadcastDate} onChange={(e) => updatePart(i, { broadcastDate: e.target.value })} className="h-8 w-36 text-xs" dir="ltr" />
-            <Input value={p.notes} onChange={(e) => updatePart(i, { notes: e.target.value })} placeholder="הערות" className="h-8 flex-1 min-w-24 text-xs" dir="rtl" />
-
-            <Button type="button" variant="ghost" size="icon" onClick={() => removePart(i)} className="text-destructive hover:text-destructive shrink-0">
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
           </div>
         ))}
       </div>
