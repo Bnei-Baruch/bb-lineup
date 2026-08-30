@@ -205,7 +205,10 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        // push() alone can serve /library from Next's client-side router cache — a stale
+        // snapshot from before this save — until refresh() invalidates it.
         router.push("/library");
+        router.refresh();
       } else {
         const data = await res.json().catch(() => ({}));
         setSubmitError(data.error ?? "שגיאה בשמירה");
