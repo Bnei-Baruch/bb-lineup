@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
 import { parseKmUid, fetchContentUnit } from "@/lib/km-client";
 import { syncBroadcastDateOnPlacement } from "@/lib/broadcast-date";
+import { resolveLessonWords } from "@/lib/lesson-words";
 
 // A lesson's cached videoDurationSec can go stale if the source video on KabbalaMedia
 // is re-cut/re-encoded after import. Re-check it against KM right when the lesson is
@@ -60,6 +61,14 @@ export async function POST(req: NextRequest) {
     if (!component) {
       delete rest.componentId; // drop invalid reference instead of failing
     }
+  }
+
+  // Prefill the narrator opening/closing words from the lesson/part being scheduled, unless
+  // the caller already provided their own (e.g. a manual quick-add that never touches these).
+  if ((rest.lessonId || rest.lessonPartId) && rest.openingWords == null && rest.closingWords == null) {
+    const words = await resolveLessonWords(prisma, rest.lessonId, rest.lessonPartId);
+    if (words.openingWords) rest.openingWords = words.openingWords;
+    if (words.closingWords) rest.closingWords = words.closingWords;
   }
 
   const last = await prisma.lineupSlot.findFirst({

@@ -5,6 +5,7 @@ import { computeRemainingForPickableSec, distributeSlack } from "@/lib/day-budge
 import { getNextLessonForSeries, getBestFitCandidates, findLessonAssignedForDate, NextLessonResult, PickableCandidate } from "@/lib/series-consumption";
 import { secondsToTimecode, timecodeToSeconds } from "@/lib/timecodes";
 import { dayDate } from "@/lib/dates";
+import { resolveLessonWords } from "@/lib/lesson-words";
 import { TemplateItemV2, DynamicLessonTemplateItem } from "@/types";
 
 type LegacyTemplateSlot = {
@@ -423,12 +424,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // A part always needs its own explicit timecodes on the slot — falling back to the
       // lesson's own (unset, for a multi-part lesson) fields would wrongly span the whole video.
       const needsOverride = part != null || resumeFromSec > lessonStart;
+      const words = await resolveLessonWords(prisma, lesson.id, part?.id ?? null);
       const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType: "recorded_lesson", lessonId: lesson.id,
           lessonPartId: part?.id ?? null,
           startTimecode: needsOverride ? secondsToTimecode(resumeFromSec) : null,
           endTimecode: needsOverride ? secondsToTimecode(endSec) : null,
+          openingWords: words.openingWords, closingWords: words.closingWords,
           sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
         },
       });
@@ -470,11 +473,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const range = part && part.startTimecode && part.endTimecode
           ? { startSec: timecodeToSeconds(part.startTimecode), endSec: timecodeToSeconds(part.endTimecode) }
           : null;
+        const words = await resolveLessonWords(prisma, lesson.id, part?.id ?? null);
         const slot = await prisma.lineupSlot.create({
           data: {
             dayId, slotType: "recorded_lesson", lessonId: lesson.id, lessonPartId: part?.id ?? null,
             startTimecode: range ? secondsToTimecode(range.startSec) : null,
             endTimecode: range ? secondsToTimecode(range.endSec) : null,
+            openingWords: words.openingWords, closingWords: words.closingWords,
             sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
           },
         });
@@ -494,11 +499,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const range = part && part.startTimecode && part.endTimecode
         ? { startSec: timecodeToSeconds(part.startTimecode), endSec: timecodeToSeconds(part.endTimecode) }
         : null;
+      const words = await resolveLessonWords(prisma, lesson.id, part?.id ?? null);
       const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType: "recorded_lesson", lessonId: lesson.id, lessonPartId: part?.id ?? null,
           startTimecode: range ? secondsToTimecode(range.startSec) : null,
           endTimecode: range ? secondsToTimecode(range.endSec) : null,
+          openingWords: words.openingWords, closingWords: words.closingWords,
           sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
         },
       });

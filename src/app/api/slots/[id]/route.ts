@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
 import { syncBroadcastDateOnPlacement, syncBroadcastDateOnRemoval } from "@/lib/broadcast-date";
+import { resolveLessonWords } from "@/lib/lesson-words";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,6 +20,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { id },
     select: { dayId: true, lessonId: true, lessonPartId: true },
   });
+
+  // Prefill opening/closing words when this request re-links the slot to a different
+  // lesson/part, unless the caller already provided their own in this same request.
+  const isRelinking = ("lessonId" in body || "lessonPartId" in body)
+    && (body.lessonId !== before.lessonId || body.lessonPartId !== before.lessonPartId);
+  if (isRelinking && body.openingWords == null && body.closingWords == null) {
+    const words = await resolveLessonWords(prisma, body.lessonId ?? before.lessonId, body.lessonPartId ?? before.lessonPartId);
+    if (words.openingWords) body.openingWords = words.openingWords;
+    if (words.closingWords) body.closingWords = words.closingWords;
+  }
 
   const slot = await prisma.lineupSlot.update({
     where: { id },
