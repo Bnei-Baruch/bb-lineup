@@ -7,6 +7,7 @@ import { addSecondsToTime, timecodeDuration } from "@/lib/timecodes";
 import { isoToIsraelSec } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
+import { computeSlotWindows, pickLiveSlot, LiveMatchSlot } from "@/lib/slot-live-match";
 import { Clock, ZoomIn, ZoomOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/components/providers/KeycloakProvider";
 import {
@@ -44,12 +45,6 @@ interface NowPlaying {
   actualStartAt: string; // ISO-8601 — Playdeck clip start (may be old/stale)
   updatedAt: string;     // ISO-8601 — when Companion sent the POST (always current)
   durationSec?: number;
-  // The exact slot the server resolved this clip to (see /api/playout/current).
-  // A clip's code (playoutCode/mediaCode) can be shared by slots in other
-  // sessions/days airing the same series at a different time — matching by
-  // code alone would flag one of THIS page's own same-code rows as live even
-  // when the real live slot is on a different session's page entirely.
-  matchedSlotId?: string | null;
 }
 
 export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentCutoffIndex }: DayViewProps) {
@@ -145,6 +140,10 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   // Refs so the poll interval closure can read current state without stale captures
   const lastPlayingRef = useRef<NowPlaying | null>(null);
   const isCurrentlyLiveRef = useRef(false);
+  // Which slot is currently time-matched as live, kept in sync every render (see
+  // liveRowIndex below) so the poll closure can resolve "which slot just stopped"
+  // without re-deriving a match of its own.
+  const liveSlotIdRef = useRef<string | null>(null);
 
   function computeIsLive(data: NowPlaying): boolean {
     const updatedMs = new Date(data.updatedAt).getTime();
@@ -166,7 +165,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
           setIsCurrentlyLive(live);
         } else {
           const wasLive = isCurrentlyLiveRef.current;
-          const prev = lastPlayingRef.current;
           isCurrentlyLiveRef.current = false;
           lastPlayingRef.current = null;
           setIsCurrentlyLive(false);
@@ -174,14 +172,8 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
 
           // Clip just stopped — fetch the actual played duration from the slot and
           // update slotOverrides so it shows without a page reload
-          if (wasLive && prev) {
-            const liveSlot = prev.matchedSlotId
-              ? day.slots.find(s => s.id === prev.matchedSlotId)
-              : day.slots.find(s => {
-                  const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
-                  return (code && code.toUpperCase() === prev.clipName.toUpperCase()) ||
-                         s.id === prev.clipName;
-                });
+          if (wasLive) {
+            const liveSlot = day.slots.find(s => s.id === liveSlotIdRef.current);
             if (liveSlot) {
               fetch(`/api/slots/${liveSlot.id}/actuals`)
                 .then(r => r.ok ? r.json() : null)
@@ -258,7 +250,6 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   }
 
   function confirmManual(slot: SlotWithLesson) {
-    const code = slot.lesson?.series?.playoutCode ?? slot.mediaCode ?? slot.id;
     if (!manualTime) return;
     const today = new Intl.DateTimeFormat("sv", { timeZone: "Asia/Jerusalem" }).format(new Date()); // YYYY-MM-DD
     const iso = new Date(`${today}T${manualTime}+03:00`).toISOString();
@@ -272,8 +263,9 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     });
     setManualSlotId(null);
 
-    // Persist to server in the background (manual:true → only saves to slot, not PlayoutNowPlaying)
-    const body: Record<string, unknown> = { clipName: code, actualStartAt: iso, manual: true };
+    // Persist to server in the background (manual:true → only saves to slot, not PlayoutNowPlaying).
+    // slotId is the exact slot the operator picked — bypasses matching entirely.
+    const body: Record<string, unknown> = { slotId: slot.id, actualStartAt: iso, manual: true };
     if (parsedDur > 0) body.durationSec = parsedDur;
     fetch("/api/playout/current", {
       method: "POST",
@@ -282,26 +274,28 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
     }).catch(console.error);
   }
 
-  // Precompute live slot index for matching — use lastPlaying for time correction (persists after clip ends).
-  // Prefer the server-resolved matchedSlotId (exact slot, disambiguated across sessions/days that
-  // share the same playoutCode). Only fall back to code-matching for older PlayoutNowPlaying rows
-  // that predate that field.
-  const liveSlotIndex = lastPlaying
-    ? (lastPlaying.matchedSlotId
-        ? day.slots.findIndex(s => s.id === lastPlaying.matchedSlotId)
-        : day.slots.findIndex(s => {
-            const code = s.lesson?.series?.playoutCode ?? s.mediaCode;
-            return (code && code.toUpperCase() === lastPlaying.clipName.toUpperCase()) ||
-                   s.id === lastPlaying.clipName;
-          }))
-    : -1;
+  // Which row is "live" is decided by time, not by any code Companion sends: build
+  // each slot's own scheduled window (respecting already-confirmed actual times as
+  // anchors), then find whichever not-yet-finished slot's window contains right now.
+  // Shared with the server (src/lib/slot-live-match.ts) so both sides always agree.
+  const liveMatchSlots: LiveMatchSlot[] = day.slots.map(s => ({
+    id: s.id, slotType: s.slotType, parentSlotId: s.parentSlotId, durationSec: s.durationSec,
+    startTimecode: s.startTimecode, endTimecode: s.endTimecode,
+    actualBroadcastAt: slotOverrides.get(s.id)?.actualBroadcastAt ?? s.actualBroadcastAt,
+    actualDurationSec: slotOverrides.get(s.id)?.actualDurationSec ?? s.actualDurationSec,
+    lesson: s.lesson ? { startTimecode: s.lesson.startTimecode, endTimecode: s.lesson.endTimecode, videoDurationSec: s.lesson.videoDurationSec } : null,
+  }));
+  const slotWindows = computeSlotWindows(liveMatchSlots, day.broadcastStartTime ?? "03:00");
+  const liveSlotId = isCurrentlyLive ? pickLiveSlot(liveMatchSlots, slotWindows, nowSec) : null;
+  const liveRowIndex = liveSlotId ? day.slots.findIndex(s => s.id === liveSlotId) : -1;
+  useEffect(() => { liveSlotIdRef.current = liveSlotId; }, [liveSlotId]);
   const liveStartSec = lastPlaying ? isoToIsraelSec(lastPlaying.actualStartAt) : null;
 
   // Determine the confirmed actual start time for a slot (independent of clock accumulation):
   // - live slot: use lastPlaying.actualStartAt (most current, from Companion)
   // - other slots: use actualBroadcastAt (persisted or locally overridden from manual trigger)
   function getActualStartSec(slot: SlotWithLesson, i: number): number | null {
-    const isLiveI = i === liveSlotIndex;
+    const isLiveI = i === liveRowIndex;
     const effectiveActualBroadcastAt = slotOverrides.get(slot.id)?.actualBroadcastAt ?? slot.actualBroadcastAt;
     return isLiveI && liveStartSec !== null
       ? liveStartSec
@@ -330,7 +324,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
   const slotClockSecs = new Map<string, number>(); // slotId → start sec (for child clock lookup)
   const rows = day.slots.map((slot, i) => {
     const isChild = !!slot.parentSlotId;
-    const isLive = i === liveSlotIndex;
+    const isLive = i === liveRowIndex;
 
     // Merge server-side slot data with any client-side overrides from manual adjustments
     const override = slotOverrides.get(slot.id);
