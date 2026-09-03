@@ -1,5 +1,6 @@
 import { isoToIsraelSec } from "@/lib/dates";
 import { slotEffectiveDuration } from "@/lib/slot-duration";
+import { LESSON_SLOT_TYPES } from "@/types";
 
 /**
  * Parse "HH:MM" or "HH:MM:SS" to seconds-since-midnight. Deliberately a local
@@ -85,6 +86,15 @@ const DEFAULT_TOLERANCE_SEC = 2;
  * Among multiple matches (e.g. a short child fully inside its parent's much
  * longer window), the narrowest window wins. Returns the slot id, or null if
  * nothing matches.
+ *
+ * Only a recorded lesson (LESSON_SLOT_TYPES with a lesson attached) is ever
+ * eligible — Companion can only report on a real playable video, never on a
+ * live in-studio segment (no file, nothing to play). Those live segments'
+ * planned durations are rough placeholders for scheduling only; treating them
+ * as match candidates lets a Companion event for the lesson that follows get
+ * misattributed to the placeholder if it's still "nominally" running per the
+ * static plan (this happened in production: a 4-minute placeholder swallowed
+ * an event for the 25-minute lesson starting right after it).
  */
 export function pickLiveSlot(
   slots: LiveMatchSlot[],
@@ -105,6 +115,9 @@ export function pickLiveSlot(
   let bestWidth = Infinity;
 
   for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    if (!LESSON_SLOT_TYPES.includes(slot.slotType as (typeof LESSON_SLOT_TYPES)[number]) || !slot.lesson) continue;
+
     const { startSec, endSec } = windows[i];
     const dur = endSec - startSec;
     if (dur <= 0) continue;
@@ -114,7 +127,7 @@ export function pickLiveSlot(
 
     if (dur < bestWidth) {
       bestWidth = dur;
-      bestId = slots[i].id;
+      bestId = slot.id;
     }
   }
 
