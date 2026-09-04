@@ -8,11 +8,12 @@ function extractSourceId(link: string): string | null {
   return m?.[1] ?? null;
 }
 
-/** Inclusive [start, end) range for a "YYYY-MM-DD" day, for filtering a DateTime column by calendar day */
+/** [start, end) range for a "YYYY-MM-DD" day, for filtering a DateTime column by calendar day.
+ *  Computed in UTC since dates are stored as UTC midnight regardless of server timezone. */
 function dayRange(dateStr: string): { gte: Date; lt: Date } {
-  const start = new Date(`${dateStr}T00:00:00`);
+  const start = new Date(`${dateStr}T00:00:00.000Z`);
   const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  end.setUTCDate(end.getUTCDate() + 1);
   return { gte: start, lt: end };
 }
 
