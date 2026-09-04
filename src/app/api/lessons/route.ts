@@ -8,6 +8,14 @@ function extractSourceId(link: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** Inclusive [start, end) range for a "YYYY-MM-DD" day, for filtering a DateTime column by calendar day */
+function dayRange(dateStr: string): { gte: Date; lt: Date } {
+  const start = new Date(`${dateStr}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { gte: start, lt: end };
+}
+
 /** Fetch article word count + reading duration from our own API */
 async function fetchArticleReading(sourceId: string): Promise<{ wordCount: number; durationSec: number } | null> {
   try {
@@ -27,6 +35,8 @@ export async function GET(req: NextRequest) {
   const q = searchParams.get("q") ?? "";
   const status = searchParams.get("status") ?? "";
   const tags = searchParams.get("tags") ?? "";
+  const recordingDate = searchParams.get("recordingDate") ?? "";
+  const broadcastDate = searchParams.get("broadcastDate") ?? "";
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
   const pageSize = Math.min(200, parseInt(searchParams.get("pageSize") ?? "50"));
 
@@ -42,6 +52,8 @@ export async function GET(req: NextRequest) {
   }
   if (status) where.approvalStatus = status;
   if (tags) where.tags = { contains: tags };
+  if (recordingDate) where.recordingDate = dayRange(recordingDate);
+  if (broadcastDate) where.broadcastDate = dayRange(broadcastDate);
 
   const [lessons, total] = await Promise.all([
     prisma.lesson.findMany({
