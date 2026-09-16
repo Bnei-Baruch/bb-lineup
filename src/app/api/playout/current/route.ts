@@ -91,6 +91,7 @@ async function saveActualBroadcastToSlot(
     });
     const windows = computeSlotWindows(slots, day.broadcastStartTime ?? "03:00");
     const bestId = pickLiveSlot(slots, windows, isoToIsraelSec(startAt));
+    console.log("[playout] match", JSON.stringify({ startAt, dayId, bestId }));
     if (!bestId) return null;
     await prisma.$executeRaw`
       UPDATE "LineupSlot"
@@ -138,6 +139,11 @@ export async function POST(req: NextRequest) {
 
     const startAt = actualStartAt ?? new Date().toISOString();
 
+    // Log every raw Companion call — matching now depends entirely on actualStartAt
+    // (no clip identifier to cross-check against), so if a match ever looks wrong,
+    // this is the only way to see what Companion actually reported.
+    console.log("[playout] POST", JSON.stringify({ clipName, durationSec, actualStartAt, manual, slotId }));
+
     // Manual operator adjustments only save to the slot — they don't touch PlayoutNowPlaying
     // so the LIVE badge is not affected. Only Companion-triggered calls update live state.
     if (manual) {
@@ -151,7 +157,9 @@ export async function POST(req: NextRequest) {
     // If so, preserve actualStartAt so duration calculations remain correct even when
     // Companion re-POSTs every ~30s.
     const existing = await prisma.playoutNowPlaying.findUnique({ where: { id: "current" } });
-    const isSameClip = existing && Math.abs(new Date(existing.actualStartAt).getTime() - new Date(startAt).getTime()) < 5000;
+    const startAtDriftMs = existing ? Math.abs(new Date(existing.actualStartAt).getTime() - new Date(startAt).getTime()) : null;
+    const isSameClip = existing && startAtDriftMs! < 5000;
+    console.log("[playout] dedup", JSON.stringify({ existingActualStartAt: existing?.actualStartAt ?? null, startAt, startAtDriftMs, isSameClip: !!isSameClip }));
 
     if (isSameClip) {
       // Same clip re-POST: only refresh durationSec + updatedAt (for TTL), keep actualStartAt
@@ -185,6 +193,10 @@ export async function DELETE() {
       const stopMs = Date.now();
       const startMs = new Date(row.actualStartAt).getTime();
       const computedDurationSec = Math.max(1, Math.round((stopMs - startMs) / 1000));
+      console.log("[playout] DELETE", JSON.stringify({
+        clipName: row.clipName, actualStartAt: row.actualStartAt, matchedSlotId: row.matchedSlotId,
+        stopAt: new Date(stopMs).toISOString(), computedDurationSec,
+      }));
       // Await the save so the duration is in the DB before we return 204.
       // DayView fetches actuals immediately after seeing null from the poll — the save
       // must be complete by then or it will read stale data.
