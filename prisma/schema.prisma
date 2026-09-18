@@ -151,6 +151,9 @@ model Lesson {
   narratorName      String?
   startTimecode     String?
   endTimecode       String?
+  // Which language's KM files (video/narrator/duration) were searched for on autofill/import —
+  // null means Hebrew (the historical default, before this field existed).
+  videoLanguage     String?
   // Position within the KabbalaMedia collection this lesson was imported from
   // (their "name_in_collection") — a reliable sequence signal for a continuous series,
   // unlike recordingDate/broadcastDate which can be missing or duplicated across lessons.

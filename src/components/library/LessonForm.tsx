@@ -27,7 +27,7 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [kmLoading, setKmLoading] = useState(false);
-  const [kmLang, setKmLang] = useState("he");
+  const [kmLang, setKmLang] = useState((lesson?.videoLanguage as string) || "he");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [articleReadingSec, setArticleReadingSec] = useState<number | null>((lesson?.articleReadingSec as number | null) ?? null);
   const [articleWordCount, setArticleWordCount] = useState<number | null>((lesson?.articleWordCount as number | null) ?? null);
@@ -171,6 +171,7 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
       recordingDate: form.recordingDate ? new Date(form.recordingDate) : null,
       videoDurationSec: form.videoDuration ? parseDurationToSec(form.videoDuration) : null,
       videoLink: form.videoLink || null,
+      videoLanguage: kmLang,
       narratorName: form.narratorName || null,
       startTimecode: form.startTimecode || null,
       endTimecode: form.endTimecode || null,
