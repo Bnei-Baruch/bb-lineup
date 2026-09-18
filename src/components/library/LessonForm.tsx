@@ -27,6 +27,7 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [kmLoading, setKmLoading] = useState(false);
+  const [kmLang, setKmLang] = useState("he");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [articleReadingSec, setArticleReadingSec] = useState<number | null>((lesson?.articleReadingSec as number | null) ?? null);
   const [articleWordCount, setArticleWordCount] = useState<number | null>((lesson?.articleWordCount as number | null) ?? null);
@@ -86,9 +87,14 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
 
   async function handleKmLinkBlur() {
     if (!form.kmPageLink.trim() || form.kmPageLink === (lesson?.kmPageLink as string)) return;
+    await fetchKmDetails();
+  }
+
+  async function fetchKmDetails(langOverride?: string) {
+    if (!form.kmPageLink.trim()) return;
     setKmLoading(true);
     try {
-      const res = await fetch(`/api/km/unit?url=${encodeURIComponent(form.kmPageLink)}`);
+      const res = await fetch(`/api/km/unit?url=${encodeURIComponent(form.kmPageLink)}&lang=${encodeURIComponent(langOverride ?? kmLang)}`);
       if (!res.ok) return;
       const data = await res.json();
       const sourceId: string | null = data.articleSourceId ?? null;
@@ -258,7 +264,25 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
         </legend>
 
         <div className="space-y-2">
-          <Label>קישור קבלה מדיה</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label>קישור קבלה מדיה</Label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground shrink-0">שפת מקור</Label>
+              <select
+                value={kmLang}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setKmLang(next);
+                  fetchKmDetails(next);
+                }}
+                disabled={kmLoading}
+                className="h-7 text-xs border border-input rounded-md px-1.5 bg-background"
+              >
+                <option value="he">עברית</option>
+                <option value="ru">רוסית</option>
+              </select>
+            </div>
+          </div>
           <div className="relative">
             <Input
               value={form.kmPageLink}
