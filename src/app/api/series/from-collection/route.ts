@@ -5,8 +5,12 @@ import { parseCollectionUid, fetchCollection, fetchContentUnit, extractVideoLink
 const KM_BASE = "https://kabbalahmedia.info";
 
 export async function POST(req: NextRequest) {
-  const { url, color, sortOrder, skipTranscription } = await req.json();
+  const { url, color, sortOrder, skipTranscription, originalLanguage } = await req.json();
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
+  // Which language's files to look for (video, narrator, duration, docx) — a series whose
+  // original language isn't Hebrew (e.g. Russian) often has no Hebrew dub at all, so searching
+  // for "he" files finds nothing even though the content unit itself is perfectly valid.
+  const lang: string = typeof originalLanguage === "string" && originalLanguage ? originalLanguage : "he";
 
   const uid = parseCollectionUid(url);
   if (!uid) return NextResponse.json({ error: "Could not parse collection UID from URL" }, { status: 400 });
@@ -48,15 +52,15 @@ export async function POST(req: NextRequest) {
       try {
         const full = await fetchContentUnit(unit.id);
         const files = full.files ?? [];
-        const durationSec = await resolveVideoDurationSec(files);
+        const durationSec = await resolveVideoDurationSec(files, lang);
         const source = extractSourceLink(full.sources);
         const sourceResult = source ? await lookupSourceById(source.id) : null;
-        const hasDocx = !skipTranscription && findDocxFileId(files) !== null;
+        const hasDocx = !skipTranscription && findDocxFileId(files, lang) !== null;
         return {
           unit,
           videoDurationSec: durationSec,
-          videoLink: extractVideoLink(files),
-          narratorName: extractNarrator(files),
+          videoLink: extractVideoLink(files, lang),
+          narratorName: extractNarrator(files, lang),
           articleSourceId: source?.id ?? null,
           articleSourceLink: source?.url ?? null,
           articleSourceRef: sourceResult?.title ?? null,

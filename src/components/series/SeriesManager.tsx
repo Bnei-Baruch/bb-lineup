@@ -284,6 +284,7 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
   const [url, setUrl] = useState("");
   const [color, setColor] = useState("");
   const [skipTranscription, setSkipTranscription] = useState(false);
+  const [originalLanguage, setOriginalLanguage] = useState("he");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ imported: number; total: number; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -297,7 +298,7 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
       const res = await fetch("/api/series/from-collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), color: color || null, skipTranscription }),
+        body: JSON.stringify({ url: url.trim(), color: color || null, skipTranscription, originalLanguage }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -335,6 +336,20 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
           <div className="space-y-1.5">
             <Label>צבע (אופציונלי)</Label>
             <Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="purple" dir="ltr" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>שפת מקור (וידאו)</Label>
+            <select
+              value={originalLanguage}
+              onChange={(e) => setOriginalLanguage(e.target.value)}
+              className="w-full text-sm border border-input rounded-md px-3 py-2 bg-background"
+            >
+              <option value="he">עברית</option>
+              <option value="ru">רוסית</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              איזה קובץ שפה לחפש עבור וידאו/משך/קריין/תמלול — סדרות שמקורן אינו עברית לרוב אין להן דיבוב עברי.
+            </p>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={skipTranscription} onChange={(e) => setSkipTranscription(e.target.checked)} />

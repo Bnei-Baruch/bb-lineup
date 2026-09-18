@@ -71,19 +71,21 @@ export function extractSourceLink(sources: string[] | undefined): { id: string; 
   return { id, url: `${KM_BASE}/sources/${id}` };
 }
 
-/** Find the Hebrew mp4 video file, if any — browsers can't play the .wmv files some legacy
- *  content units have as their only "he" video, so mp4 is required for anything we embed. */
-export function findHebrewMp4(files: KmFile[]): KmFile | null {
-  const heVideos = files.filter((f) => f.language === "he" && f.type === "video");
-  return heVideos.find((f) => f.mimetype === "video/mp4") ?? null;
+/** Find the mp4 video file in the given language, if any — browsers can't play the .wmv files
+ *  some legacy content units have as their only video in a language, so mp4 is required for
+ *  anything we embed. Defaults to Hebrew; pass e.g. "ru" for a series whose original language
+ *  (and therefore video files) isn't Hebrew — a Hebrew dub doesn't always exist. */
+export function findLanguageMp4(files: KmFile[], lang: string = "he"): KmFile | null {
+  const langVideos = files.filter((f) => f.language === lang && f.type === "video");
+  return langVideos.find((f) => f.mimetype === "video/mp4") ?? null;
 }
 
-/** Find the Hebrew video file (prefer mp4, then HD), return its URL */
-export function extractVideoLink(files: KmFile[]): string | null {
-  const heVideos = files.filter((f) => f.language === "he" && f.type === "video");
-  const mp4s = heVideos.filter((f) => f.mimetype === "video/mp4");
+/** Find the video file in the given language (prefer mp4, then HD), return its URL */
+export function extractVideoLink(files: KmFile[], lang: string = "he"): string | null {
+  const langVideos = files.filter((f) => f.language === lang && f.type === "video");
+  const mp4s = langVideos.filter((f) => f.mimetype === "video/mp4");
   const hd = mp4s.find((f) => f.video_size === "HD");
-  const chosen = hd ?? mp4s[0] ?? heVideos[0];
+  const chosen = hd ?? mp4s[0] ?? langVideos[0];
   if (!chosen) return null;
   // Not `${KM_BASE}/cdn/{id}` (the www frontend domain) — that redirect responds with
   // Cross-Origin-Resource-Policy: same-origin, which browsers block when this URL is
@@ -110,34 +112,35 @@ export async function probeMp4DurationSec(url: string): Promise<number | null> {
   }
 }
 
-/** Resolve the real Hebrew video duration for a content unit's files: prefer KM's catalog
- *  value, but treat a missing or bogus (≤1s, a known KM legacy-content bug) value as absent
- *  and fall back to probing the mp4 file itself. */
-export async function resolveVideoDurationSec(files: KmFile[]): Promise<number | null> {
-  const heMp4 = findHebrewMp4(files);
-  const heVideo = heMp4 ?? files.find((f) => f.language === "he" && f.type === "video");
-  const catalogDuration = heVideo?.duration != null && heVideo.duration > 1 ? heVideo.duration : null;
+/** Resolve the real video duration for a content unit's files in the given language: prefer
+ *  KM's catalog value, but treat a missing or bogus (≤1s, a known KM legacy-content bug) value
+ *  as absent and fall back to probing the mp4 file itself. */
+export async function resolveVideoDurationSec(files: KmFile[], lang: string = "he"): Promise<number | null> {
+  const langMp4 = findLanguageMp4(files, lang);
+  const langVideo = langMp4 ?? files.find((f) => f.language === lang && f.type === "video");
+  const catalogDuration = langVideo?.duration != null && langVideo.duration > 1 ? langVideo.duration : null;
   if (catalogDuration != null) return Math.round(catalogDuration);
-  if (heMp4) return probeMp4DurationSec(`https://cdn.kabbalahmedia.info/${heMp4.id}`);
+  if (langMp4) return probeMp4DurationSec(`https://cdn.kabbalahmedia.info/${langMp4.id}`);
   return null;
 }
 
-/** Find the narrator name from a Hebrew video filename (e.g. heb_o_norav_... → "norav") */
-export function extractNarrator(files: KmFile[]): string | null {
-  const heVideo = files.find((f) => f.language === "he" && f.type === "video");
-  if (!heVideo) return null;
-  const parts = heVideo.name.split("_");
+/** Find the narrator name from a video filename in the given language (e.g. heb_o_norav_... →
+ *  "norav") */
+export function extractNarrator(files: KmFile[], lang: string = "he"): string | null {
+  const langVideo = files.find((f) => f.language === lang && f.type === "video");
+  if (!langVideo) return null;
+  const parts = langVideo.name.split("_");
   // filename pattern: {lang}_{o|t}_{narrator}_{date}_...
   return parts[2] ?? null;
 }
 
-/** Find a docx file ID from the files array — prefer Hebrew, fallback to any */
-export function findDocxFileId(files: KmFile[]): string | null {
+/** Find a docx file ID from the files array — prefer the given language, fallback to any */
+export function findDocxFileId(files: KmFile[], lang: string = "he"): string | null {
   const isDocx = (f: KmFile) =>
     f.name?.endsWith(".docx") ||
     f.mimetype?.includes("wordprocessingml") ||
     f.mimetype?.includes("msword");
-  return (files.find((f) => isDocx(f) && f.language === "he") ?? files.find(isDocx))?.id ?? null;
+  return (files.find((f) => isDocx(f) && f.language === lang) ?? files.find(isDocx))?.id ?? null;
 }
 
 /** Fetch HTML version of a docx file */
