@@ -172,7 +172,9 @@ const NARRATOR_SLOT_TYPES: SlotType[] = ["narrator_announcement", "narrator_read
 
 export function itemLabel(slot: SlotWithLesson): string {
   if (slot.slotType === "part_header") {
-    return `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
+    return slot.partTypeLabel
+      ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel)
+      : `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
   }
   // A chosen study.kli.one type is more specific than the generic slot-type label (e.g. "קוראים
   // בזוהר" vs. generic "שיעור מוקלט") and is what will sync out as this slot's part title.

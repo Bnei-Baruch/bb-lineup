@@ -15,6 +15,7 @@ import {
   timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
 import { parseCustomLinks } from "@/lib/custom-links";
+import { partTitle } from "@/lib/part-title";
 
 const ROW_HIGHLIGHTS_KEY = "dayview-row-highlights";
 
@@ -523,7 +524,7 @@ export function DayView({ day, dayLabel, enDayLabel, contentStartIndex, contentC
                       {cutoffRow}
                       <tr className="bg-yellow-100 dark:bg-yellow-950 border-t-2 border-yellow-400 dark:border-yellow-700">
                         <td colSpan={VISIBLE_COLS.length} className="px-3 py-3 font-bold text-sm text-yellow-900 dark:text-yellow-200 tracking-wide">
-                          חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
+                          {slot.partTypeLabel ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel) : `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`}
                         </td>
                       </tr>
                     </React.Fragment>

@@ -22,6 +22,7 @@ import {
   timeToSec, secToHHMMSS, itemLabel, contentText, linkifyText,
 } from "./slot-table-shared";
 import { parseCustomLinks } from "@/lib/custom-links";
+import { partTitle } from "@/lib/part-title";
 
 interface DaySlotTableProps {
   slots: SlotWithLesson[];
@@ -142,7 +143,7 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
             <button {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} className="cursor-grab active:cursor-grabbing text-yellow-700/60 hover:text-yellow-900 shrink-0">
               <GripVertical className="h-4 w-4" />
             </button>
-            <span className="flex-1">חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}</span>
+            <span className="flex-1">{slot.partTypeLabel ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel) : `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`}</span>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(slot.id); }}
               className="text-yellow-700/60 hover:text-destructive shrink-0"

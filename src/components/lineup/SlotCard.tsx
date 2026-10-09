@@ -64,7 +64,7 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
           </button>
         )}
         <span className="text-xs font-bold flex-1">
-          חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
+          {slot.partTypeLabel ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel) : `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`}
         </span>
         {clockTime && <span className="text-xs tabular-nums text-muted-foreground">{clockTime}</span>}
         {!readOnly && (

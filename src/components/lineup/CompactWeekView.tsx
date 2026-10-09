@@ -11,6 +11,7 @@ import { formatDurationSec } from "@/lib/time";
 import { addSecondsToTime } from "@/lib/timecodes";
 import { computeDayTotalSec } from "@/lib/day-budget";
 import { DAY_NAMES, dayDate, formatDate, parseWeekParam } from "@/lib/dates";
+import { partTitle } from "@/lib/part-title";
 
 function slotDur(slot: SlotWithLesson): number {
   if (slot.parentSlotId) return 0;
@@ -41,8 +42,10 @@ function diffColor(diff: number | null): string {
 }
 
 function slotTitle(slot: SlotWithLesson): string {
-  if (slot.slotType === "part_header") return `חלק ${slot.partNumber ?? "—"}`;
-  return slot.label || slot.component?.name || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
+  if (slot.slotType === "part_header") {
+    return slot.partTypeLabel ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel) : `חלק ${slot.partNumber ?? "—"}`;
+  }
+  return slot.partTypeLabel || slot.label || slot.component?.name || SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
 }
 
 interface CompactSlotBlockProps {

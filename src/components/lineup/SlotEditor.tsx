@@ -246,20 +246,18 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
             </Field>
 
             {/* Type — a study.kli.one template id; its label is this slot's title when syncing to study-materials */}
-            {t !== "part_header" && (
-              <Field label="סוג">
-                <select
-                  value={form.partType}
-                  onChange={(e) => set("partType", e.target.value)}
-                  className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">סוג — ללא</option>
-                  {templateOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
-                  ))}
-                </select>
-              </Field>
-            )}
+            <Field label="סוג">
+              <select
+                value={form.partType}
+                onChange={(e) => set("partType", e.target.value)}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">סוג — ללא</option>
+                {templateOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+            </Field>
 
             {/* Part number */}
             {hasPartNumber && (
