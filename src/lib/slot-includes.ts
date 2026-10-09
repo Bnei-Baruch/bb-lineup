@@ -26,17 +26,14 @@ export async function withLessonTimecodes<T extends { lesson: { id: string; star
   }
 }
 
-/** Resolve slot.lessonPart.partType (a study.kli.one template id) to its Hebrew label —
+/** Resolve slot.partType (a study.kli.one template id) to its Hebrew label —
  *  mirrors withLessonTimecodes's shape, called at the same sites. */
-export async function withPartTypeLabels<T extends { lessonPart: { partType?: string | null } | null }>(
+export async function withPartTypeLabels<T extends { partType?: string | null }>(
   slots: T[]
 ): Promise<T[]> {
-  if (!slots.some((s) => s.lessonPart?.partType)) return slots;
+  if (!slots.some((s) => s.partType)) return slots;
   const templates = await fetchTemplates();
-  return slots.map((s) => {
-    if (!s.lessonPart) return s;
-    return { ...s, lessonPart: { ...s.lessonPart, partTypeLabel: templateLabel(templates, s.lessonPart.partType) } };
-  });
+  return slots.map((s) => ({ ...s, partTypeLabel: templateLabel(templates, s.partType) }));
 }
 
 /** Shared Prisma include/select for slots with lessons — used across API routes */
@@ -71,7 +68,6 @@ export const slotWithLessonInclude = {
       endTimecode: true,
       broadcastDate: true,
       notes: true,
-      partType: true,
     },
   },
   component: {

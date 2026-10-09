@@ -23,12 +23,3 @@ export function templateLabel(templates: KliTemplate[], id: string | null | unde
   if (!id) return null;
   return templates.find((t) => t.id === id)?.translations[lang] ?? id;
 }
-
-/** Maps a fetched list of LessonPart-ish rows to attach the resolved partTypeLabel — the one
- *  piece of shared logic every select site needs after fetching parts + fetchTemplates(). */
-export function attachPartTypeLabels<T extends { partType: string | null }>(
-  parts: T[],
-  templates: KliTemplate[]
-): (T & { partTypeLabel: string | null })[] {
-  return parts.map((p) => ({ ...p, partTypeLabel: templateLabel(templates, p.partType) }));
-}

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { fetchTemplates, attachPartTypeLabels } from "@/lib/kli-client";
 
 /** Extract source ID from a kabbalahmedia sources URL */
 function extractSourceId(link: string): string | null {
@@ -85,7 +84,7 @@ export async function GET(req: NextRequest) {
         broadcastDate: true,
         createdAt: true,
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, partType: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true },
           orderBy: { partNumber: "asc" },
         },
       },
@@ -95,20 +94,16 @@ export async function GET(req: NextRequest) {
 
   // Supplement with timecode fields (raw SQL — Prisma client may not yet include these columns)
   const ids = lessons.map((l) => l.id);
-  const [timecodeRows, templates] = await Promise.all([
-    ids.length > 0
-      ? prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
-          SELECT id, startTimecode, endTimecode FROM "Lesson" WHERE id IN (${Prisma.join(ids)})
-        `.catch(() => [] as { id: string; startTimecode: string | null; endTimecode: string | null }[])
-      : Promise.resolve([] as { id: string; startTimecode: string | null; endTimecode: string | null }[]),
-    fetchTemplates(),
-  ]);
+  const timecodeRows = ids.length > 0
+    ? await prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
+        SELECT id, startTimecode, endTimecode FROM "Lesson" WHERE id IN (${Prisma.join(ids)})
+      `.catch(() => [] as { id: string; startTimecode: string | null; endTimecode: string | null }[])
+    : [];
   const timecodeMap = new Map(timecodeRows.map((r) => [r.id, r]));
   const lessonsOut = lessons.map((l) => ({
     ...l,
     startTimecode: timecodeMap.get(l.id)?.startTimecode ?? null,
     endTimecode: timecodeMap.get(l.id)?.endTimecode ?? null,
-    parts: attachPartTypeLabels(l.parts, templates),
   }));
 
   return NextResponse.json({ lessons: lessonsOut, total, page, pageSize });
@@ -120,7 +115,7 @@ export async function POST(req: NextRequest) {
   delete body.articleBookVolume;
   delete body.articleBookPage;
   // Parts are a nested relation, not a plain Lesson column
-  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; openingStatement?: string | null; closingStatement?: string | null; partType?: string | null; notes?: string | null }[] | undefined = body.parts;
+  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; openingStatement?: string | null; closingStatement?: string | null; notes?: string | null }[] | undefined = body.parts;
   delete body.parts;
   try {
     // Auto-calculate article reading duration

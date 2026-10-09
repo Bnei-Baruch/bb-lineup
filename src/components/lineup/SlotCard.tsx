@@ -46,7 +46,7 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
 
   const colorClass = SLOT_TYPE_COLORS[slot.slotType as SlotType] ?? "border-gray-400 bg-gray-50";
   const typeLabel = SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
-  const label = slot.label || slot.component?.name || typeLabel;
+  const label = slot.partTypeLabel || slot.label || slot.component?.name || typeLabel;
   const showTypeLabel = slot.slotType === "article_reading" || label !== typeLabel;
   const dur = slotDuration(slot);
 
@@ -136,7 +136,7 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
               <>
                 {slot.lesson.sourceRef && (
                   <p className="font-medium text-foreground/80">
-                    {slot.lesson.sourceRef}{slot.lessonPart && ` - ${partTitle(slot.lessonPart.partNumber, slot.lessonPart.partTypeLabel)}`}
+                    {slot.lesson.sourceRef}{slot.lessonPart && ` - ${partTitle(slot.lessonPart.partNumber, null)}`}
                   </p>
                 )}
                 {slot.lesson.articleSourceRef && <p className="text-blue-600">{slot.lesson.articleSourceRef}</p>}

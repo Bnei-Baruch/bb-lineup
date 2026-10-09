@@ -10,7 +10,6 @@ import { formatDate } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
 import { Pencil, Trash2, Copy, Filter, X, Video, BookOpen, FileText, ChevronDown, ChevronLeft } from "lucide-react";
 import { timecodeToSeconds } from "@/lib/timecodes";
-import { partTitle } from "@/lib/part-title";
 
 interface LessonPartRow {
   id: string;
@@ -19,7 +18,6 @@ interface LessonPartRow {
   endTimecode: string | null;
   broadcastDate: string | null;
   notes: string | null;
-  partTypeLabel?: string | null;
 }
 
 interface LessonRow {
@@ -617,7 +615,7 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                     <td></td>
                     <td className="px-4 py-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-foreground shrink-0">↳ {partTitle(p.partNumber, p.partTypeLabel)}</span>
+                        <span className="text-xs font-medium text-foreground shrink-0">↳ חלק {p.partNumber}</span>
                         {(p.startTimecode || p.endTimecode) && (
                           <span className="text-xs font-mono text-muted-foreground shrink-0" dir="ltr">{p.startTimecode ?? "—"}–{p.endTimecode ?? "—"}</span>
                         )}

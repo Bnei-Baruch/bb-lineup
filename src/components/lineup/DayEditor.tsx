@@ -30,7 +30,6 @@ interface SeriesLessonPart {
   endTimecode: string | null;
   broadcastDate: string | null;
   notes: string | null;
-  partTypeLabel?: string | null;
 }
 
 interface SeriesLessonRow {

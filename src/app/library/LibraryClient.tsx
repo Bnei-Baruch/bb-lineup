@@ -32,7 +32,7 @@ interface LessonRow {
   transcriptionLinkEs: string | null;
   series: { id: string; name: string; color: string | null } | null;
   articleSource: { bookSeries: string | null; bookVolume: number | null; bookPage: number | null } | null;
-  parts: { id: string; partNumber: number; startTimecode: string | null; endTimecode: string | null; broadcastDate: Date | string | null; notes: string | null; partTypeLabel?: string | null }[];
+  parts: { id: string; partNumber: number; startTimecode: string | null; endTimecode: string | null; broadcastDate: Date | string | null; notes: string | null }[];
 }
 
 interface SeriesRow {

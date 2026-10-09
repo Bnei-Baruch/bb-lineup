@@ -45,7 +45,6 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
       openingStatement: (p.openingStatement as string) ?? "",
       closingStatement: (p.closingStatement as string) ?? "",
       notes: (p.notes as string) ?? "",
-      partType: (p.partType as string) ?? "",
     }))
   );
 
@@ -191,7 +190,7 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
       tags: form.tags || null,
       seriesId: form.seriesId || null,
       parts: parts
-        .filter((p) => p.startTimecode || p.endTimecode || p.broadcastDate || p.openingStatement || p.closingStatement || p.notes || p.partType)
+        .filter((p) => p.startTimecode || p.endTimecode || p.broadcastDate || p.openingStatement || p.closingStatement || p.notes)
         .map((p) => ({
           partNumber: p.partNumber,
           startTimecode: p.startTimecode || null,
@@ -200,7 +199,6 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
           openingStatement: p.openingStatement || null,
           closingStatement: p.closingStatement || null,
           notes: p.notes || null,
-          partType: p.partType || null,
         })),
     };
 

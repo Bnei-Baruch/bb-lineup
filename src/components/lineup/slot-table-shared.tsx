@@ -174,6 +174,9 @@ export function itemLabel(slot: SlotWithLesson): string {
   if (slot.slotType === "part_header") {
     return `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
   }
+  // A chosen study.kli.one type is more specific than the generic slot-type label (e.g. "קוראים
+  // בזוהר" vs. generic "שיעור מוקלט") and is what will sync out as this slot's part title.
+  if (slot.partTypeLabel) return slot.partTypeLabel;
   // A lesson pulled from the library already shows its own title/reference in the
   // Content column — keep the Item column a plain type label so it doesn't duplicate it.
   if (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson) {
@@ -220,7 +223,7 @@ export function contentText(slot: SlotWithLesson): { main: string; sub: string }
   if (slot.lesson?.sourceRef) {
     const src = slot.studyMaterialSource;
     const main = slot.lessonPart
-      ? `${slot.lesson.sourceRef} - ${partTitle(slot.lessonPart.partNumber, slot.lessonPart.partTypeLabel)}`
+      ? `${slot.lesson.sourceRef} - ${partTitle(slot.lessonPart.partNumber, null)}`
       : slot.lesson.sourceRef;
     return { main, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
   }

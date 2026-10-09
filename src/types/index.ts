@@ -173,10 +173,6 @@ export interface LessonPartSummary {
   openingStatement: string | null;
   closingStatement: string | null;
   notes: string | null;
-  /** Type — a study.kli.one template id. Its resolved label (`partTypeLabel`) IS the part's
-   *  title (see src/lib/part-title.ts), not a separate badge. */
-  partType: string | null;
-  partTypeLabel?: string | null;
 }
 
 export interface SlotWithLesson {
@@ -221,6 +217,11 @@ export interface SlotWithLesson {
   actualDurationSec: number | null;
   componentId: string | null;
   component: { id: string; name: string; category: string; defaultLineupLink: string | null; defaultSlidesLink: string | null } | null;
+  /** Type — a study.kli.one template id. Its resolved label (`partTypeLabel`) is this slot's
+   *  title (see src/lib/part-title.ts). One LineupDay/session maps to one study-materials
+   *  "event"; its slots map to that event's parts. */
+  partType: string | null;
+  partTypeLabel?: string | null;
 }
 
 export interface DayWithSlots {

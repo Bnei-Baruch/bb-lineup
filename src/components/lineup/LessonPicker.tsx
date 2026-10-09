@@ -9,7 +9,6 @@ import { formatDate } from "@/lib/dates";
 import { formatDurationSec } from "@/lib/time";
 import { timecodeToSeconds } from "@/lib/timecodes";
 import { LessonSummary, LessonPartSummary } from "@/types";
-import { partTitle } from "@/lib/part-title";
 import { ChevronRight, ChevronLeft, Play } from "lucide-react";
 
 const PAGE_SIZE = 50;
@@ -78,7 +77,7 @@ export function LessonPicker({ open, onClose, onSelect }: LessonPickerProps) {
                   >
                     <Play className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm">{partTitle(p.partNumber, p.partTypeLabel)}</p>
+                      <p className="font-medium text-sm">חלק {p.partNumber}</p>
                       <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                         {p.broadcastDate && <span>{formatDate(p.broadcastDate)}</span>}
                         {(p.startTimecode || p.endTimecode) && (
