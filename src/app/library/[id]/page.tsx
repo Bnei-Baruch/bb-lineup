@@ -4,17 +4,25 @@ import { LessonForm } from "@/components/library/LessonForm";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { RequireAdmin } from "@/components/providers/RequireAdmin";
+import { fetchTemplates, attachPartTypeLabels } from "@/lib/kli-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function EditLessonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [lesson, seriesList, timecodeRows] = await Promise.all([
-    prisma.lesson.findUnique({ where: { id }, include: { articleSource: true, parts: { orderBy: { partNumber: "asc" } } } }),
+  const [lesson, seriesList, timecodeRows, templates] = await Promise.all([
+    prisma.lesson.findUnique({
+      where: { id },
+      include: {
+        articleSource: true,
+        parts: { include: { component: { select: { name: true } } }, orderBy: { partNumber: "asc" } },
+      },
+    }),
     prisma.series.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     prisma.$queryRaw<{ startTimecode: string | null; endTimecode: string | null }[]>`
       SELECT startTimecode, endTimecode FROM "Lesson" WHERE id = ${id}
     `,
+    fetchTemplates(),
   ]);
   if (!lesson) notFound();
 
@@ -22,6 +30,7 @@ export default async function EditLessonPage({ params }: { params: Promise<{ id:
     ...JSON.parse(JSON.stringify(lesson)),
     startTimecode: timecodeRows[0]?.startTimecode ?? null,
     endTimecode: timecodeRows[0]?.endTimecode ?? null,
+    parts: attachPartTypeLabels(lesson.parts, templates),
   };
 
   return (

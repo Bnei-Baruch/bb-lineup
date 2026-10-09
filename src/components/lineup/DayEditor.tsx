@@ -30,6 +30,8 @@ interface SeriesLessonPart {
   endTimecode: string | null;
   broadcastDate: string | null;
   notes: string | null;
+  component: { name: string } | null;
+  partTypeLabel?: string | null;
 }
 
 interface SeriesLessonRow {

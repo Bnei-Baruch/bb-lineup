@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { fetchTemplates, templateLabel, attachPartTypeLabels } from "@/lib/kli-client";
 import { Prisma } from "@prisma/client";
 import { DayEditor } from "@/components/lineup/DayEditor";
 import { DayWithSlots } from "@/types";
@@ -20,7 +21,7 @@ export default async function DayEditPage({
   const dow = parseInt(dowStr);
   const ws = toWeekStart(parseWeekParam(weekStart));
 
-  const [lineup, components, series, unseriedLessons] = await Promise.all([
+  const [lineup, components, series, unseriedLessons, templates] = await Promise.all([
     prisma.lineup.findUnique({
       where: { weekStart: ws },
       include: {
@@ -61,7 +62,7 @@ export default async function DayEditPage({
             narratorName: true,
             approvalStatus: true,
             parts: {
-              select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true },
+              select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
               orderBy: { partNumber: "asc" },
             },
           },
@@ -79,11 +80,12 @@ export default async function DayEditPage({
         narratorName: true,
         approvalStatus: true,
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
           orderBy: { partNumber: "asc" },
         },
       },
     }),
+    fetchTemplates(),
   ]);
 
   const dayData = lineup?.days[0];
@@ -143,8 +145,12 @@ export default async function DayEditPage({
       lesson: s.lesson
         ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null, ...dayLessonTcMap.get(s.lesson.id) }
         : null,
+      lessonPart: s.lessonPart ? { ...s.lessonPart, partTypeLabel: templateLabel(templates, s.lessonPart.partType) } : null,
     })),
   }));
+
+  const seriesWithPartLabels = series.map((s) => ({ ...s, lessons: s.lessons.map((l) => ({ ...l, parts: attachPartTypeLabels(l.parts, templates) })) }));
+  const unseriedLessonsWithPartLabels = unseriedLessons.map((l) => ({ ...l, parts: attachPartTypeLabels(l.parts, templates) }));
 
   return (
     <RequireAdmin>
@@ -172,9 +178,9 @@ export default async function DayEditPage({
           day={serialized}
           components={components}
           series={[
-            ...JSON.parse(JSON.stringify(series)),
-            ...(unseriedLessons.length > 0
-              ? [{ id: "__none__", name: "ללא סדרה", color: null, lessons: JSON.parse(JSON.stringify(unseriedLessons)) }]
+            ...JSON.parse(JSON.stringify(seriesWithPartLabels)),
+            ...(unseriedLessonsWithPartLabels.length > 0
+              ? [{ id: "__none__", name: "ללא סדרה", color: null, lessons: JSON.parse(JSON.stringify(unseriedLessonsWithPartLabels)) }]
               : []),
           ]}
         />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
+import { slotWithLessonInclude, withLessonTimecodes, withPartTypeLabels } from "@/lib/slot-includes";
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,5 +15,5 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     orderBy: { sortOrder: "asc" },
     include: slotWithLessonInclude,
   });
-  return NextResponse.json(await withLessonTimecodes(prisma, slots));
+  return NextResponse.json(await withPartTypeLabels(await withLessonTimecodes(prisma, slots)));
 }

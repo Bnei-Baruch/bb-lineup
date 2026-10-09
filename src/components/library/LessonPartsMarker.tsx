@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Play, Scissors, Rewind, FastForward, CornerDownLeft } from "lucide-react";
 import { secondsToTimecode, timecodeToSeconds } from "@/lib/timecodes";
+import { partTitle } from "@/lib/part-title";
 
 export interface PartDraft {
   partNumber: number;
@@ -14,6 +15,8 @@ export interface PartDraft {
   openingStatement: string;
   closingStatement: string;
   notes: string;
+  componentId: string;
+  partType: string;
 }
 
 interface LessonPartsMarkerProps {
@@ -49,15 +52,42 @@ function googleDocEmbedUrl(link: string | null): string | null {
   return m ? `https://docs.google.com/document/d/${m[1]}/preview` : null;
 }
 
+interface HeaderComponent {
+  id: string;
+  name: string;
+}
+
+interface KliTemplateOption {
+  id: string;
+  label: string;
+}
+
 export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, parts, onChange }: LessonPartsMarkerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [nativeDuration, setNativeDuration] = useState(0);
   const [jumpInput, setJumpInput] = useState("");
+  const [headerComponents, setHeaderComponents] = useState<HeaderComponent[]>([]);
+  const [templateOptions, setTemplateOptions] = useState<KliTemplateOption[]>([]);
+
+  useEffect(() => {
+    fetch("/api/components?category=header")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data: HeaderComponent[]) => setHeaderComponents(data ?? []))
+      .catch(() => {});
+    fetch("/api/kli/templates")
+      .then((r) => (r.ok ? r.json() : { templates: [] }))
+      .then((data: { templates: { id: string; translations: Record<string, string>; visible: boolean }[] }) => {
+        const visible = (data.templates ?? []).filter((t) => t.visible);
+        setTemplateOptions(visible.map((t) => ({ id: t.id, label: t.translations.he ?? t.id })));
+      })
+      .catch(() => {});
+  }, []);
 
   const totalSec = durationSec || nativeDuration || 0;
   const playableSrc = playableVideoSrc(videoLink);
   const docEmbedSrc = googleDocEmbedUrl(transcriptionLink);
+  const componentName = (id: string) => headerComponents.find((c) => c.id === id)?.name;
 
   function updatePart(index: number, patch: Partial<PartDraft>) {
     onChange(parts.map((p, i) => (i === index ? { ...p, ...patch } : p)));
@@ -69,7 +99,7 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
 
   function addPartFromPlayhead() {
     const start = videoRef.current ? secondsToTimecode(Math.floor(videoRef.current.currentTime)) : "";
-    onChange([...parts, { partNumber: nextPartNumber(parts), startTimecode: start, endTimecode: "", broadcastDate: "", openingStatement: "", closingStatement: "", notes: "" }]);
+    onChange([...parts, { partNumber: nextPartNumber(parts), startTimecode: start, endTimecode: "", broadcastDate: "", openingStatement: "", closingStatement: "", notes: "", componentId: "", partType: "" }]);
   }
 
   function markIn(index: number) {
@@ -142,7 +172,7 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
                       key={s.index}
                       className={`absolute top-0 h-full rounded-sm opacity-70 ${s.color}`}
                       style={{ left: `${s.left}%`, width: `${s.width}%` }}
-                      title={`חלק ${parts[s.index].partNumber}`}
+                      title={partTitle(parts[s.index].partNumber, componentName(parts[s.index].componentId))}
                     />
                   ) : null
                 )}
@@ -214,7 +244,7 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
           <div key={i} className="border border-border rounded-md p-2 bg-muted/20 space-y-1.5">
             <div className="flex flex-wrap items-end gap-2">
               <div className={`w-2 self-stretch rounded-sm ${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}`} />
-              <span className="text-xs font-medium w-14 shrink-0">חלק {p.partNumber}</span>
+              <span className="text-xs font-medium shrink-0">{partTitle(p.partNumber, componentName(p.componentId))}</span>
 
               {videoLink && (
                 <Button type="button" variant="ghost" size="icon" title="נגן מכאן" onClick={() => seekTo(timecodeToSeconds(p.startTimecode || "0"))}>
@@ -248,6 +278,28 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-2 ps-4">
+              <select
+                value={p.componentId}
+                onChange={(e) => updatePart(i, { componentId: e.target.value })}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                dir="rtl"
+              >
+                <option value="">כותרת — ללא</option>
+                {headerComponents.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <select
+                value={p.partType}
+                onChange={(e) => updatePart(i, { partType: e.target.value })}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                dir="rtl"
+              >
+                <option value="">סוג — ללא</option>
+                {templateOptions.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
               <Input
                 value={p.openingStatement}
                 onChange={(e) => updatePart(i, { openingStatement: e.target.value })}

@@ -173,6 +173,13 @@ export interface LessonPartSummary {
   openingStatement: string | null;
   closingStatement: string | null;
   notes: string | null;
+  /** Title — a category:"header" LineupComponent id, resolved to `component.name` for display. */
+  componentId: string | null;
+  component: { name: string } | null;
+  /** Type — a study.kli.one template id, resolved to `partTypeLabel` for display. Shown as a
+   *  separate badge, never concatenated into the title string. */
+  partType: string | null;
+  partTypeLabel?: string | null;
 }
 
 export interface SlotWithLesson {

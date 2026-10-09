@@ -5,6 +5,7 @@ import { ChevronDown, ChevronLeft, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDurationSec } from "@/lib/time";
 import { timecodeToSeconds } from "@/lib/timecodes";
+import { partTitle } from "@/lib/part-title";
 
 interface LessonPart {
   id: string;
@@ -13,6 +14,8 @@ interface LessonPart {
   endTimecode: string | null;
   broadcastDate: string | null;
   notes: string | null;
+  component: { name: string } | null;
+  partTypeLabel?: string | null;
 }
 
 interface LessonRow {
@@ -151,12 +154,17 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
                             return (
                               <button
                                 key={p.id}
-                                onClick={() => onAdd(l.id, cutSec && cutSec > 0 ? cutSec : null, `${l.sourceRef ?? ""} - חלק ${p.partNumber}`, p)}
+                                onClick={() => onAdd(l.id, cutSec && cutSec > 0 ? cutSec : null, `${l.sourceRef ?? ""} - ${partTitle(p.partNumber, p.component?.name)}`, p)}
                                 className="w-full flex items-start gap-1.5 px-2 py-1.5 text-start text-xs hover:bg-accent/40 transition-colors group"
                               >
                                 <Plus className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground group-hover:text-foreground" />
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate leading-tight">חלק {p.partNumber}</div>
+                                  <div className="truncate leading-tight flex items-center gap-1.5">
+                                    <span>{partTitle(p.partNumber, p.component?.name)}</span>
+                                    {p.partTypeLabel && (
+                                      <span className="text-[10px] text-muted-foreground border border-border rounded-full px-1.5 shrink-0">{p.partTypeLabel}</span>
+                                    )}
+                                  </div>
                                   <div className="text-muted-foreground flex gap-1.5 mt-0.5">
                                     {p.broadcastDate && <span>{p.broadcastDate.slice(0, 10)}</span>}
                                     {cutSec != null && cutSec > 0 && <span>{formatDurationSec(cutSec)}</span>}

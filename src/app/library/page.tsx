@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { LibraryClient } from "./LibraryClient";
 import { RequireAdmin } from "@/components/providers/RequireAdmin";
+import { fetchTemplates, attachPartTypeLabels } from "@/lib/kli-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function LibraryPage() {
-  const [lessons, series, { currentSlotIds, pastSlotIds }, timecodeRows] = await Promise.all([
+  const [lessons, series, { currentSlotIds, pastSlotIds }, timecodeRows, templates] = await Promise.all([
     prisma.lesson.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -27,7 +28,7 @@ export default async function LibraryPage() {
         series: { select: { id: true, name: true, color: true } },
         articleSource: { select: { bookSeries: true, bookVolume: true, bookPage: true } },
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
           orderBy: { partNumber: "asc" },
         },
       },
@@ -61,10 +62,15 @@ export default async function LibraryPage() {
     prisma.$queryRaw<{ id: string; startTimecode: string | null; endTimecode: string | null }[]>`
       SELECT id, startTimecode, endTimecode FROM "Lesson"
     `,
+    fetchTemplates(),
   ]);
 
   const timecodeMap = new Map(timecodeRows.map((r) => [r.id, { startTimecode: r.startTimecode, endTimecode: r.endTimecode }]));
-  const lessonsWithTimecodes = lessons.map((l) => ({ ...l, ...timecodeMap.get(l.id) }));
+  const lessonsWithTimecodes = lessons.map((l) => ({
+    ...l,
+    ...timecodeMap.get(l.id),
+    parts: attachPartTypeLabels(l.parts, templates),
+  }));
 
   return (
     <RequireAdmin>
