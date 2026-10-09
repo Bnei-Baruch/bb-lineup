@@ -294,6 +294,9 @@ export interface FixedTemplateItem {
   hasSubtitles?: boolean;
   hasWorkshopQuestions?: boolean;
   notes?: string;
+  /** A study.kli.one template id — see LineupSlot.partType. Copied onto the created slot at
+   *  apply time, same as the other fields on this item. */
+  partType?: string;
   /** Nested under the nearest preceding non-nested item (same convention as LineupSlot.parentSlotId
    *  in the day editor - e.g. reading material nested under the live discussion it belongs to, so it
    *  doesn't count as separate broadcast time). Resolved by position at apply time, not by id. */
