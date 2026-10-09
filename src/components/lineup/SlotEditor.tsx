@@ -47,9 +47,8 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
   useEffect(() => {
     fetch("/api/kli/templates")
       .then((r) => (r.ok ? r.json() : { templates: [] }))
-      .then((data: { templates: { id: string; translations: Record<string, string>; visible: boolean }[] }) => {
-        const visible = (data.templates ?? []).filter((t) => t.visible);
-        setTemplateOptions(visible.map((t) => ({ id: t.id, label: t.translations.he ?? t.id })));
+      .then((data: { templates: { id: string; translations: Record<string, string> }[] }) => {
+        setTemplateOptions((data.templates ?? []).map((t) => ({ id: t.id, label: t.translations.he ?? t.id })));
       })
       .catch(() => {});
   }, []);
