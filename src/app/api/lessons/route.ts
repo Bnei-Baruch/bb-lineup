@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
         broadcastDate: true,
         createdAt: true,
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, partType: true },
           orderBy: { partNumber: "asc" },
         },
       },
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   delete body.articleBookVolume;
   delete body.articleBookPage;
   // Parts are a nested relation, not a plain Lesson column
-  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; openingStatement?: string | null; closingStatement?: string | null; componentId?: string | null; partType?: string | null; notes?: string | null }[] | undefined = body.parts;
+  const parts: { partNumber: number; startTimecode?: string | null; endTimecode?: string | null; broadcastDate?: string | Date | null; openingStatement?: string | null; closingStatement?: string | null; partType?: string | null; notes?: string | null }[] | undefined = body.parts;
   delete body.parts;
   try {
     // Auto-calculate article reading duration

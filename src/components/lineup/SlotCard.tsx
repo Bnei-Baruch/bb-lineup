@@ -135,11 +135,8 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
             {LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson && (
               <>
                 {slot.lesson.sourceRef && (
-                  <p className="font-medium text-foreground/80 flex items-center gap-1.5 flex-wrap">
-                    <span>{slot.lesson.sourceRef}{slot.lessonPart && ` - ${partTitle(slot.lessonPart.partNumber, slot.lessonPart.component?.name)}`}</span>
-                    {slot.lessonPart?.partTypeLabel && (
-                      <span className="text-[10px] font-normal text-muted-foreground border border-border rounded-full px-1.5">{slot.lessonPart.partTypeLabel}</span>
-                    )}
+                  <p className="font-medium text-foreground/80">
+                    {slot.lesson.sourceRef}{slot.lessonPart && ` - ${partTitle(slot.lessonPart.partNumber, slot.lessonPart.partTypeLabel)}`}
                   </p>
                 )}
                 {slot.lesson.articleSourceRef && <p className="text-blue-600">{slot.lesson.articleSourceRef}</p>}

@@ -112,7 +112,6 @@ model LineupComponent {
   updatedAt                   DateTime @updatedAt
 
   slots                       LineupSlot[]
-  lessonParts                 LessonPart[]
 }
 
 // ─── ArticleSource: cached KabMedia source with page numbers ─────────────────
@@ -199,12 +198,9 @@ model LessonPart {
   openingStatement String?
   closingStatement String?
   notes         String?
-  // Title — reuses the same "כותרות" (category: "header") LineupComponent catalog already
-  // used for day-structure header slots, e.g. "תע"ס עם הרב"ש", "חלק 1 / Part 1".
-  componentId   String?
-  component     LineupComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
-  // Type — a study.kli.one content-category id (e.g. "tes", "zohar"), shown as a separate
-  // badge from the title above, not concatenated into it. Resolved via src/lib/kli-client.ts.
+  // Type — a study.kli.one template id (e.g. "tes", "rav-on-rabash"). Its resolved label
+  // (via src/lib/kli-client.ts) IS the part's title — study-materials auto-populates a
+  // part's title the same way when a template is chosen (confirmed against prod stmat.kli.one).
   partType      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

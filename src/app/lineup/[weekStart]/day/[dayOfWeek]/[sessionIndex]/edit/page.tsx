@@ -92,7 +92,7 @@ export default async function DayEditPage({
             narratorName: true,
             approvalStatus: true,
             parts: {
-              select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
+              select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, partType: true },
               orderBy: { partNumber: "asc" },
             },
           },
@@ -110,7 +110,7 @@ export default async function DayEditPage({
         narratorName: true,
         approvalStatus: true,
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, partType: true },
           orderBy: { partNumber: "asc" },
         },
       },

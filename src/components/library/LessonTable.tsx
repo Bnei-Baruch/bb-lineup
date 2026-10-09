@@ -19,7 +19,6 @@ interface LessonPartRow {
   endTimecode: string | null;
   broadcastDate: string | null;
   notes: string | null;
-  component: { name: string } | null;
   partTypeLabel?: string | null;
 }
 
@@ -618,10 +617,7 @@ export function LessonTable({ lessons, seriesList, currentSlotIds, pastSlotIds, 
                     <td></td>
                     <td className="px-4 py-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-foreground shrink-0">↳ {partTitle(p.partNumber, p.component?.name)}</span>
-                        {p.partTypeLabel && (
-                          <span className="text-[10px] text-muted-foreground border border-border rounded-full px-1.5 shrink-0">{p.partTypeLabel}</span>
-                        )}
+                        <span className="text-xs font-medium text-foreground shrink-0">↳ {partTitle(p.partNumber, p.partTypeLabel)}</span>
                         {(p.startTimecode || p.endTimecode) && (
                           <span className="text-xs font-mono text-muted-foreground shrink-0" dir="ltr">{p.startTimecode ?? "—"}–{p.endTimecode ?? "—"}</span>
                         )}

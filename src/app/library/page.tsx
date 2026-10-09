@@ -28,7 +28,7 @@ export default async function LibraryPage() {
         series: { select: { id: true, name: true, color: true } },
         articleSource: { select: { bookSeries: true, bookVolume: true, bookPage: true } },
         parts: {
-          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, componentId: true, component: { select: { name: true } }, partType: true },
+          select: { id: true, partNumber: true, startTimecode: true, endTimecode: true, broadcastDate: true, openingStatement: true, closingStatement: true, notes: true, partType: true },
           orderBy: { partNumber: "asc" },
         },
       },

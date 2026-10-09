@@ -78,12 +78,7 @@ export function LessonPicker({ open, onClose, onSelect }: LessonPickerProps) {
                   >
                     <Play className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm flex items-center gap-2">
-                        {partTitle(p.partNumber, p.component?.name)}
-                        {p.partTypeLabel && (
-                          <span className="text-[10px] font-normal text-muted-foreground border border-border rounded-full px-1.5">{p.partTypeLabel}</span>
-                        )}
-                      </p>
+                      <p className="font-medium text-sm">{partTitle(p.partNumber, p.partTypeLabel)}</p>
                       <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                         {p.broadcastDate && <span>{formatDate(p.broadcastDate)}</span>}
                         {(p.startTimecode || p.endTimecode) && (

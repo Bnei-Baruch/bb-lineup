@@ -15,7 +15,7 @@ export default async function EditLessonPage({ params }: { params: Promise<{ id:
       where: { id },
       include: {
         articleSource: true,
-        parts: { include: { component: { select: { name: true } } }, orderBy: { partNumber: "asc" } },
+        parts: { orderBy: { partNumber: "asc" } },
       },
     }),
     prisma.series.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),

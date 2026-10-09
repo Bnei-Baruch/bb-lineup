@@ -173,11 +173,8 @@ export interface LessonPartSummary {
   openingStatement: string | null;
   closingStatement: string | null;
   notes: string | null;
-  /** Title — a category:"header" LineupComponent id, resolved to `component.name` for display. */
-  componentId: string | null;
-  component: { name: string } | null;
-  /** Type — a study.kli.one template id, resolved to `partTypeLabel` for display. Shown as a
-   *  separate badge, never concatenated into the title string. */
+  /** Type — a study.kli.one template id. Its resolved label (`partTypeLabel`) IS the part's
+   *  title (see src/lib/part-title.ts), not a separate badge. */
   partType: string | null;
   partTypeLabel?: string | null;
 }

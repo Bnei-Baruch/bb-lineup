@@ -220,7 +220,7 @@ export function contentText(slot: SlotWithLesson): { main: string; sub: string }
   if (slot.lesson?.sourceRef) {
     const src = slot.studyMaterialSource;
     const main = slot.lessonPart
-      ? `${slot.lesson.sourceRef} - ${partTitle(slot.lessonPart.partNumber, slot.lessonPart.component?.name)}`
+      ? `${slot.lesson.sourceRef} - ${partTitle(slot.lessonPart.partNumber, slot.lessonPart.partTypeLabel)}`
       : slot.lesson.sourceRef;
     return { main, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
   }
