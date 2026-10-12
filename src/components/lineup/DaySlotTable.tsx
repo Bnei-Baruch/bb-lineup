@@ -248,8 +248,8 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
               <TableLink href={link.url} label={link.name || "קישור"} />
             </div>
           ))}
-          {slot.lesson?.transcriptionLink && <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />}
-          {(slot.recordedLessonLink || slot.lesson?.kmPageLink) && (
+          {LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson?.transcriptionLink && <TableLink href={slot.lesson.transcriptionLink} label="תמליל" />}
+          {(slot.recordedLessonLink || (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson?.kmPageLink)) && (
             <TableLink href={slot.recordedLessonLink ?? slot.lesson?.kmPageLink ?? ""} label="וידאו" />
           )}
         </div>
