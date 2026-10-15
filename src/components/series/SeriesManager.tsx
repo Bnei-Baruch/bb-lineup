@@ -283,7 +283,6 @@ function SeriesForm({
 function CollectionImport({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [url, setUrl] = useState("");
   const [color, setColor] = useState("");
-  const [skipTranscription, setSkipTranscription] = useState(false);
   const [originalLanguage, setOriginalLanguage] = useState("he");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ imported: number; total: number; name: string } | null>(null);
@@ -298,7 +297,7 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
       const res = await fetch("/api/series/from-collection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), color: color || null, skipTranscription, originalLanguage }),
+        body: JSON.stringify({ url: url.trim(), color: color || null, originalLanguage }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -351,10 +350,6 @@ function CollectionImport({ open, onClose }: { open: boolean; onClose: () => voi
               איזה קובץ שפה לחפש עבור וידאו/משך/קריין/תמלול — סדרות שמקורן אינו עברית לרוב אין להן דיבוב עברי.
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={skipTranscription} onChange={(e) => setSkipTranscription(e.target.checked)} />
-            לא לייבא קישור תמלול מקבלה מדיה
-          </label>
           {error && <p className="text-sm text-destructive">{error}</p>}
           {result && (
             <div className="rounded-md bg-green-500/10 border border-green-500/30 p-3 text-sm space-y-1">

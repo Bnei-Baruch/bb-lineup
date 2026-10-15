@@ -8,7 +8,6 @@ import {
   extractNarrator,
   extractSourceLink,
   lookupSourceById,
-  findDocxFileId,
 } from "@/lib/km-client";
 
 const KM_BASE = "https://kabbalahmedia.info";
@@ -287,7 +286,6 @@ export async function POST(req: NextRequest) {
         const files = unit.files ?? [];
         const source = extractSourceLink(unit.sources);
         const sourceResult = source ? await lookupSourceById(source.id) : null;
-        const hasDocx = findDocxFileId(files) !== null;
         return {
           p,
           sourceRef: unit.name ?? p.lessonTitle,
@@ -297,8 +295,7 @@ export async function POST(req: NextRequest) {
           articleSourceId: source?.id ?? null,
           articleSourceLink: source?.url ?? null,
           articleSourceRef: sourceResult?.title ?? null,
-          transcriptionLink: p.sheetTranscription
-            ?? (hasDocx ? `${KM_BASE}/he/lessons/cu/${p.kmUid}?activeTab=transcription` : null),
+          transcriptionLink: p.sheetTranscription ?? null,
           filmDate: unit.film_date ?? null,
           error: null,
         };
