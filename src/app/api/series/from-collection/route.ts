@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { parseCollectionUid, fetchCollection, fetchContentUnit, extractVideoLink, extractNarrator, extractSourceLink, lookupSourceById, findDocxFileId, resolveVideoDurationSec } from "@/lib/km-client";
+import { parseCollectionUid, fetchCollection, fetchContentUnit, extractVideoLink, extractNarrator, extractSourceLink, lookupSourceById, resolveVideoDurationSec } from "@/lib/km-client";
 
 const KM_BASE = "https://kabbalahmedia.info";
 
 export async function POST(req: NextRequest) {
-  const { url, color, sortOrder, skipTranscription, originalLanguage } = await req.json();
+  const { url, color, sortOrder, originalLanguage } = await req.json();
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
   // Which language's files to look for (video, narrator, duration, docx) — a series whose
   // original language isn't Hebrew (e.g. Russian) often has no Hebrew dub at all, so searching
@@ -55,7 +55,6 @@ export async function POST(req: NextRequest) {
         const durationSec = await resolveVideoDurationSec(files, lang);
         const source = extractSourceLink(full.sources);
         const sourceResult = source ? await lookupSourceById(source.id) : null;
-        const hasDocx = !skipTranscription && findDocxFileId(files, lang) !== null;
         return {
           unit,
           videoDurationSec: durationSec,
@@ -64,7 +63,6 @@ export async function POST(req: NextRequest) {
           articleSourceId: source?.id ?? null,
           articleSourceLink: source?.url ?? null,
           articleSourceRef: sourceResult?.title ?? null,
-          transcriptionLink: hasDocx ? `https://kabbalahmedia.info/he/lessons/cu/${unit.id}?activeTab=transcription` : null,
         };
       } catch {
         return {
@@ -75,14 +73,13 @@ export async function POST(req: NextRequest) {
           articleSourceId: null,
           articleSourceLink: null,
           articleSourceRef: null,
-          transcriptionLink: null,
         };
       }
     })
   );
 
   await prisma.lesson.createMany({
-    data: results.map(({ unit, videoDurationSec, videoLink, narratorName, articleSourceId, articleSourceRef, articleSourceLink, transcriptionLink }) => {
+    data: results.map(({ unit, videoDurationSec, videoLink, narratorName, articleSourceId, articleSourceRef, articleSourceLink }) => {
       const parsedOrder = unit.name_in_collection != null ? parseInt(unit.name_in_collection, 10) : NaN;
       return {
         kmUid: unit.id,
@@ -96,7 +93,6 @@ export async function POST(req: NextRequest) {
         articleSourceId,
         articleSourceRef,
         articleSourceLink,
-        transcriptionLink,
         seriesId: series.id,
         approvalStatus: "pending",
       };

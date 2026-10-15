@@ -123,7 +123,6 @@ export function LessonForm({ lesson, seriesList = [] }: LessonFormProps) {
         articleSourceId: sourceId ?? f.articleSourceId,
         articleSourceLink: data.articleSourceLink ?? f.articleSourceLink,
         articleSourceRef: data.articleSourceRef ?? f.articleSourceRef,
-        transcriptionLink: data.transcriptionLink ?? f.transcriptionLink,
         bookSeries: bookSeries ?? f.bookSeries,
         bookVolume: bookVolume != null ? String(bookVolume) : f.bookVolume,
         bookPage: bookPage != null ? String(bookPage) : f.bookPage,

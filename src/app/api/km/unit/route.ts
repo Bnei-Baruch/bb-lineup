@@ -5,7 +5,6 @@ import {
   extractNarrator,
   extractSourceLink,
   lookupSourceById,
-  findDocxFileId,
   extractVideoLink,
   resolveVideoDurationSec,
 } from "@/lib/km-client";
@@ -28,10 +27,6 @@ export async function GET(req: NextRequest) {
 
     const source = extractSourceLink(unit.sources);
     const sourceResult = source ? await lookupSourceById(source.id) : null;
-    const hasDocx = findDocxFileId(files, lang) !== null;
-    const transcriptionLink = hasDocx
-      ? `https://kabbalahmedia.info/he/lessons/cu/${unit.id}?activeTab=transcription`
-      : null;
     return NextResponse.json({
       kmUid: unit.id,
       sourceRef: unit.name ?? null,
@@ -42,7 +37,6 @@ export async function GET(req: NextRequest) {
       articleSourceId: source?.id ?? null,
       articleSourceLink: source?.url ?? null,
       articleSourceRef: sourceResult?.title ?? null,
-      transcriptionLink,
     });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 502 });
