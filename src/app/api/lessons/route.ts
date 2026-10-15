@@ -112,6 +112,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   // Strip fields that belong to ArticleSource, not Lesson
+  const articleBookVolume: number | null = body.articleBookVolume ?? null;
+  const articleBookPage: number | null = body.articleBookPage ?? null;
   delete body.articleBookVolume;
   delete body.articleBookPage;
   // Parts are a nested relation, not a plain Lesson column
@@ -129,6 +131,24 @@ export async function POST(req: NextRequest) {
           body.articleReadingMin = Math.round(reading.durationSec / 60);
         }
       }
+    }
+    // articleSourceId may be a fresh id from KM (autofill / source search) that this app has
+    // never cached locally yet — ensure the ArticleSource row exists before the FK reference
+    // is written, same as the PUT handler already does for an existing lesson.
+    if (body.articleSourceId) {
+      await prisma.articleSource.upsert({
+        where: { id: body.articleSourceId },
+        create: {
+          id: body.articleSourceId,
+          ref: body.articleSourceRef ?? "",
+          link: body.articleSourceLink ?? null,
+          wordCount: body.articleWordCount ?? null,
+          readingSec: body.articleReadingSec ?? null,
+          bookVolume: articleBookVolume,
+          bookPage: articleBookPage,
+        },
+        update: {},
+      });
     }
     const lesson = await prisma.lesson.create({
       data: {
