@@ -54,11 +54,13 @@ export function parseKmUid(url: string): string | null {
   return fallback ? fallback[1] : null;
 }
 
-/** Fetch a content unit with files and sources from kmedia backend */
-export async function fetchContentUnit(uid: string): Promise<KmContentUnit> {
+/** Fetch a content unit with files and sources from kmedia backend. Cached for an hour by
+ *  default (bulk imports fetch many units and shouldn't hammer their API) — pass `noCache` for
+ *  a single-lesson lookup an editor is actively iterating on, where fresh data matters more. */
+export async function fetchContentUnit(uid: string, opts: { noCache?: boolean } = {}): Promise<KmContentUnit> {
   const res = await fetch(
     `${KM_BASE}/backend/content_units/${uid}?with_files=true&with_sources=true&ui_language=he&content_languages=he`,
-    { next: { revalidate: 3600 } }
+    opts.noCache ? { cache: "no-store" } : { next: { revalidate: 3600 } }
   );
   if (!res.ok) throw new Error(`kmedia content_units error: ${res.status}`);
   return res.json();

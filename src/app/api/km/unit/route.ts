@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   if (!uid) return NextResponse.json({ error: "Could not parse UID from URL" }, { status: 400 });
 
   try {
-    const unit = await fetchContentUnit(uid);
+    const unit = await fetchContentUnit(uid, { noCache: true });
     const files = unit.files ?? [];
 
     const durationSec = await resolveVideoDurationSec(files, lang);
