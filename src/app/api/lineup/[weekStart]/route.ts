@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { parseWeekParam, toWeekStart } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { withSourceFallback } from "@/lib/slot-source-fallback";
 
 function getWhere(weekStart: string) {
   return { weekStart: toWeekStart(parseWeekParam(weekStart)) };
@@ -28,7 +29,7 @@ export async function GET(
   });
 
   if (!lineup) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(lineup);
+  return NextResponse.json({ ...lineup, days: await withSourceFallback(lineup.days) });
 }
 
 export async function PUT(
