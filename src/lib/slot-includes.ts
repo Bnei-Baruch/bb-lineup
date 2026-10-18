@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { fetchTemplates, templateLabel } from "@/lib/kli-client";
 
 /** Supplement slot results with lesson startTimecode/endTimecode via raw SQL.
  *  Needed because the Prisma client may not yet include these columns after a schema change. */
@@ -23,6 +24,16 @@ export async function withLessonTimecodes<T extends { lesson: { id: string; star
   } catch {
     return slots;
   }
+}
+
+/** Resolve slot.partType (a study.kli.one template id) to its Hebrew label —
+ *  mirrors withLessonTimecodes's shape, called at the same sites. */
+export async function withPartTypeLabels<T extends { partType?: string | null }>(
+  slots: T[]
+): Promise<T[]> {
+  if (!slots.some((s) => s.partType)) return slots;
+  const templates = await fetchTemplates();
+  return slots.map((s) => ({ ...s, partTypeLabel: templateLabel(templates, s.partType) }));
 }
 
 /** Shared Prisma include/select for slots with lessons — used across API routes */

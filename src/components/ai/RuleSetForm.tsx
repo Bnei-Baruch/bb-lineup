@@ -201,13 +201,14 @@ interface SortableRowProps {
   item: EditableItem;
   series: SeriesOption[];
   components: Props["components"];
+  templateOptions: { id: string; label: string }[];
   daysOfWeek: number[];
   onUpdate: (patch: Partial<TemplateItemV2>) => void;
   onCategoryChange: (cat: Category) => void;
   onRemove: () => void;
 }
 
-function SortableRow({ item, series, components, daysOfWeek, onUpdate, onCategoryChange, onRemove }: SortableRowProps) {
+function SortableRow({ item, series, components, templateOptions, daysOfWeek, onUpdate, onCategoryChange, onRemove }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const cat = categoryOf(item);
@@ -257,6 +258,16 @@ function SortableRow({ item, series, components, daysOfWeek, onUpdate, onCategor
               placeholder="תווית (אופציונלי)"
               className="flex-1 text-xs border border-input rounded px-2 py-0.5 bg-background min-w-0"
             />
+            <select
+              value={item.partType ?? ""}
+              onChange={(e) => onUpdate({ partType: e.target.value || undefined })}
+              className="text-xs border border-input rounded px-2 py-0.5 bg-background shrink-0"
+            >
+              <option value="">סוג — ללא</option>
+              {templateOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
             <DurationField valueSec={item.durationSec} onCommit={(sec) => onUpdate({ durationSec: sec })} />
           </>
         )}
@@ -364,6 +375,16 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
   const [template, setTemplate] = useState<EditableItem[]>(initSlots);
   const [contentStartIndex, setContentStartIndex] = useState(initStart);
   const [contentCutoffIndex, setContentCutoffIndex] = useState<number | null>(initCutoff);
+  const [templateOptions, setTemplateOptions] = useState<{ id: string; label: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/kli/templates")
+      .then((r) => (r.ok ? r.json() : { templates: [] }))
+      .then((data: { templates: { id: string; translations: Record<string, string> }[] }) => {
+        setTemplateOptions((data.templates ?? []).map((t) => ({ id: t.id, label: t.translations.he ?? t.id })));
+      })
+      .catch(() => {});
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -475,6 +496,7 @@ export function RuleSetForm({ open, ruleSet, series, components, onSave, onClose
             item={item}
             series={series}
             components={components}
+            templateOptions={templateOptions}
             daysOfWeek={daysOfWeek}
             onUpdate={(patch) => updateTemplateSlot(item.id, patch)}
             onCategoryChange={(cat) => changeTemplateSlotCategory(item.id, cat)}

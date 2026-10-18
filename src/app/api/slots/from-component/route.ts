@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { slotWithLessonInclude, withLessonTimecodes } from "@/lib/slot-includes";
+import { slotWithLessonInclude, withLessonTimecodes, withPartTypeLabels } from "@/lib/slot-includes";
 
 export async function POST(req: NextRequest) {
   const { componentId, dayId } = await req.json();
@@ -52,6 +52,6 @@ export async function POST(req: NextRequest) {
     include: slotWithLessonInclude,
   });
 
-  const [enriched] = await withLessonTimecodes(prisma, [slot]);
+  const [enriched] = await withPartTypeLabels(await withLessonTimecodes(prisma, [slot]));
   return NextResponse.json(enriched, { status: 201 });
 }

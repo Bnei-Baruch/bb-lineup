@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 import { parseCustomLinks } from "@/lib/custom-links";
+import { partTitle } from "@/lib/part-title";
 
 function slotDuration(slot: SlotWithLesson): number {
   if (LESSON_SLOT_TYPES.includes(slot.slotType) && slot.lesson) {
@@ -45,7 +46,7 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
 
   const colorClass = SLOT_TYPE_COLORS[slot.slotType as SlotType] ?? "border-gray-400 bg-gray-50";
   const typeLabel = SLOT_TYPE_LABELS[slot.slotType as SlotType] || slot.slotType;
-  const label = slot.label || slot.component?.name || typeLabel;
+  const label = slot.partTypeLabel || slot.label || slot.component?.name || typeLabel;
   const showTypeLabel = slot.slotType === "article_reading" || label !== typeLabel;
   const dur = slotDuration(slot);
 
@@ -63,7 +64,7 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
           </button>
         )}
         <span className="text-xs font-bold flex-1">
-          חלק {slot.partNumber ?? "—"} / Part {slot.partNumber ?? "—"}
+          {slot.partTypeLabel ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel) : `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`}
         </span>
         {clockTime && <span className="text-xs tabular-nums text-muted-foreground">{clockTime}</span>}
         {!readOnly && (
@@ -135,8 +136,7 @@ export function SlotCard({ slot, clockTime, isActive, readOnly, onEdit, onDelete
               <>
                 {slot.lesson.sourceRef && (
                   <p className="font-medium text-foreground/80">
-                    {slot.lesson.sourceRef}
-                    {slot.lessonPart && ` - חלק ${slot.lessonPart.partNumber}`}
+                    {slot.lesson.sourceRef}{slot.lessonPart && ` - ${partTitle(slot.lessonPart.partNumber, null)}`}
                   </p>
                 )}
                 {slot.lesson.articleSourceRef && <p className="text-blue-600">{slot.lesson.articleSourceRef}</p>}

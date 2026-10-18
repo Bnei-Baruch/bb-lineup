@@ -4,6 +4,13 @@ import { todayInIsrael, weekStartParam, parseWeekParam } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
+const GRACE_MINUTES = 15;
+
+function hhmmToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
 function currentIsraelTimeHHMM(): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Jerusalem", hour: "2-digit", minute: "2-digit", hour12: false,
@@ -14,7 +21,7 @@ function currentIsraelTimeHHMM(): string {
 }
 
 /** The sessionIndex of the first session today that hasn't finished yet (no
- *  broadcastEndTime, or one still ahead of now) — or null once every session
+ *  broadcastEndTime, or one less than 15 minutes in the past) — or null once every session
  *  today has ended, or none were ever scheduled. */
 async function findUnfinishedSessionToday(date: Date, dayOfWeek: number): Promise<number | null> {
   const lineup = await prisma.lineup.findUnique({
@@ -28,8 +35,10 @@ async function findUnfinishedSessionToday(date: Date, dayOfWeek: number): Promis
     },
   });
   if (!lineup || lineup.days.length === 0) return null;
-  const now = currentIsraelTimeHHMM();
-  const next = lineup.days.find((d) => !d.broadcastEndTime || d.broadcastEndTime >= now);
+  const now = hhmmToMinutes(currentIsraelTimeHHMM());
+  const next = lineup.days.find(
+    (d) => !d.broadcastEndTime || hhmmToMinutes(d.broadcastEndTime) + GRACE_MINUTES >= now,
+  );
   return next ? next.sessionIndex : null;
 }
 

@@ -35,6 +35,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
   const [savingComponent, setSavingComponent] = useState(false);
   const [componentSaved, setComponentSaved] = useState<string | null>(null);
   const [fetchingLikutim, setFetchingLikutim] = useState(false);
+  const [templateOptions, setTemplateOptions] = useState<{ id: string; label: string }[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -42,6 +43,15 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       setLesson(slot.lesson ?? null);
     }
   }, [open, slot]);
+
+  useEffect(() => {
+    fetch("/api/kli/templates")
+      .then((r) => (r.ok ? r.json() : { templates: [] }))
+      .then((data: { templates: { id: string; translations: Record<string, string> }[] }) => {
+        setTemplateOptions((data.templates ?? []).map((t) => ({ id: t.id, label: t.translations.he ?? t.id })));
+      })
+      .catch(() => {});
+  }, []);
 
   function initForm(s: Partial<SlotWithLesson>) {
     return {
@@ -76,6 +86,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
       lessonPartId: s.lessonPartId ?? null,
       transcriptionLink: s.lesson?.transcriptionLink ?? "",
       parentSlotId: s.parentSlotId ?? "",
+      partType: s.partType ?? "",
     };
   }
 
@@ -149,6 +160,7 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
         holidayTag: form.holidayTag || null,
         partNumber: form.partNumber ? parseInt(form.partNumber) : null,
         parentSlotId: form.parentSlotId || null,
+        partType: form.partType || null,
       };
       await onSave(data as Partial<SlotWithLesson>);
       // Persist transcription link back to the lesson if it changed
@@ -230,6 +242,20 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
             {/* Label override */}
             <Field label="כותרת מותאמת">
               <Input value={form.label} onChange={(e) => set("label", e.target.value)} placeholder={typeLabel} />
+            </Field>
+
+            {/* Type — a study.kli.one template id; its label is this slot's title when syncing to study-materials */}
+            <Field label="סוג">
+              <select
+                value={form.partType}
+                onChange={(e) => set("partType", e.target.value)}
+                className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">סוג — ללא</option>
+                {templateOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
             </Field>
 
             {/* Part number */}

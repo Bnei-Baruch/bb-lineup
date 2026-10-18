@@ -365,7 +365,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           transitionType: item.transitionType ?? null, mediaCode: item.mediaCode ?? null,
           language: item.language ?? null, hasSubtitles: item.hasSubtitles ?? false,
           hasWorkshopQuestions: item.hasWorkshopQuestions ?? false, notes: item.notes ?? null, sortOrder,
-          parentSlotId: nested ? prevTopLevelSlotId : null,
+          parentSlotId: nested ? prevTopLevelSlotId : null, partType: item.partType ?? null,
         },
       });
       noteTopLevel(slot.id, slot.slotType, nested);

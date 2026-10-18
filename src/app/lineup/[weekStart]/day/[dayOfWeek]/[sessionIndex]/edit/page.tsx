@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { fetchTemplates, templateLabel } from "@/lib/kli-client";
 import { Prisma } from "@prisma/client";
 import { DayEditor } from "@/components/lineup/DayEditor";
 import { SessionLabelInput } from "@/components/lineup/SessionLabelInput";
@@ -55,7 +56,7 @@ export default async function DayEditPage({
     );
   }
 
-  const [dayData, components, series, unseriedLessons] = await Promise.all([
+  const [dayData, components, series, unseriedLessons, templates] = await Promise.all([
     prisma.lineupDay.findUnique({
       where: { id: dayId },
       include: {
@@ -114,6 +115,7 @@ export default async function DayEditPage({
         },
       },
     }),
+    fetchTemplates(),
   ]);
 
   if (!dayData) {
@@ -198,6 +200,7 @@ export default async function DayEditPage({
         lesson: s.lesson
           ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null, ...sessionLessonTcMap.get(s.lesson.id) }
           : null,
+        partTypeLabel: templateLabel(templates, s.partType),
       };
     }),
   }));

@@ -300,6 +300,12 @@ model LineupSlot {
   holidayTag          String?
   notes               String?
 
+  // Type — a study.kli.one template id (e.g. "tes", "rav-on-rabash"). Its resolved label
+  // (via src/lib/kli-client.ts) is this slot's title — study-materials auto-populates a
+  // part's title the same way when a template is chosen (confirmed against prod stmat.kli.one).
+  // One LineupDay/session maps to one study-materials "event"; its slots map to that event's parts.
+  partType            String?
+
   // Actual broadcast data recorded by Companion
   actualBroadcastAt   String?  // ISO-8601: set when Companion confirms this slot started
   actualDurationSec   Int?     // real played duration in seconds from Companion

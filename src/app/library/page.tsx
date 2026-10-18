@@ -64,7 +64,10 @@ export default async function LibraryPage() {
   ]);
 
   const timecodeMap = new Map(timecodeRows.map((r) => [r.id, { startTimecode: r.startTimecode, endTimecode: r.endTimecode }]));
-  const lessonsWithTimecodes = lessons.map((l) => ({ ...l, ...timecodeMap.get(l.id) }));
+  const lessonsWithTimecodes = lessons.map((l) => ({
+    ...l,
+    ...timecodeMap.get(l.id),
+  }));
 
   return (
     <RequireAdmin>

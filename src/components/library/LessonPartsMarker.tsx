@@ -214,7 +214,7 @@ export function LessonPartsMarker({ videoLink, durationSec, transcriptionLink, p
           <div key={i} className="border border-border rounded-md p-2 bg-muted/20 space-y-1.5">
             <div className="flex flex-wrap items-end gap-2">
               <div className={`w-2 self-stretch rounded-sm ${SEGMENT_COLORS[i % SEGMENT_COLORS.length]}`} />
-              <span className="text-xs font-medium w-14 shrink-0">חלק {p.partNumber}</span>
+              <span className="text-xs font-medium shrink-0">חלק {p.partNumber}</span>
 
               {videoLink && (
                 <Button type="button" variant="ghost" size="icon" title="נגן מכאן" onClick={() => seekTo(timecodeToSeconds(p.startTimecode || "0"))}>

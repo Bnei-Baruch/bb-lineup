@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const links = [
   { href: () => `/lineup/${currentWeekParam()}`, label: "לוח שבועי" },
+  { href: () => "/today", label: "היום" },
   { href: () => "/library", label: "ספרייה" },
   { href: () => "/components-page", label: "רכיבים" },
   { href: () => "/settings/lineup-rules", label: "תבניות AI" },
@@ -24,7 +25,7 @@ export function AppNav() {
   if (BROADCAST_VIEW.test(pathname)) return null;
 
   const isLineupsListActive = pathname === "/lineup";
-  const visibleLinks = isAdmin ? links : links.filter((l) => l.label === "לוח שבועי");
+  const visibleLinks = isAdmin ? links : links.filter((l) => l.label === "לוח שבועי" || l.label === "היום");
 
   return (
     <nav className="border-b border-border bg-card sticky top-0 z-50">

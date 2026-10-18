@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam, DAY_NAMES, EN_DAY_NAMES, formatDate, dayDate, timeOfDayLabel } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { fetchTemplates, templateLabel } from "@/lib/kli-client";
 import { DayView } from "@/components/lineup/DayView";
 import { SessionTabs } from "@/components/lineup/SessionTabs";
 import { AdminOnly } from "@/components/providers/AdminOnly";
@@ -112,6 +113,8 @@ export default async function DayViewPage({
     : [];
   const articleSourceMap = Object.fromEntries(articleSources.map((s) => [s.id, { bookVolume: s.bookVolume, bookPage: s.bookPage }]));
 
+  const templates = await fetchTemplates();
+
   let contentStartIndex: number | null = null;
   let contentCutoffIndex: number | null = null;
   let broadcastEndTime: string | null = null;
@@ -164,6 +167,7 @@ export default async function DayViewPage({
         lesson: s.lesson
           ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null }
           : null,
+        partTypeLabel: templateLabel(templates, s.partType),
       };
     }),
   }));

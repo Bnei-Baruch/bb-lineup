@@ -156,7 +156,9 @@ export function SeriesLessonPalette({ series, onAdd }: SeriesLessonPaletteProps)
                               >
                                 <Plus className="h-3 w-3 shrink-0 mt-0.5 text-muted-foreground group-hover:text-foreground" />
                                 <div className="min-w-0 flex-1">
-                                  <div className="truncate leading-tight">חלק {p.partNumber}</div>
+                                  <div className="truncate leading-tight flex items-center gap-1.5">
+                                    <span>חלק {p.partNumber}</span>
+                                  </div>
                                   <div className="text-muted-foreground flex gap-1.5 mt-0.5">
                                     {p.broadcastDate && <span>{p.broadcastDate.slice(0, 10)}</span>}
                                     {cutSec != null && cutSec > 0 && <span>{formatDurationSec(cutSec)}</span>}

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam, DAY_NAMES, formatDate, dayDate, timeOfDayLabel } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { fetchTemplates, templateLabel } from "@/lib/kli-client";
 import { DayView } from "@/components/lineup/DayView";
 import { SessionTabs } from "@/components/lineup/SessionTabs";
 import { AdminOnly } from "@/components/providers/AdminOnly";
@@ -136,6 +137,8 @@ export default async function DayViewPage({
     } catch { /* Series table or playoutCode column not available */ }
   }
 
+  const templates = await fetchTemplates();
+
   const date = dayDate(ws, dow);
   const dayLabel = `ליינאפ שיעור ${timeOfDayLabel(dayData.broadcastStartTime).he} — ${DAY_NAMES[dow]}, ${formatDate(date)}`;
 
@@ -164,6 +167,7 @@ export default async function DayViewPage({
                 : (s.lesson.series ?? null),
             }
           : null,
+        partTypeLabel: templateLabel(templates, s.partType),
       };
     }),
   }));

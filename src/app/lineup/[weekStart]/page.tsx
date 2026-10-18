@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toWeekStart, parseWeekParam } from "@/lib/dates";
 import { slotWithLessonInclude } from "@/lib/slot-includes";
+import { fetchTemplates, templateLabel } from "@/lib/kli-client";
 import { Prisma } from "@prisma/client";
 import { WeekGrid } from "@/components/lineup/WeekGrid";
 import { WeekPicker } from "@/components/lineup/WeekPicker";
@@ -99,6 +100,8 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
     } catch { /* ignore — columns not yet present */ }
   }
 
+  const templates = await fetchTemplates();
+
   const data: LineupWithDays = JSON.parse(JSON.stringify({
     ...lineup,
     weekStart: lineup.weekStart.toISOString().slice(0, 10),
@@ -117,6 +120,7 @@ export default async function WeekPage({ params }: { params: Promise<{ weekStart
           lesson: s.lesson
             ? { ...s.lesson, recordingDate: s.lesson.recordingDate?.toISOString().slice(0, 10) ?? null, ...lessonTimecodeMap.get(s.lesson.id) }
             : null,
+          partTypeLabel: templateLabel(templates, s.partType),
         };
       }),
     })),

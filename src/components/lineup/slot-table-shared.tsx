@@ -1,6 +1,7 @@
 import { useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { SlotWithLesson, SLOT_TYPE_LABELS, TRANSITION_LABELS, SlotType, TransitionType, LESSON_SLOT_TYPES } from "@/types";
+import { partTitle } from "@/lib/part-title";
 
 export const COLS = [
   { key: "time",     label: "שעות",       en: "Time",       cls: "sticky end-0 z-10", minWidth: 96,  sep: false },
@@ -171,8 +172,13 @@ const NARRATOR_SLOT_TYPES: SlotType[] = ["narrator_announcement", "narrator_read
 
 export function itemLabel(slot: SlotWithLesson): string {
   if (slot.slotType === "part_header") {
-    return `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
+    return slot.partTypeLabel
+      ? partTitle(slot.partNumber ?? 0, slot.partTypeLabel)
+      : `חלק ${slot.partNumber ?? "—"} / Part ${slot.partNumber ?? "—"}`;
   }
+  // A chosen study.kli.one type is more specific than the generic slot-type label (e.g. "קוראים
+  // בזוהר" vs. generic "שיעור מוקלט") and is what will sync out as this slot's part title.
+  if (slot.partTypeLabel) return slot.partTypeLabel;
   // A lesson pulled from the library already shows its own title/reference in the
   // Content column — keep the Item column a plain type label so it doesn't duplicate it.
   if (LESSON_SLOT_TYPES.includes(slot.slotType as SlotType) && slot.lesson) {
@@ -218,7 +224,9 @@ export function contentText(slot: SlotWithLesson): { main: string; sub: string }
   if (slot.narratorScript) return { main: slot.narratorScript, sub: "" };
   if (slot.lesson?.sourceRef) {
     const src = slot.studyMaterialSource;
-    const main = slot.lessonPart ? `${slot.lesson.sourceRef} - חלק ${slot.lessonPart.partNumber}` : slot.lesson.sourceRef;
+    const main = slot.lessonPart
+      ? `${slot.lesson.sourceRef} - ${partTitle(slot.lessonPart.partNumber, null)}`
+      : slot.lesson.sourceRef;
     return { main, sub: sourceSubline(src?.bookVolume, src?.bookPage) };
   }
   if (slot.mediaCode) return { main: slot.mediaCode, sub: "" };
