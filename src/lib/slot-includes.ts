@@ -55,6 +55,7 @@ export const slotWithLessonInclude = {
       kmPageLink: true,
       videoLink: true,
       articleSourceLink: true,
+      articleSource: { select: { id: true, bookSeries: true, bookVolume: true, bookPage: true } },
       transcriptionLink: true,
       startTimecode: true,
       endTimecode: true,
@@ -81,6 +82,8 @@ export const slotWithLessonInclude = {
   },
   studyMaterialSource: {
     select: {
+      id: true,
+      bookSeries: true,
       bookVolume: true,
       bookPage: true,
       link: true,

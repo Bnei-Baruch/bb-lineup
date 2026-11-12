@@ -192,7 +192,7 @@ export interface SlotWithLesson {
   studyMaterialLink: string | null;
   studyMaterialSourceRef: string | null;
   studyMaterialSourceId: string | null;
-  studyMaterialSource: { bookVolume: number | null; bookPage: number | null; link: string | null } | null;
+  studyMaterialSource: { id?: string; bookSeries?: string | null; bookVolume: number | null; bookPage: number | null; link: string | null } | null;
   mediaCode: string | null;
   lineupLink: string | null;
   slidesLink: string | null;

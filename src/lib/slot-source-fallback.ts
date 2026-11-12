@@ -30,7 +30,7 @@ export async function withSourceFallback<
   const sources = ids.size
     ? await prisma.articleSource.findMany({
         where: { id: { in: Array.from(ids) } },
-        select: { id: true, ref: true, link: true, bookVolume: true, bookPage: true },
+        select: { id: true, ref: true, link: true, bookSeries: true, bookVolume: true, bookPage: true },
       })
     : [];
   const byId = new Map(sources.map((s) => [s.id, s]));

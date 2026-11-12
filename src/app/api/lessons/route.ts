@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
         kmPageLink: true,
         videoLink: true,
         articleSourceLink: true,
+        articleSource: { select: { id: true, bookSeries: true, bookVolume: true, bookPage: true } },
         transcriptionLink: true,
         transcriptionLinkEn: true,
         transcriptionLinkRu: true,
