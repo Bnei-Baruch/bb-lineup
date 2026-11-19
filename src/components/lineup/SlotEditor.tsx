@@ -403,6 +403,12 @@ export function SlotEditor({ slot, allSlots = [], open, onClose, onSave }: SlotE
                       }}
                     />
                   )}
+                  {!form.studyMaterialSourceRef && form.studyMaterialLink && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <Input value={form.studyMaterialLink} onChange={(e) => set("studyMaterialLink", e.target.value)} dir="ltr" className="text-xs h-7 flex-1" placeholder="https://..." />
+                      <button type="button" className="text-muted-foreground hover:text-foreground shrink-0 text-xs" onClick={() => { set("studyMaterialLink", ""); set("studyMaterialSourceId", ""); }}>✕</button>
+                    </div>
+                  )}
                 </Field>
                 <Field label="מספר מילים">
                   <div className="flex items-center gap-2">
