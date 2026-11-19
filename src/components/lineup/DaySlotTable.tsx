@@ -239,8 +239,8 @@ function SlotRow({ slot, clockTime, endTime, isChild, canNest, altBg, onRowClick
           {slot.slidesLink && (
             <TableLink href={slot.slidesLink} label="שקופיות" />
           )}
-          {(slot.studyMaterialLink || slot.lesson?.articleSourceLink) && (
-            <TableLink href={slot.studyMaterialLink ?? slot.lesson?.articleSourceLink ?? ""} label="מאמר" />
+          {slot.studyMaterialLink && (
+            <TableLink href={slot.studyMaterialLink} label="מאמר" />
           )}
           {slot.likutimLink && <TableLink href={slot.likutimLink} label={slot.likutimName ?? "ליקוטים"} />}
           {parseCustomLinks(slot.customLinks).map((link, i) => (
