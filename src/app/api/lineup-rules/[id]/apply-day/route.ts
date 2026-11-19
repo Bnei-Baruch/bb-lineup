@@ -294,6 +294,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   for (const r of resolved) {
     const item = templateSlots[r.index];
     const nested = isV2(item) ? !!item.nested : false;
+    const partType = isV2(item) ? (item.partType ?? null) : null;
 
     if (r.kind === "legacy" && !isV2(item)) {
       const isPlaceholder = item.type === "lesson" || item.type === "article";
@@ -309,7 +310,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               mediaCode: component.defaultMediaCode, language: component.defaultLanguage,
               hasSubtitles: component.defaultHasSubtitles, hasWorkshopQuestions: component.defaultHasWorkshopQuestions,
               notes: component.defaultNotes, partNumber: component.defaultPartNumber, sortOrder,
-              parentSlotId: nested ? prevTopLevelSlotId : null,
+              parentSlotId: nested ? prevTopLevelSlotId : null, partType,
             },
           });
           noteTopLevel(slot.id, slot.slotType, nested);
@@ -328,7 +329,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           transitionType: item.transitionType ?? null, mediaCode: item.mediaCode ?? null,
           language: item.language ?? null, hasSubtitles: item.hasSubtitles ?? false,
           hasWorkshopQuestions: item.hasWorkshopQuestions ?? false, notes: item.notes ?? null, sortOrder,
-          parentSlotId: nested ? prevTopLevelSlotId : null,
+          parentSlotId: nested ? prevTopLevelSlotId : null, partType,
         },
       });
       noteTopLevel(slot.id, slot.slotType, nested);
@@ -349,7 +350,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               mediaCode: component.defaultMediaCode, language: component.defaultLanguage,
               hasSubtitles: component.defaultHasSubtitles, hasWorkshopQuestions: component.defaultHasWorkshopQuestions,
               notes: component.defaultNotes, partNumber: component.defaultPartNumber, sortOrder,
-              parentSlotId: nested ? prevTopLevelSlotId : null,
+              parentSlotId: nested ? prevTopLevelSlotId : null, partType,
             },
           });
           noteTopLevel(slot.id, slot.slotType, nested);
@@ -365,7 +366,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           transitionType: item.transitionType ?? null, mediaCode: item.mediaCode ?? null,
           language: item.language ?? null, hasSubtitles: item.hasSubtitles ?? false,
           hasWorkshopQuestions: item.hasWorkshopQuestions ?? false, notes: item.notes ?? null, sortOrder,
-          parentSlotId: nested ? prevTopLevelSlotId : null, partType: item.partType ?? null,
+          parentSlotId: nested ? prevTopLevelSlotId : null, partType,
         },
       });
       noteTopLevel(slot.id, slot.slotType, nested);
@@ -378,7 +379,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const slot = await prisma.lineupSlot.create({
         data: {
           dayId, slotType: r.slotType, label: r.label ?? null, durationSec: Math.round(durationSec),
-          lineupLink: r.lineupLink, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+          lineupLink: r.lineupLink, sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null, partType,
         },
       });
       noteTopLevel(slot.id, slot.slotType, nested);
@@ -432,7 +433,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           startTimecode: needsOverride ? secondsToTimecode(resumeFromSec) : null,
           endTimecode: needsOverride ? secondsToTimecode(endSec) : null,
           openingWords: words.openingWords, closingWords: words.closingWords,
-          sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+          sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null, partType,
         },
       });
       noteTopLevel(slot.id, slot.slotType, nested);
@@ -463,7 +464,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             label: lesson.articleSourceRef ?? lesson.sourceRef,
             studyMaterialSourceId: lesson.articleSourceId, studyMaterialLink: lesson.articleSourceLink,
             durationSec: lesson.articleReadingSec, sortOrder,
-            parentSlotId: nested ? prevTopLevelSlotId : null,
+            parentSlotId: nested ? prevTopLevelSlotId : null, partType,
           },
         });
         noteTopLevel(slot.id, slot.slotType, nested);
@@ -480,7 +481,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             startTimecode: range ? secondsToTimecode(range.startSec) : null,
             endTimecode: range ? secondsToTimecode(range.endSec) : null,
             openingWords: words.openingWords, closingWords: words.closingWords,
-            sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+            sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null, partType,
           },
         });
         noteTopLevel(slot.id, slot.slotType, nested);
@@ -506,7 +507,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           startTimecode: range ? secondsToTimecode(range.startSec) : null,
           endTimecode: range ? secondsToTimecode(range.endSec) : null,
           openingWords: words.openingWords, closingWords: words.closingWords,
-          sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null,
+          sortOrder, parentSlotId: nested ? prevTopLevelSlotId : null, partType,
         },
       });
       noteTopLevel(slot.id, slot.slotType, nested);

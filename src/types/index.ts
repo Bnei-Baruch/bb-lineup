@@ -312,6 +312,8 @@ export interface DynamicLessonTemplateItem {
    *  sharing this seriesId, resolved together as one choice. Omitted for a self-contained
    *  item (a continuous-series segment, or a pickable lesson with no article step at all). */
   part?: "article" | "video";
+  /** See FixedTemplateItem.partType. */
+  partType?: string;
   /** See FixedTemplateItem.nested. */
   nested?: boolean;
 }
@@ -322,6 +324,8 @@ export interface DynamicLiveTemplateItem {
   slotType: SlotType;
   plannedDurationSec: number;
   label?: string;
+  /** See FixedTemplateItem.partType. */
+  partType?: string;
   /** A live session's reference doc/link is a fixed-per-weekday constant, not something that
    *  varies week to week — but a single template can be shared across several weekdays (e.g.
    *  "יום שני-חמישי" applies to Monday/Wednesday/Thursday), each needing a different link. Keyed

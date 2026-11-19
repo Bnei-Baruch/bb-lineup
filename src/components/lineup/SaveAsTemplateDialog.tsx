@@ -111,7 +111,8 @@ function slotsToTemplate(slots: SlotWithLesson[], dayOfWeek: number): TemplateIt
 
     // Nested under the nearest preceding non-nested item (mirrors DaySlotTable's isChild/
     // prevTopLevelId convention) - captured here so re-applying the template restores it.
-    return s.parentSlotId ? { ...item, nested: true } : item;
+    const withType = s.partType ? { ...item, partType: s.partType } : item;
+    return s.parentSlotId ? { ...withType, nested: true } : withType;
   });
 }
 
